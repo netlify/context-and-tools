@@ -55,9 +55,7 @@ If not already linked:
    1.a. if it is git based, use `git remote show origin` to find the git remote url like "https://github.com/orgname/reponame"
    1.b. see if the site already exists on their account with `netlify link --git-remote-url REMOTE_URL`
    1.c. if the site is not found then we must create it.
-2. if site is unknown, create a new site
-   2.a if the site is git based, use `netlify init --git-remote-url REMOTE_URL` to create a new site linked to your repo
-   2.b if the site is not git based, use `netlify init`
+2. if site is unknown, create a new site use `netlify init` and let the user walk through the steps
 
 
 ### Dependencies

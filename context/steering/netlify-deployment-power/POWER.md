@@ -1,5 +1,9 @@
 ---
-inclusion: manual
+name: "netlify-deployment"
+displayName: "Netlify Deployment"
+description: "Deploy and manage websites on Netlify using CLI-first workflow with netlify.toml configuration"
+keywords: ["netlify", "deploy", "hosting", "cli", "deployment", "web", "static-site"]
+author: "Netlify"
 ---
 
 Netlify Deployment (CLI-First)

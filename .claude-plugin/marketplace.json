@@ -1,18 +1,18 @@
 {
   "name": "netlify-context-and-tools",
+  "description": "Netlify platform skills for AI coding agents",
   "owner": {
     "name": "Netlify"
-  },
-  "metadata": {
-    "description": "Netlify platform skills for AI coding agents"
   },
   "plugins": [
     {
       "name": "netlify-skills",
-      "source": ".",
       "description": "Netlify platform skills — functions, edge functions, blobs, database, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
-      "keywords": ["netlify", "deployment", "serverless"],
-      "license": "MIT"
+      "version": "1.0.0",
+      "source": {
+        "source": "github",
+        "repo": "netlify/context-and-tools"
+      }
     }
   ]
 }

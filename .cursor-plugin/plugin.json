@@ -1,0 +1,21 @@
+{
+  "name": "netlify-skills",
+  "version": "1.0.0",
+  "description": "Netlify platform skills — functions, edge functions, blobs, database, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
+  "author": {
+    "name": "Netlify"
+  },
+  "homepage": "https://www.netlify.com",
+  "repository": "https://github.com/netlify/context-and-tools",
+  "keywords": [
+    "netlify",
+    "deployment",
+    "serverless",
+    "edge-functions",
+    "cdn",
+    "hosting",
+    "jamstack",
+    "functions"
+  ],
+  "rules": "cursor/rules"
+}

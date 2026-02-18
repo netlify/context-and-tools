@@ -47,7 +47,21 @@ This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.m
 
 ### Cursor
 
-Add Netlify rules to your project:
+Install from the [Cursor plugin marketplace](https://cursor.com/marketplace):
+
+1. Open Cursor Settings (`Cmd+,` / `Ctrl+,`)
+2. Go to **Plugins**
+3. Search for **netlify-skills**
+4. Click **Install**
+
+Or install via the command palette: `Cmd+Shift+P` → **Plugins: Install Plugin** → search **netlify-skills**.
+
+This installs 21 `.mdc` rule files covering all Netlify platform primitives. A router rule (`netlify-skills-router.mdc`) is always active and directs the agent to the right skill for the task.
+
+<details>
+<summary>Manual installation (without the plugin marketplace)</summary>
+
+Copy pre-built rule files directly into your project:
 
 ```bash
 git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
@@ -56,7 +70,9 @@ git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlif
   rm -rf /tmp/netlify-skills
 ```
 
-This copies pre-built `.mdc` rule files into `.cursor/rules/`, where Cursor automatically discovers them. A router rule (`netlify-skills-router.mdc`) is included to help the agent pick the right skill for the task.
+This copies `.mdc` rule files into `.cursor/rules/`, where Cursor automatically discovers them.
+
+</details>
 
 ### Other AI agents
 

@@ -41,6 +41,19 @@ Add the marketplace and install the plugin:
 
 This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
+### Cursor
+
+Add Netlify rules to your project:
+
+```bash
+git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
+  mkdir -p .cursor/rules && \
+  cp /tmp/netlify-skills/cursor/rules/*.mdc .cursor/rules/ && \
+  rm -rf /tmp/netlify-skills
+```
+
+This copies pre-built `.mdc` rule files into `.cursor/rules/`, where Cursor automatically discovers them. A router rule (`netlify-skills-router.mdc`) is included to help the agent pick the right skill for the task.
+
 ### Other AI agents
 
 Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name` and `description`) and markdown body. Feed them into any agent's context as needed.
@@ -57,3 +70,11 @@ Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name`
 Keep skills focused on Netlify platform primitives. Each skill should answer "how does this Netlify feature work?" rather than "how should I structure my project?"
 
 Follow the existing format: YAML frontmatter with `name` and `description`, markdown body, code examples with TypeScript where applicable. Use `references/` subdirectories for content that would push a SKILL.md past 500 lines.
+
+### Cursor rules are generated — do not edit them directly
+
+The `cursor/rules/` directory is auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/` — the workflow rebuilds Cursor rules on every push to `main` that changes `skills/`. To test locally, run:
+
+```bash
+bash scripts/build-cursor-rules.sh
+```

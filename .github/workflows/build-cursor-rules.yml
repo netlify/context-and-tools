@@ -6,6 +6,10 @@ on:
     paths:
       - "skills/**"
       - "scripts/build-cursor-rules.sh"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
 
 permissions:
   contents: write
@@ -15,11 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Build Cursor rules from skills
         run: bash scripts/build-cursor-rules.sh
 
       - name: Commit updated Cursor rules
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

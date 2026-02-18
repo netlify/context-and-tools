@@ -32,18 +32,14 @@ Some skills include `references/` subdirectories with deeper content:
 
 ### Claude Code
 
-Add Netlify skills to your project:
+Add the marketplace and install the plugin:
 
-```bash
-git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
-  mkdir -p .claude/skills && \
-  cp -r /tmp/netlify-skills/skills/* .claude/skills/ && \
-  rm -rf /tmp/netlify-skills
+```
+/plugin marketplace add netlify/context-and-tools
+/plugin install netlify-skills@netlify-context-and-tools
 ```
 
-This copies all skills into `.claude/skills/`, where Claude Code automatically discovers them. The included `CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
-
-To install for all projects (personal scope), copy to `~/.claude/skills/` instead.
+This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
 ### Other AI agents
 

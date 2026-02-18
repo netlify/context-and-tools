@@ -1,0 +1,39 @@
+name: Build Cursor rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Build Cursor rules from skills
+        run: bash scripts/build-cursor-rules.sh
+
+      - name: Commit updated Cursor rules
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cursor/rules/
+          if git diff --cached --quiet; then
+            echo "No changes to Cursor rules"
+          else
+            git commit -m "chore: Rebuild Cursor rules from skills [skip ci]"
+            git push
+          fi

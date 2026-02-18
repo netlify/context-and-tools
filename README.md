@@ -32,19 +32,31 @@ Some skills include `references/` subdirectories with deeper content:
 - [Deployment patterns](skills/netlify-deploy/references/deployment-patterns.md)
 - [netlify.toml guide](skills/netlify-deploy/references/netlify-toml.md)
 
-## Usage
+## Installation
 
 ### Claude Code
 
-Add this repo as a skill source in your project's `CLAUDE.md`:
+Add the marketplace and install the plugin:
 
 ```
-Read skills from https://github.com/netlify/context-and-tools/tree/main/skills
+/plugin marketplace add netlify/context-and-tools
+/plugin install netlify-skills@netlify-context-and-tools
 ```
 
-Or clone the repo and reference the skills directory locally.
+This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
-The `skills/CLAUDE.md` file acts as a router — it tells agents which skill to read based on what they're trying to do.
+### Cursor
+
+Add Netlify rules to your project:
+
+```bash
+git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
+  mkdir -p .cursor/rules && \
+  cp /tmp/netlify-skills/cursor/rules/*.mdc .cursor/rules/ && \
+  rm -rf /tmp/netlify-skills
+```
+
+This copies pre-built `.mdc` rule files into `.cursor/rules/`, where Cursor automatically discovers them. A router rule (`netlify-skills-router.mdc`) is included to help the agent pick the right skill for the task.
 
 ### Other AI agents
 
@@ -62,3 +74,11 @@ Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name`
 Keep skills focused on Netlify platform primitives. Each skill should answer "how does this Netlify feature work?" rather than "how should I structure my project?"
 
 Follow the existing format: YAML frontmatter with `name` and `description`, markdown body, code examples with TypeScript where applicable. Use `references/` subdirectories for content that would push a SKILL.md past 500 lines.
+
+### Cursor rules are generated — do not edit them directly
+
+The `cursor/rules/` directory is auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/` — the workflow rebuilds Cursor rules on every push to `main` that changes `skills/`. To test locally, run:
+
+```bash
+bash scripts/build-cursor-rules.sh
+```

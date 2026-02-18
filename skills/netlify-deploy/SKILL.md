@@ -20,6 +20,8 @@ This skill automates Netlify deployments by:
 - **Netlify CLI**: Installed via npx (no global install required)
 - **Authentication**: Netlify account with active login session
 - **Project**: Valid web project in current directory
+- **Network access**: Deployment requires outbound network calls. If sandboxing blocks these, the agent may need to request elevated permissions or prompt the user.
+- **Timeouts**: Deployments can take a few minutes. Use appropriate timeout values for CLI commands.
 
 ## Authentication Pattern
 

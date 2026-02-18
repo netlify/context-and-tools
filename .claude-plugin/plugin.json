@@ -1,0 +1,9 @@
+{
+  "name": "netlify-skills",
+  "version": "1.0.0",
+  "description": "Netlify platform skills for Claude Code",
+  "author": {
+    "name": "Netlify"
+  },
+  "repository": "https://github.com/netlify/context-and-tools"
+}

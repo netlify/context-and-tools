@@ -37,6 +37,9 @@ Read `netlify-caching/SKILL.md` for cache headers, stale-while-revalidate, cache
 **Adding AI capabilities?**
 Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup with OpenAI, Anthropic, or Google SDKs.
 
+**Deploying a site to Netlify?**
+Read `netlify-deploy/SKILL.md` for the full deployment workflow — authentication, site linking, preview and production deploys.
+
 ## General Rules
 
 - Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)

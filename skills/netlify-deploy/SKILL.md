@@ -20,8 +20,6 @@ This skill automates Netlify deployments by:
 - **Netlify CLI**: Installed via npx (no global install required)
 - **Authentication**: Netlify account with active login session
 - **Project**: Valid web project in current directory
-- When sandboxing blocks the deployment network calls, rerun with `sandbox_permissions=require_escalated`.
-- The deployment might take a few minutes. Use appropriate timeout values.
 
 ## Authentication Pattern
 
@@ -208,18 +206,6 @@ Common issues and solutions:
 → Verify build command ran successfully
 → Check publish directory path is correct
 
-## Troubleshooting
-
-### Escalated Network Access
-
-If deployment fails due to network issues (timeouts, DNS errors, connection resets), rerun the deploy with escalated permissions (use `sandbox_permissions=require_escalated`). The deploy requires escalated network access when sandbox networking blocks outbound requests.
-
-Example guidance to the user:
-
-```
-The deploy needs escalated network access to deploy to Netlify. I can rerun the command with escalated permissions—want me to proceed?
-```
-
 ## Environment Variables
 
 For secrets and configuration:
@@ -240,7 +226,7 @@ For secrets and configuration:
 - Netlify CLI Docs: https://docs.netlify.com/cli/get-started/
 - netlify.toml Reference: https://docs.netlify.com/configure-builds/file-based-configuration/
 
-## Bundled References (Load As Needed)
+## References
 
 - [CLI commands](references/cli-commands.md)
 - [Deployment patterns](references/deployment-patterns.md)

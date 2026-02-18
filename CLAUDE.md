@@ -5,10 +5,11 @@ This repository contains public Netlify skills — factual platform reference fo
 ## Repository Structure
 
 - `context/` — Steering guides (e.g., POWER.md for Kiro deployments)
+- `.claude-plugin/` — Plugin marketplace config for Claude Code installation
 - `skills/` — Netlify platform skills (source of truth for all agent formats)
 - `cursor/rules/` — Auto-generated Cursor `.mdc` rule files (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
-- `.github/workflows/build-cursor-rules.yml` — Runs the build on push to main
+- `.github/workflows/build-cursor-rules.yml` — Runs the build on push to main and PRs
 
 ## Skills
 

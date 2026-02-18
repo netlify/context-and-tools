@@ -28,19 +28,22 @@ Some skills include `references/` subdirectories with deeper content:
 - [TanStack Start on Netlify](skills/netlify-frameworks/references/tanstack.md)
 - [Next.js on Netlify](skills/netlify-frameworks/references/nextjs.md)
 
-## Usage
+## Installation
 
 ### Claude Code
 
-Add this repo as a skill source in your project's `CLAUDE.md`:
+Add Netlify skills to your project:
 
+```bash
+git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
+  mkdir -p .claude/skills && \
+  cp -r /tmp/netlify-skills/skills/* .claude/skills/ && \
+  rm -rf /tmp/netlify-skills
 ```
-Read skills from https://github.com/netlify/context-and-tools/tree/main/skills
-```
 
-Or clone the repo and reference the skills directory locally.
+This copies all skills into `.claude/skills/`, where Claude Code automatically discovers them. The included `CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
-The `skills/CLAUDE.md` file acts as a router — it tells agents which skill to read based on what they're trying to do.
+To install for all projects (personal scope), copy to `~/.claude/skills/` instead.
 
 ### Other AI agents
 

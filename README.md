@@ -74,6 +74,18 @@ This copies `.mdc` rule files into `.cursor/rules/`, where Cursor automatically 
 
 </details>
 
+### Codex
+
+Copy the pre-built `codex/` directory into your project root:
+
+```bash
+git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
+  cp -r /tmp/netlify-skills/codex . && \
+  rm -rf /tmp/netlify-skills
+```
+
+This gives you `codex/AGENTS.md` (the skill router) and `codex/skills/` with all Netlify skills. Codex discovers `AGENTS.md` automatically and activates skills by name using `$skill-name` syntax.
+
 ### Other AI agents
 
 Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name` and `description`) and markdown body. Feed them into any agent's context as needed.
@@ -91,10 +103,11 @@ Keep skills focused on Netlify platform primitives. Each skill should answer "ho
 
 Follow the existing format: YAML frontmatter with `name` and `description`, markdown body, code examples with TypeScript where applicable. Use `references/` subdirectories for content that would push a SKILL.md past 500 lines.
 
-### Cursor rules are generated — do not edit them directly
+### Cursor rules and Codex skills are generated — do not edit them directly
 
-The `cursor/rules/` directory is auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/` — the workflow rebuilds Cursor rules on every push to `main` that changes `skills/`. To test locally, run:
+The `cursor/rules/` and `codex/` directories are auto-generated from `skills/` by GitHub Actions workflows. Always edit the source files in `skills/` — the workflows rebuild on every push to `main` that changes `skills/`. To test locally:
 
 ```bash
 bash scripts/build-cursor-rules.sh
+bash scripts/build-codex-skills.sh
 ```

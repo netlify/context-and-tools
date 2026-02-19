@@ -8,8 +8,11 @@ This repository contains public Netlify skills — factual platform reference fo
 - `.claude-plugin/` — Plugin marketplace config for Claude Code installation
 - `skills/` — Netlify platform skills (source of truth for all agent formats)
 - `cursor/rules/` — Auto-generated Cursor `.mdc` rule files (do NOT edit directly)
+- `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
+- `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
 - `.github/workflows/build-cursor-rules.yml` — Runs the build on push to main and PRs
+- `.github/workflows/build-codex-skills.yml` — Runs the Codex build on push to main and PRs
 
 ## Skills
 
@@ -29,4 +32,4 @@ Skills should be factual and platform-focused — not opinionated about framewor
 
 Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content.
 
-**Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/` — they are overwritten by CI.
+**Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/` or `codex/` — they are overwritten by CI.

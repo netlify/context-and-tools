@@ -1,0 +1,39 @@
+name: Build Codex skills
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "scripts/build-codex-skills.sh"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/build-codex-skills.sh"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Build Codex skills from source
+        run: bash scripts/build-codex-skills.sh
+
+      - name: Commit updated Codex skills
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add codex/
+          if git diff --cached --quiet; then
+            echo "No changes to Codex skills"
+          else
+            git commit -m "chore: Rebuild Codex skills from source [skip ci]"
+            git push
+          fi

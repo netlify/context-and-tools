@@ -29,7 +29,7 @@ Read `$netlify-config` for the complete configuration reference.
 Read `$netlify-cli-and-deploy` for CLI commands, Git vs manual deploys, and environment variable management.
 
 **Setting up a framework (Vite, Astro, TanStack, Next.js)?**
-Read `$netlify-frameworks` for adapter/plugin setup. Framework-specific details are in `$netlify-frameworks/references/`.
+Read `$netlify-frameworks` for adapter/plugin setup. Framework-specific details are in `$netlify-frameworks`.
 
 **Controlling CDN caching behavior?**
 Read `$netlify-caching` for cache headers, stale-while-revalidate, cache tags, and purge.

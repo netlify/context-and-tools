@@ -33,6 +33,7 @@ done
 if [ -f "$SKILLS_DIR/CLAUDE.md" ]; then
   sed -E \
     -e 's/`(netlify-[a-z-]+)\/SKILL\.md`/`$\1`/g' \
+    -e 's/`(netlify-[a-z-]+)\/references\/`/`$\1`/g' \
     -e 's/`(netlify-[a-z-]+)\/(references\/[^`]*)`/`$\1\/\2`/g' \
     "$SKILLS_DIR/CLAUDE.md" > "$REPO_ROOT/codex/AGENTS.md"
 fi

@@ -26,7 +26,7 @@ jobs:
         run: bash scripts/build-codex-skills.sh
 
       - name: Commit updated Codex skills
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

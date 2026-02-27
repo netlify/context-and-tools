@@ -9,6 +9,7 @@
       "name": "netlify-skills",
       "description": "Netlify platform skills — functions, edge functions, blobs, database, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
       "source": "./",
+      "strict": false,
       "skills": [
         "./skills/netlify-functions",
         "./skills/netlify-edge-functions",

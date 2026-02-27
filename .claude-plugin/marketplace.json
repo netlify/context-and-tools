@@ -8,11 +8,21 @@
     {
       "name": "netlify-skills",
       "description": "Netlify platform skills — functions, edge functions, blobs, database, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
-      "version": "1.0.0",
-      "source": {
-        "source": "github",
-        "repo": "netlify/context-and-tools"
-      }
+      "source": "./",
+      "skills": [
+        "./skills/netlify-functions",
+        "./skills/netlify-edge-functions",
+        "./skills/netlify-blobs",
+        "./skills/netlify-db",
+        "./skills/netlify-image-cdn",
+        "./skills/netlify-forms",
+        "./skills/netlify-frameworks",
+        "./skills/netlify-caching",
+        "./skills/netlify-config",
+        "./skills/netlify-cli-and-deploy",
+        "./skills/netlify-deploy",
+        "./skills/netlify-ai-gateway"
+      ]
     }
   ]
 }

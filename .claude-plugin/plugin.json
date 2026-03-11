@@ -1,6 +1,6 @@
 {
   "name": "netlify-skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Netlify platform skills for Claude Code",
   "author": {
     "name": "Netlify"

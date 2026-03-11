@@ -31,7 +31,7 @@ Log in from the browser:
 ```typescript
 import { login, getUser } from '@netlify/identity'
 
-const user = await login('jane@example.com', 'password123')
+const user = await login('user@example.com', '<password>')
 console.log(`Hello, ${user.name}`)
 
 // Later, check auth state

@@ -20,23 +20,35 @@ Add `data-netlify="true"` and a unique `name` to the form:
 </form>
 ```
 
-Netlify's build system detects the form and injects a hidden `form-name` input automatically. For a custom success page, add `action="/thank-you"` to the form tag.
+Netlify's build system detects the form and injects a hidden `form-name` input automatically. For a custom success page, add `action="/thank-you"` to the form tag. Use paths without `.html` extension — Netlify serves `thank-you.html` at `/thank-you` by default, and the `.html` path returns 404.
 
-## JavaScript-Rendered Forms (React, Vue, etc.)
+## JavaScript-Rendered Forms (React, Vue, SSR Frameworks)
 
-For forms rendered by JavaScript frameworks, Netlify's build parser cannot detect the form in static HTML. You must either:
+For forms rendered by JavaScript frameworks (React, Vue, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
 
-**Option A:** Add a hidden HTML form to your `index.html` (or equivalent static file):
+Create a static HTML file in `public/` (e.g. `public/__forms.html`) containing a hidden copy of each form:
 
 ```html
-<form name="contact" netlify netlify-honeypot="bot-field" hidden>
-  <input type="text" name="name" />
-  <input type="email" name="email" />
-  <textarea name="message"></textarea>
-</form>
+<!DOCTYPE html>
+<html>
+  <body>
+    <form name="contact" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="hidden" name="form-name" value="contact" />
+      <input type="text" name="name" />
+      <input type="email" name="email" />
+      <textarea name="message"></textarea>
+      <input name="bot-field" />
+    </form>
+  </body>
+</html>
 ```
 
-**Option B:** Include a hidden `form-name` input in your component:
+**Rules:**
+- The form `name` must exactly match the `form-name` value used in your component's fetch call
+- Include every field your component submits — Netlify validates field names against the registered form
+- Without this file, Netlify cannot detect the form and submissions will silently fail
+
+Your component must also include a hidden `form-name` input:
 
 ```jsx
 <form name="contact" method="POST" data-netlify="true">

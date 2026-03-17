@@ -34,8 +34,8 @@ Read `$netlify-frameworks` for adapter/plugin setup. Framework-specific details 
 **Controlling CDN caching behavior?**
 Read `$netlify-caching` for cache headers, stale-while-revalidate, cache tags, and purge.
 
-**Adding AI capabilities?**
-Read `$netlify-ai-gateway` for AI Gateway setup with OpenAI, Anthropic, or Google SDKs.
+**Adding AI capabilities or choosing an AI model?**
+Read `$netlify-ai-gateway` for AI Gateway setup, supported models, and provider SDKs.
 
 **Deploying a site to Netlify?**
 Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.

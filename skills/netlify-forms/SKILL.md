@@ -74,6 +74,10 @@ form.addEventListener("submit", async (e) => {
 });
 ```
 
+> **SSR frameworks (TanStack Start, Next.js, SvelteKit, Remix, Nuxt):** The `fetch` URL must target the static skeleton
+> file path (e.g. `"/__forms.html"`), **not** `"/"`. In SSR apps, `fetch("/")` is intercepted by the SSR catch-all
+> function and never reaches Netlify's form processing middleware. See the React example and troubleshooting section below.
+
 ### React Example
 
 ```tsx
@@ -81,7 +85,8 @@ function ContactForm() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const response = await fetch("/", {
+    // For SSR apps, use the skeleton file path instead of "/" (e.g. "/__forms.html")
+    const response = await fetch("/__forms.html", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(formData as any).toString(),
@@ -102,6 +107,10 @@ function ContactForm() {
   );
 }
 ```
+
+> **SSR troubleshooting:** If form submissions appear to succeed (200 response) but nothing shows in the Netlify Forms
+> UI, the POST is likely being intercepted by the SSR function. Ensure `fetch` targets the skeleton file path (e.g.
+> `"/__forms.html"`), not `"/"`. The skeleton file path routes through the CDN origin where Netlify's form handler runs.
 
 ## Spam Filtering
 

@@ -37,6 +37,9 @@ Read `netlify-caching/SKILL.md` for cache headers, stale-while-revalidate, cache
 **Adding AI capabilities or choosing an AI model?**
 Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup, supported models, and provider SDKs.
 
+**Adding user authentication, signups, logins, or access control?**
+Read `netlify-identity/SKILL.md` for Netlify Identity setup, OAuth, role-based access, and protecting routes and functions.
+
 **Deploying a site to Netlify?**
 Read `netlify-deploy/SKILL.md` for the full deployment workflow — authentication, site linking, preview and production deploys.
 

@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "netlify-skills",
-      "description": "Netlify platform skills — functions, edge functions, blobs, database, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
+      "description": "Netlify platform skills — functions, edge functions, blobs, database, identity, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
       "source": "./",
       "strict": false,
       "skills": [
@@ -21,7 +21,8 @@
         "./skills/netlify-config",
         "./skills/netlify-cli-and-deploy",
         "./skills/netlify-deploy",
-        "./skills/netlify-ai-gateway"
+        "./skills/netlify-ai-gateway",
+        "./skills/netlify-identity"
       ]
     }
   ]

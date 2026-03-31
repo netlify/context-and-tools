@@ -37,6 +37,9 @@ Read `$netlify-caching` for cache headers, stale-while-revalidate, cache tags, a
 **Adding AI capabilities or choosing an AI model?**
 Read `$netlify-ai-gateway` for AI Gateway setup, supported models, and provider SDKs.
 
+**Adding user authentication, signups, logins, or access control?**
+Read `$netlify-identity` for Netlify Identity setup, OAuth, role-based access, and protecting routes and functions.
+
 **Deploying a site to Netlify?**
 Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.
 

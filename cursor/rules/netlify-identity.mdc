@@ -15,7 +15,7 @@ Netlify Identity is a user management service for signups, logins, password reco
 npm install @netlify/identity
 ```
 
-Identity is automatically enabled when the deploy includes Identity code. Default settings:
+Identity is automatically enabled when a deploy created by a Netlify Agent Runner session includes Identity code. Otherwise, it must be manually enabled in the UI. These are the default settings:
 
 - **Registration** — Open (anyone can sign up). Change to Invite only in **Project configuration > Identity** if needed.
 - **Autoconfirm** — Off (new signups require email confirmation). Enable in **Project configuration > Identity** to skip confirmation during development.

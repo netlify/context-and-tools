@@ -17,6 +17,7 @@ Public Netlify skills for AI coding agents. Each skill is a focused, factual ref
 | [netlify-frameworks](skills/netlify-frameworks/SKILL.md) | Framework adapters for Vite, Astro, TanStack, and Next.js |
 | [netlify-caching](skills/netlify-caching/SKILL.md) | CDN cache control, cache tags, purge, stale-while-revalidate |
 | [netlify-ai-gateway](skills/netlify-ai-gateway/SKILL.md) | AI Gateway proxy for OpenAI, Anthropic, and Google SDKs |
+| [netlify-identity](skills/netlify-identity/SKILL.md) | User authentication — signups, logins, OAuth, role-based access control |
 | [netlify-deploy](skills/netlify-deploy/SKILL.md) | Deployment workflow — auth, site linking, preview/production deploys |
 
 ### References
@@ -28,6 +29,7 @@ Some skills include `references/` subdirectories with deeper content:
 - [Astro on Netlify](skills/netlify-frameworks/references/astro.md)
 - [TanStack Start on Netlify](skills/netlify-frameworks/references/tanstack.md)
 - [Next.js on Netlify](skills/netlify-frameworks/references/nextjs.md)
+- [Advanced identity patterns](skills/netlify-identity/references/advanced-patterns.md) — external providers, role-based access, server-side validation
 - [CLI commands reference](skills/netlify-deploy/references/cli-commands.md)
 - [Deployment patterns](skills/netlify-deploy/references/deployment-patterns.md)
 - [netlify.toml guide](skills/netlify-deploy/references/netlify-toml.md)

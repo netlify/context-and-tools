@@ -36,6 +36,12 @@ Some skills include `references/` subdirectories with deeper content:
 
 ## Installation
 
+### Codex Desktop App
+
+Install the Netlify plugin from the [Codex plugin directory](https://developers.openai.com/codex/plugins/) in the Codex desktop app.
+
+The plugin lets Codex deploy to Netlify without leaving your coding workflow. You can create projects, generate preview URLs, deploy to production, validate build configuration, and inspect deploy status and logs. For full details, refer to [Deploy from Codex with the Netlify Plugin](https://www.netlify.com/changelog/2026-03-27-deploy-from-codex-netlify-plugin/).
+
 ### Claude Code
 
 Add the marketplace and install the plugin:

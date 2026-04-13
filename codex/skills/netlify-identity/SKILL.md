@@ -309,6 +309,17 @@ The response body replaces `app_metadata` and/or `user_metadata` on the user rec
 
 ## Roles and Authorization
 
+### First Admin User
+
+The first admin user cannot be created through code alone. You must direct the user to set it up through the Netlify UI:
+
+1. Go to **Identity** in the project sidebar in the Netlify dashboard
+2. Click **Invite users** and enter the admin user's email address
+3. After the user accepts the invite, click the user in the Identity list to open their detail page
+4. In the **Roles** field, add the `admin` role and save
+
+Once the first admin exists, subsequent users can be managed programmatically using Identity event functions (e.g., assigning roles in `identity-signup`) or role-based redirects.
+
 - **`app_metadata.roles`** — Server-controlled. Only settable via the Netlify UI, admin API, or Identity event functions. Never let users set their own roles.
 - **`user_metadata`** — User-controlled. Users can update via `updateUser({ data: { ... } })`.
 

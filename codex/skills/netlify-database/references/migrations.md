@@ -1,0 +1,90 @@
+# Migrations
+
+Netlify Database uses a file-based migration system. Migrations live in `netlify/db/migrations/` and are applied automatically by Netlify: on every deploy preview before the preview is published, and on production immediately before publish. A failing migration blocks the deploy.
+
+Prefer Drizzle Kit for generating and applying migrations. Manual SQL migration files are an edge case — only hand-write one when Drizzle Kit can't express the change (for example, a Postgres-specific DDL or a targeted DML operation).
+
+## Schema migration workflow
+
+1. Edit `netlify/db/schema.ts`
+2. `npm run db:generate` (runs `drizzle-kit generate`) — writes a new file into `netlify/db/migrations/`
+3. Review the generated SQL
+4. Commit schema changes and the migration file together
+5. Push — Netlify applies the migration to the preview branch, then to production on publish
+
+Recommended `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "netlify dev:exec drizzle-kit migrate",
+    "db:push": "netlify dev:exec drizzle-kit push"
+  }
+}
+```
+
+`netlify dev:exec` ensures the Drizzle CLI sees the right connection settings for local development.
+
+## File layout and naming
+
+Migrations go in `netlify/db/migrations/`, one per file (or one per subdirectory — Drizzle Kit's default layout is supported). Files are applied lexicographically, so a timestamp prefix is the safest naming convention and avoids conflicts between branches:
+
+```
+netlify/db/migrations/
+  1710000000_create_items.sql
+  1710003600_add_items_is_active.sql
+```
+
+Set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts` if you're not using `withNetlifyDatabase()`.
+
+## Preview branching
+
+Each deploy preview runs against its own isolated database branch, forked from production data. This means:
+
+- Migrations run against the preview branch first — failures fail the preview, not production
+- Schema and data changes in a preview do not affect production until the branch is merged and published
+- Agents and developers can test destructive migrations (drops, renames, type changes) without risk to production data
+
+Ad-hoc edits made inside a preview (for example, through the Netlify UI's data browser or a local migration push) stay on that branch. They **do not propagate to production**. Always express production changes as migrations committed to the branch.
+
+## Breaking changes — expand and contract
+
+For anything that could break running code (renaming a column, dropping a column, changing a type), use the expand-and-contract pattern so preview and production can coexist during the transition:
+
+1. **Expand**: add the new shape alongside the old (new column, new table, nullable default). Deploy.
+2. **Migrate**: backfill data and update application code to read/write both shapes, or switch to the new shape. Deploy.
+3. **Contract**: drop the old shape once nothing reads or writes to it. Deploy.
+
+Never combine these steps into a single migration that renames or drops in one shot while application code still depends on the old shape — the preview may pass, and production will break at cutover.
+
+## Production data changes — write a DML migration
+
+When the user asks for data changes that should land in production (seed data, backfills, CSV imports, one-off cleanups, fixing a bad row), **do not connect to the production database directly** and do not run the change ad-hoc in a preview. Instead, generate a SQL migration file in `netlify/db/migrations/` containing the DML.
+
+```sql
+-- netlify/db/migrations/1710010000_backfill_item_slugs.sql
+UPDATE items
+SET slug = lower(regexp_replace(title, '[^a-zA-Z0-9]+', '-', 'g'))
+WHERE slug IS NULL;
+```
+
+After creating the migration:
+
+- Tell the user, in plain language, that you created a data migration and that merging the branch will apply it to production
+- Suggest they verify the result in the deploy preview (which runs against a forked copy of production data) before merging
+- For large or risky backfills, recommend wrapping in a transaction or batching
+
+**Never take a shortcut** — running the change directly in the Netlify UI data browser on production, or against the production connection string from a local shell, bypasses the migration history and creates drift between what the repo says the schema/data are and what production actually has.
+
+If the request is ambiguous ("fix the broken row for user X"), ask the user to confirm they want a production-bound migration rather than a one-off preview edit. When an agent is the one asking for data changes on behalf of a user, the default should be to **not** create a data migration unless the user has explicitly asked for production to change.
+
+## Admin interfaces instead of repeated DML migrations
+
+If the user keeps needing to load or edit data (for example, "add a new teacher every week"), a one-off data migration each time is the wrong answer. Build them an admin interface — a page or CLI that uses the normal Drizzle client — so they can manage data through the application rather than through migrations. Gate it behind Netlify Identity or another auth mechanism (see `netlify-identity/SKILL.md`).
+
+## Manual SQL migrations
+
+If you need to write a SQL migration by hand (for example, creating an extension, adding a check constraint Drizzle Kit won't emit, or a targeted DML statement), drop the file into `netlify/db/migrations/` with a timestamp prefix. The filename extension `.sql` is required. Keep the file idempotent where possible (`CREATE ... IF NOT EXISTS`, guarded `UPDATE`s) so re-running is safe.
+
+After adding a manual file, run the schema generate step anyway so Drizzle Kit's snapshot stays in sync with the current state of the database.

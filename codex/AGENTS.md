@@ -10,11 +10,11 @@ Read `$netlify-functions` for modern function syntax, routing, background/schedu
 **Need low-latency middleware, geo-based logic, or request manipulation?**
 Read `$netlify-edge-functions` for edge compute patterns.
 
-**Storing files, images, or simple key-value data?**
-Read `$netlify-blobs` for object storage API.
+**Storing files, images, or other assets?**
+Read `$netlify-blobs` for object storage API. Blobs is for file/asset storage only — not for dynamic data.
 
-**Need a relational database?**
-Read `$netlify-db` for Neon Postgres setup, Drizzle ORM, and migrations. It also covers when Blobs is a better fit.
+**Need to store any dynamic, structured, or relational data?**
+Read `$netlify-database` for Netlify Database — the GA managed Postgres product with Drizzle ORM, migrations, and preview branching. Covers the legacy "Netlify DB" extension in `references/legacy-extension.md`.
 
 **Optimizing or transforming images?**
 Read `$netlify-image-cdn` for the image transformation endpoint and clean URL patterns. For user-uploaded images, see `$netlify-image-cdn/references/user-uploads.md`.

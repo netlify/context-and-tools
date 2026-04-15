@@ -17,7 +17,7 @@ npm install @netlify/identity
 
 Identity is automatically enabled when a deploy created by a Netlify Agent Runner session includes Identity code. Otherwise, it must be manually enabled in **Project configuration > Identity** in the Netlify dashboard (`https://app.netlify.com/projects/<project-slug>/configuration/identity`). It is not under Integrations, and not a top-level sidebar item — it lives in the project's configuration pages. These are the default settings:
 
-- **Registration** — Open (anyone can sign up). Change to Invite only in **Project configuration > Identity** if needed.
+- **Registration** — Open (anyone can sign up). This is the default — no configuration needed to allow public signups or OAuth logins. Only change to Invite only in **Project configuration > Identity** if you explicitly want to restrict registration.
 - **Autoconfirm** — Off (new signups require email confirmation). Enable in **Project configuration > Identity** to skip confirmation during development.
 
 ### Local Development
@@ -132,7 +132,7 @@ function handleOAuthClick(provider: 'google' | 'github' | 'gitlab' | 'bitbucket'
 }
 ```
 
-Enable providers in **Project configuration > Identity > External providers** before using OAuth.
+Enable providers in **Project configuration > Identity > External providers** before using OAuth. Registration is open by default, so no additional signup-related configuration is needed for OAuth users to create accounts — only the provider itself must be enabled.
 
 ### Handling Callbacks
 

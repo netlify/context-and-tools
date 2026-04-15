@@ -32,7 +32,7 @@ Recommended `package.json` scripts:
 
 ## File layout and naming
 
-Migrations go in `netlify/db/migrations/`, one per file (or one per subdirectory — Drizzle Kit's default layout is supported). Files are applied lexicographically, so a timestamp prefix is the safest naming convention and avoids conflicts between branches:
+Migrations go in `netlify/db/migrations/`, one per file (or one per subdirectory — Drizzle Kit's default layout is supported). Files are applied lexicographically, so **always configure timestamp prefixes** — Drizzle Kit's default sequential numeric indices (`0000_`, `0001_`, …) collide when two team members generate migrations on parallel branches, causing merge conflicts and non-deterministic apply order. Timestamp prefixes keep filenames unique across branches:
 
 ```
 netlify/db/migrations/
@@ -40,7 +40,7 @@ netlify/db/migrations/
   1710003600_add_items_is_active.sql
 ```
 
-Set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts` if you're not using `withNetlifyDatabase()`.
+Set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts`. This should be configured for every project, regardless of whether you're using `withNetlifyDatabase()`.
 
 ## Preview branching
 

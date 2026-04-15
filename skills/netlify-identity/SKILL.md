@@ -15,7 +15,7 @@ Netlify Identity is a user management service for signups, logins, password reco
 npm install @netlify/identity
 ```
 
-Identity is automatically enabled when a deploy created by a Netlify Agent Runner session includes Identity code. Otherwise, it must be manually enabled in the UI. These are the default settings:
+Identity is automatically enabled when a deploy created by a Netlify Agent Runner session includes Identity code. Otherwise, it must be manually enabled in **Project configuration > Identity** in the Netlify dashboard (`https://app.netlify.com/projects/<project-slug>/configuration/identity`). It is not under Integrations, and not a top-level sidebar item — it lives in the project's configuration pages. These are the default settings:
 
 - **Registration** — Open (anyone can sign up). Change to Invite only in **Project configuration > Identity** if needed.
 - **Autoconfirm** — Off (new signups require email confirmation). Enable in **Project configuration > Identity** to skip confirmation during development.
@@ -313,7 +313,7 @@ The response body replaces `app_metadata` and/or `user_metadata` on the user rec
 
 The first admin user cannot be created through code alone. You must direct the user to set it up through the Netlify UI:
 
-1. Go to **Identity** in the project sidebar in the Netlify dashboard
+1. Go to **Project configuration > Identity** in the Netlify dashboard (`https://app.netlify.com/projects/<project-slug>/configuration/identity`)
 2. Click **Invite users** and enter the admin user's email address
 3. After the user accepts the invite, click the user in the Identity list to open their detail page
 4. In the **Roles** field, add the `admin` role and save

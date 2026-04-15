@@ -134,6 +134,8 @@ function handleOAuthClick(provider: 'google' | 'github' | 'gitlab' | 'bitbucket'
 
 Enable providers in **Project configuration > Identity > External providers** before using OAuth. Registration is open by default, so no additional signup-related configuration is needed for OAuth users to create accounts — only the provider itself must be enabled.
 
+Email/password is always available as a login method — there is **no "Email provider" toggle** in Identity settings, only External providers for OAuth. To restrict users to OAuth-only, simply omit the email/password form from your UI; the front-end is the gate.
+
 ### Handling Callbacks
 
 Always call `handleAuthCallback()` on page load in any app that uses OAuth, password recovery, invites, or email confirmation. It processes all callback types via the URL hash.

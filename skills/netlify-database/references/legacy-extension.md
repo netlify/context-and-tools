@@ -2,7 +2,7 @@
 
 This reference covers the older **Netlify DB** extension (the Beta product), which is distinct from the current **Netlify Database** GA product described in `SKILL.md`.
 
-**Do not install or recommend the extension for new projects.** Use it only when an existing project is already set up on it, and in that case encourage the user to migrate to Netlify Database.
+**Do not install or recommend the extension for new projects.** Use it only when an existing project is already set up on it, and in that case encourage the user to switch to Netlify Database.
 
 ## How to recognize an extension-based project
 
@@ -27,17 +27,9 @@ The extension is deprecated. New database creation through the extension is bloc
 
 - Netlify Database (GA) is the supported product going forward
 - It removes the claim step, the separate Neon account, and the `@netlify/neon` / `NETLIFY_DATABASE_URL` indirection
-- Migration is manual — Netlify publishes a guide titled **"Manual Migration Guide: Migrating from the Neon Extension to Netlify DB"**. Point the user at the latest version of that guide rather than attempting the migration unprompted.
+- Switching is manual but well-documented. See `references/migration-from-extension.md` for the full step-by-step process (covers switching from any external Postgres provider, with extension-specific callouts).
 
-If the user agrees to migrate, the rough shape is:
-
-1. Export data from the existing Neon database (claimed into the user's Neon account)
-2. Provision a new Netlify Database by installing `@netlify/database` on a branch
-3. Replay the schema migrations against the new database, then import the data
-4. Cut application code over from `@netlify/neon` + `NETLIFY_DATABASE_URL` to `@netlify/database` + `getDatabase()` / `getConnectionString()`
-5. Remove `@netlify/neon` and the extension integration
-
-Confirm the detailed steps against the current migration guide — the process has moving parts (snapshots, env-var coexistence, claim status) that can change.
+If the user agrees to switch, walk through the steps in that reference. Do not attempt the switch unprompted — confirm with the user first, as the process involves a brief downtime window and an operator step to import data.
 
 ## Do not confuse the two
 

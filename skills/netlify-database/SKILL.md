@@ -30,7 +30,7 @@ The older **Netlify DB** extension (Beta) is **deprecated**. It is a separate pr
 | Setup | Install package → auto-provisioned at deploy | `netlify db init` → claim into user's Neon account within 7 days |
 | Status | GA | Deprecated; block on new creation as of April 2026 |
 
-If an existing project is already using the `@netlify/neon` extension, keep it working and encourage the user to migrate. See `references/legacy-extension.md`.
+If an existing project is already using the `@netlify/neon` extension, keep it working and encourage the user to switch. See `references/legacy-extension.md` for recognition and coexistence, and `references/migration-from-extension.md` for the full step-by-step switching process (also covers switching from other external Postgres providers).
 
 ## Provisioning
 
@@ -53,6 +53,8 @@ npm install -D drizzle-kit
 
 ### drizzle.config.ts
 
+> **Note (as of `@netlify/database@0.6.x`):** The `withNetlifyDatabase()` helper and the `@netlify/database/drizzle` subpath shown below are **planned but not yet published**. Until they ship, configure Drizzle manually — see the fallback example after this block.
+
 Use the `withNetlifyDatabase()` helper so the config picks up Netlify's conventions (migrations output path, credentials):
 
 ```typescript
@@ -68,9 +70,25 @@ export default defineConfig(
 );
 ```
 
+**Fallback (current)** — if `@netlify/database/drizzle` is not available, wire it manually:
+
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./netlify/db/schema.ts",
+  out: "./netlify/db/migrations",
+  migrations: { prefix: "timestamp" },
+  dbCredentials: { url: process.env.NETLIFY_DB_URL! },
+});
+```
+
 This writes migrations to `netlify/db/migrations/` and wires credentials through the Netlify-managed connection. **Always set `migrations: { prefix: "timestamp" }`** — Drizzle Kit's default uses sequential numeric indices, which collide when two team members generate migrations on parallel branches. Timestamp prefixes ensure filenames stay unique across branches and apply in the correct order.
 
 ### Client setup
+
+> **Note (as of `@netlify/database@0.6.x`):** The `drizzle-orm/netlify-database` subpath and the `client` property on `getDatabase()` shown below are **planned but not yet published**. Until they ship, use the fallback example after this block.
 
 Get a Drizzle client from `@netlify/database` — it picks the right driver (HTTP, TCP, WebSocket) for the runtime it's called from (build, function, edge function, agent runner):
 
@@ -82,6 +100,24 @@ import * as schema from "./schema";
 
 const { client } = getDatabase();
 export const db = drizzle(client, { schema });
+export * from "./schema";
+```
+
+**Fallback (current)** — `getDatabase()` returns `{ driver, sql, pool, httpClient?, connectionString }`. Branch on the `driver` field:
+
+```typescript
+// netlify/db/index.ts
+import { getDatabase } from "@netlify/database";
+import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+
+const database = getDatabase();
+
+export const db =
+  database.driver === "serverless"
+    ? drizzleNeonHttp(database.httpClient, { schema })
+    : drizzlePg(database.pool, { schema });
 export * from "./schema";
 ```
 
@@ -124,8 +160,10 @@ Use `@netlify/database` helpers rather than reading the env var directly. In mos
 ```typescript
 import { getDatabase, getConnectionString } from "@netlify/database";
 
-// Preferred — returns a configured client for the current runtime
-const { client, sql, pool } = getDatabase();
+// Preferred — returns a configured connection for the current runtime
+const { driver, sql, pool, httpClient, connectionString } = getDatabase();
+// driver: "serverless" (functions) or "server" (build, local dev)
+// httpClient: only present when driver is "serverless"
 
 // When a third-party tool needs the raw URL
 const url = getConnectionString();

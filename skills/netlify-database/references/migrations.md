@@ -77,6 +77,8 @@ After creating the migration:
 
 **Never take a shortcut** — running the change directly in the Netlify UI data browser on production, or against the production connection string from a local shell, bypasses the migration history and creates drift between what the repo says the schema/data are and what production actually has.
 
+**One exception: initial data seed when switching database providers.** When switching from an external database (including the legacy extension) to Netlify Database, production data must be imported via a direct connection — committing a full data dump to git is not appropriate. This one-time import is documented in `references/migration-from-extension.md`. Once the switch is complete, resume using DML migrations for all production data changes.
+
 If the request is ambiguous ("fix the broken row for user X"), ask the user to confirm they want a production-bound migration rather than a one-off preview edit. When an agent is the one asking for data changes on behalf of a user, the default should be to **not** create a data migration unless the user has explicitly asked for production to change.
 
 ## Admin interfaces instead of repeated DML migrations

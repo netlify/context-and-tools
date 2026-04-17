@@ -63,11 +63,12 @@ export default defineConfig(
   withNetlifyDatabase({
     dialect: "postgresql",
     schema: "./netlify/db/schema.ts",
+    migrations: { prefix: "timestamp" },
   }),
 );
 ```
 
-This writes migrations to `netlify/db/migrations/` and wires credentials through the Netlify-managed connection.
+This writes migrations to `netlify/db/migrations/` and wires credentials through the Netlify-managed connection. **Always set `migrations: { prefix: "timestamp" }`** — Drizzle Kit's default uses sequential numeric indices, which collide when two team members generate migrations on parallel branches. Timestamp prefixes ensure filenames stay unique across branches and apply in the correct order.
 
 ### Client setup
 

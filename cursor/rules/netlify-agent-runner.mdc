@@ -9,11 +9,10 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 
 ## Prerequisites
 
-- The project must be a **GitHub repository**
-- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`)
+- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`), or you can specify `--project <name>` to target any Netlify site
 - The Netlify CLI must be installed and authenticated
 
-Agent tasks run against the **remote code** on GitHub, not local changes. By default they use the main (or master) branch. To target a different branch, use `-b` and make sure it has been pushed first.
+Agent tasks run **remotely on Netlify infrastructure** against the site's connected repository. By default they use the main (or master) branch. To target a different branch, use `-b` and make sure it has been pushed to the remote first.
 
 ## Creating Agent Tasks
 

@@ -78,6 +78,30 @@ netlify agents:show <task-id> --json
 netlify agents:stop <task-id>
 ```
 
+## Use Cases
+
+Some of the many things you can do with Agent Runners:
+
+| Category | Example prompt |
+|----------|---------------|
+| Prototyping / internal tools | "Build an internal dashboard for our HR team" |
+| Code reviews | "Audit the code with fresh eyes and identify areas for improvement" |
+| Security audits | "Do a deep security audit of our codebase to identify any potential issues" |
+| Feature suggestions | "Based on our current codebase & docs, what should we build next?" |
+| Performance improvements | "Scan our codebase for performance bottlenecks and suggest improvements" |
+| Telemetry & analytics | "What analytics things are we not tracking but probably should" |
+| SEO audit | "Audit our site for SEO issues — missing meta tags, broken links, slow pages, missing alt text" |
+| Copy improvements | "Rewrite our landing page copy to be more compelling and conversion-focused" |
+| Accessibility | "Run an accessibility audit and fix all WCAG 2.1 AA violations" |
+| Mobile responsiveness | "Improve the mobile responsiveness — audit every page on small viewports" |
+| End-to-end tests | "Add end-to-end tests for our critical user flows using Playwright" |
+| Unit tests | "Generate unit tests for our untested utility functions" |
+| Documentation | "Generate a README and contributing guide based on our codebase" |
+| Error handling | "Add proper error boundaries, logging, and user-friendly error states throughout the app" |
+| UX polish | "Add loading states, skeleton screens, & transitions to improve perceived performance" |
+| Form hardening | "Add form validation, rate limiting, and spam protection to our contact form" |
+| Edge Functions | "Add an edge function for A/B testing on our landing page" |
+
 ## Using as an Agent
 
 If you are an AI agent, you can use `netlify agents:create` to delegate work to a different model. This is useful for:

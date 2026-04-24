@@ -15,34 +15,6 @@ Any one of these signals indicates the project is on the legacy extension, not t
 - `@netlify/neon` in `package.json` dependencies
 - `NETLIFY_DATABASE_URL` referenced in code or env files (note: different from the GA `NETLIFY_DB_URL`)
 - `netlify db init` in scripts or docs
-- A Neon console/account connected to the user's personal Neon org (the extension requires users to "claim" the database into their own Neon account within 7 days)
-
-## How the extension works
-
-The extension wraps Neon as a Netlify integration rather than a white-labelled primitive. Provisioning is triggered by running `netlify db init`, which installs `@netlify/neon` and creates a Neon project linked to the site. The user is prompted to claim the database into their Neon account; if they don't, it is removed after seven days.
-
-Typical client setup:
-
-```typescript
-import { neon } from "@netlify/neon";
-const sql = neon();
-
-const users = await sql("SELECT * FROM users");
-await sql("INSERT INTO users (name) VALUES ($1)", ["Jane"]);
-```
-
-With Drizzle (extension era):
-
-```typescript
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "./schema";
-
-const sql = neon(process.env.NETLIFY_DATABASE_URL!);
-export const db = drizzle(sql, { schema });
-```
-
-Env var: `NETLIFY_DATABASE_URL` — auto-set by the extension when the DB is provisioned.
 
 ## Keeping an extension project working
 

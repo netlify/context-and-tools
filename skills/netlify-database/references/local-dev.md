@@ -1,6 +1,6 @@
 # Local development
 
-`netlify dev` runs Netlify Database locally against an embedded Postgres (PGLite) instance — no Neon account, no remote connection, and no risk of writing to production data. Data persists under `.netlify/db/` in the project directory.
+`netlify dev` runs Netlify Database locally against an embedded Postgres (PGLite) instance — no remote connection, and no risk of writing to production data. Data persists under `.netlify/db/` in the project directory.
 
 Add `.netlify` to `.gitignore` if it isn't already.
 
@@ -14,17 +14,18 @@ The database is available to functions, edge functions, framework server routes,
 
 For Vite-based projects, install `@netlify/vite-plugin` so the dev server can connect to the local database without launching `netlify dev` as a wrapper.
 
-## Running Drizzle Kit commands
+## Running Drizzle Kit commands against the local DB
 
-Use `netlify dev:exec` so Drizzle Kit picks up the local database connection:
+`netlify dev:exec` runs a command with the same environment `netlify dev` uses, so Drizzle Kit connects to the local PGLite instance rather than any hosted database:
 
 ```bash
-netlify dev:exec drizzle-kit generate   # generate a migration from schema.ts
-netlify dev:exec drizzle-kit migrate    # apply pending migrations
-netlify dev:exec drizzle-kit push       # push schema directly (iteration only)
+netlify dev:exec drizzle-kit generate   # generate a migration from db/schema.ts
+netlify dev:exec drizzle-kit migrate    # apply pending migrations locally
 ```
 
-`drizzle-kit push` is useful while iterating on a schema locally — it skips the migration file. Before committing, switch to `generate` so the migration lands in `netlify/db/migrations/` and runs on preview and production.
+`drizzle-kit migrate` here targets PGLite only. Do **not** run `drizzle-kit migrate` or `drizzle-kit push` against `NETLIFY_DB_URL` in any other context — Netlify applies migrations to hosted databases (preview branches and production) automatically on deploy. See `references/migrations.md`.
+
+We don't use `drizzle-kit push`. Always go through `generate` so a migration file lands in `netlify/database/migrations/` and gets applied on deploy.
 
 ## Resetting local data
 
@@ -33,5 +34,5 @@ Delete `.netlify/db/` to wipe the local database and start fresh. Re-run `netlif
 ## Common issues
 
 - **"Environment has not been configured"**: install `@netlify/vite-plugin` or run the app via `netlify dev`.
-- **Schema drift between local and preview**: you've been using `drizzle-kit push` locally without generating migration files. Run `drizzle-kit generate` and commit the result so the preview branch applies the same changes.
+- **Schema drift between local and preview**: confirm every schema change has a matching migration file in `netlify/database/migrations/` committed to the branch. If you see schema on the local DB that isn't represented by a migration, regenerate with `npm run db:generate`.
 - **Data not persisting across restarts**: confirm `.netlify/db/` exists and is writable. A stale lockfile in that directory can also cause startup failures — remove it if `netlify dev` won't boot.

@@ -59,7 +59,7 @@ The older **Netlify DB** extension (Beta) is **deprecated**. It is a separate pr
 |---|---|---|
 | Package | `@netlify/database` | `@netlify/neon` |
 | Env var | `NETLIFY_DB_URL` | `NETLIFY_DATABASE_URL` |
-| Setup | Install package → auto-provisioned at deploy | `netlify db init` → claim into user's Neon account within 7 days |
+| Setup | `netlify database init` or install the package — auto-provisioned at deploy | Historically `netlify db init` on older CLI versions, with a claim into the user's Neon account; that flow is no longer reachable from the current CLI |
 | Status | GA | Deprecated; new creation blocked as of April 2026 |
 
 If an existing project is already using the `@netlify/neon` extension, keep it working and encourage the user to switch. See `references/legacy-extension.md` for recognition and coexistence, and `references/migration-from-extension.md` for the full switching process (also covers switching from other external Postgres providers).
@@ -98,10 +98,10 @@ Create `db/schema.ts`. Define all tables here using Drizzle's schema builder.
 
 ```typescript
 // db/schema.ts
-import { integer, pgTable, varchar, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { boolean, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 export const items = pgTable("items", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  id: serial().primaryKey(),
   title: varchar({ length: 255 }).notNull(),
   description: text(),
   isActive: boolean("is_active").notNull().default(true),

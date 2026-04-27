@@ -121,6 +121,14 @@ If the user keeps needing to load or edit data (for example, "add a new teacher 
 
 ## Manual SQL migrations
 
-If you need to write a SQL migration by hand (for example, creating an extension, adding a check constraint Drizzle Kit won't emit, or a targeted DML statement), drop the file into `netlify/database/migrations/` with a timestamp prefix. The filename extension `.sql` is required. Keep the file idempotent where possible (`CREATE ... IF NOT EXISTS`, guarded `UPDATE`s) so re-running is safe.
+If you need to write a SQL migration by hand (for example, creating an extension, adding a check constraint Drizzle Kit won't emit, or a targeted DML statement), scaffold the file via the CLI:
 
-After adding a manual file, run the schema generate step anyway so Drizzle Kit's snapshot stays in sync with the current state of the database.
+```bash
+netlify database migrations new -d "enable pgvector extension"
+```
+
+This creates `netlify/database/migrations/<prefix>_<slug>/migration.sql` using the existing project's numbering scheme (or prompts for one). Open it and write the SQL. The flat layout (`<prefix>_<slug>.sql` directly in the migrations directory) also works if you prefer to write the file by hand.
+
+Keep the SQL idempotent where possible (`CREATE ... IF NOT EXISTS`, guarded `UPDATE`s) so re-running against a half-migrated state is safe.
+
+After adding a manual file in a Drizzle project, run the schema generate step anyway so Drizzle Kit's snapshot stays in sync with the current state of the database.

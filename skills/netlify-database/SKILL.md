@@ -28,9 +28,9 @@ npm install drizzle-orm@beta
 npm install -D drizzle-kit@beta
 ```
 
-The default `latest` versions do not include the `drizzle-orm/netlify-database` adapter and will fail. If `drizzle-kit generate` errors about being outdated, or the `drizzle-orm/netlify-database` import fails to resolve, the install is missing `@beta`.
+The default `latest` versions do not include the `drizzle-orm/netlify-db` adapter and will fail. If `drizzle-kit generate` errors about being outdated, or the `drizzle-orm/netlify-db` import fails to resolve, the install is missing `@beta`.
 
-The `@beta` tag only affects the installed version — imports are written as `drizzle-orm`, `drizzle-orm/pg-core`, and `drizzle-orm/netlify-database` without modification.
+The `@beta` tag only affects the installed version — imports are written as `drizzle-orm`, `drizzle-orm/pg-core`, and `drizzle-orm/netlify-db` without modification.
 
 ## CRITICAL: Use the Netlify CLI for database operations
 
@@ -117,11 +117,11 @@ Use snake_case strings for column names (`"is_active"`, `"created_at"`) to match
 
 ### Drizzle client
 
-Create `db/index.ts`. The adapter on `drizzle-orm/netlify-database` picks the right driver for the runtime automatically.
+Create `db/index.ts`. The adapter on `drizzle-orm/netlify-db` picks the right driver for the runtime automatically.
 
 ```typescript
 // db/index.ts
-import { drizzle } from "drizzle-orm/netlify-database";
+import { drizzle } from "drizzle-orm/netlify-db";
 import * as schema from "./schema";
 
 export const db = drizzle({ schema });
@@ -413,8 +413,8 @@ When a migration you generated needs to change, what you do depends on whether i
 
 ## Common mistakes
 
-1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-database` adapter.
-2. **Wrong adapter import path.** The Drizzle adapter is `drizzle-orm/netlify-database`. Older docs and snippets sometimes show `drizzle-orm/netlify-db` — that's wrong and will fail to resolve.
+1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.
+2. **Wrong adapter import path.** The Drizzle adapter is `drizzle-orm/netlify-db`. Some draft docs show `drizzle-orm/netlify-database`, but that path doesn't exist in the published package and will fail to resolve.
 3. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Use `withNetlifyDB()` from `@netlify/database/drizzle`, or set `out: "netlify/database/migrations"` manually.
 4. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
 5. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.

@@ -41,7 +41,7 @@ Create a feature branch and make all changes in one commit.
 
 ### Packages
 
-Remove the old provider's packages and install `@netlify/database` plus Drizzle on the `@beta` dist-tag (required for the `drizzle-orm/netlify-db` adapter):
+Remove the old provider's packages and install `@netlify/database` plus Drizzle on the `@beta` dist-tag (required for the `drizzle-orm/netlify-database` adapter):
 
 ```bash
 npm install @netlify/database drizzle-orm@beta
@@ -52,11 +52,11 @@ npm install -D drizzle-kit@beta
 
 ### Database client
 
-Replace the existing Drizzle client setup. The `drizzle-orm/netlify-db` adapter picks the right driver for the runtime automatically — no manual driver branching or `getDatabase()` wiring needed:
+Replace the existing Drizzle client setup. The `drizzle-orm/netlify-database` adapter picks the right driver for the runtime automatically — no manual driver branching or `getDatabase()` wiring needed:
 
 ```typescript
 // db/index.ts
-import { drizzle } from 'drizzle-orm/netlify-db'
+import { drizzle } from 'drizzle-orm/netlify-database'
 import * as schema from './schema.js'
 
 export const db = drizzle({ schema })

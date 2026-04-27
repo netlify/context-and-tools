@@ -6,16 +6,16 @@ Prefer Drizzle Kit for generating migrations. Manual SQL migration files are an 
 
 ## Never apply migrations to a hosted database yourself
 
-The platform applies migrations to every Netlify-hosted database (preview branches and production) automatically on deploy. You never run `drizzle-kit migrate` against `NETLIFY_DB_URL` from a preview or production context. The only legitimate migrate command is `netlify dev:exec drizzle-kit migrate`, which targets the local PGLite database for testing.
+The platform applies migrations to every Netlify-hosted database (preview branches and production) automatically on deploy. You never run `drizzle-kit migrate` against `NETLIFY_DB_URL` from a preview or production context. For local, use `netlify database migrations apply` — it targets the local development database only.
 
-`drizzle-kit push` is not used in this workflow at all — always generate a migration file and let the deploy apply it. And never run DDL through `netlify db connect`, `psql`, or any other direct connection: the connection is read-only, and schema changes out-of-band cause drift between the migration history and the actual database.
+`drizzle-kit push` is not used in this workflow at all — always generate a migration file and let the deploy apply it. And never run DDL through `netlify database connect`, `psql`, or any other direct connection: the connection is read-only, and schema changes out-of-band cause drift between the migration history and the actual database.
 
 ## Schema migration workflow
 
 1. Edit `db/schema.ts`
 2. `npm run db:generate` (runs `drizzle-kit generate`) — writes a new file into `netlify/database/migrations/`
 3. Review the generated SQL
-4. `npm run db:migrate` (runs `netlify dev:exec drizzle-kit migrate`) — applies to the local PGLite DB for testing
+4. `npm run db:migrate` (runs `netlify database migrations apply`) — applies to the local dev DB for testing
 5. Commit schema changes and the migration file together
 6. Push — Netlify applies the migration to the preview branch, then to production on publish
 
@@ -25,33 +25,52 @@ Recommended `package.json` scripts:
 {
   "scripts": {
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "netlify dev:exec drizzle-kit migrate"
+    "db:migrate": "netlify database migrations apply"
   }
 }
 ```
 
-`netlify dev:exec` ensures Drizzle Kit sees the local development connection. Running `drizzle-kit migrate` without that wrapper (or with `NETLIFY_DB_URL` pointing at a hosted branch) is the wrong path — that's the deploy's job.
+`netlify database migrations apply` always targets the local dev DB. Running `drizzle-kit migrate` directly (especially with `NETLIFY_DB_URL` pointing at a hosted branch) is the wrong path — that's the deploy's job.
 
 ## File layout and naming
 
-Migrations go in `netlify/database/migrations/`, one per file (or one per subdirectory — Drizzle Kit's default layout is supported). Files apply lexicographically, so **always configure timestamp prefixes** — Drizzle Kit's default sequential numeric indices (`0000_`, `0001_`, …) collide when two team members generate migrations on parallel branches, causing merge conflicts and non-deterministic apply order. Timestamp prefixes keep filenames unique across branches:
+Migrations go in `netlify/database/migrations/`. Two layouts are supported and can be mixed within a project:
+
+- **Flat:** one `.sql` file per migration — `20260417143022_create_items.sql`
+- **Subdirectory:** a folder containing `migration.sql` — `20260417143022_create_items/migration.sql` (this is what `netlify database migrations new` and Drizzle Kit's default layout produce)
+
+Files apply lexicographically. **Default to timestamp prefixes** — when no precedent exists in the repo, set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts` and use the `--scheme timestamp` flag for `migrations new`. Sequential indices (`0000_`, `0001_`, …) collide whenever two pieces of work generate migrations in parallel — this happens to teams and to solo developers iterating on multiple branches. Timestamp prefixes keep filenames unique.
+
+If a project is already established on sequential prefixes, leave it alone — the CLI's `migrations new` auto-detects the scheme — but expect collisions when working in parallel and resolve them by reset + regenerate.
 
 ```
 netlify/database/migrations/
   20260417143022_create_items.sql
-  20260418091500_add_items_is_active.sql
+  20260418091500_add_items_is_active/
+    migration.sql
 ```
 
-Set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts`.
+The migrations directory location can be overridden by setting `db.migrations.path` in `netlify.toml`.
 
 ## Iterating on a migration you haven't shipped yet
 
 If you generated a migration and realize it needs to change, what you do depends on whether it's been applied anywhere.
 
-- **Already applied** to any database (local PGLite, preview branch, or production) → treat as immutable. Roll forward with a new migration.
-- **Only on disk** → don't edit the SQL or snapshot files by hand. Run `netlify db migrations reset` to delete the unapplied files, update `db/schema.ts`, then re-run `npm run db:generate`. Hand-editing desyncs Drizzle Kit's internal state and tends to produce broken migrations on the next generate.
+- **Already applied** to any database (local dev DB, preview branch, or production) → treat as immutable. Roll forward with a new migration.
+- **Only on disk** → don't edit the SQL or snapshot files by hand. Run `netlify database migrations reset` to delete the unapplied files, update `db/schema.ts`, then re-run `npm run db:generate`. Hand-editing desyncs Drizzle Kit's internal state and tends to produce broken migrations on the next generate.
 
-`netlify db migrations reset` only removes files that have not yet been applied — it's safe, and it cannot undo an applied migration. Use `netlify db status` to see what's applied vs pending before deciding.
+`netlify database migrations reset` only removes files that have not yet been applied — it's safe, and it cannot undo an applied migration. Use `netlify database status` to see what's applied vs pending before deciding. Pass `--branch <name>` to either command to target a remote preview branch instead of the local dev DB.
+
+## Recovering from drift with `migrations pull`
+
+When local migration history has drifted from a remote branch — typically because another contributor (or another agent run) shipped a migration you don't have — pull the canonical files down:
+
+```bash
+netlify database migrations pull              # from production
+netlify database migrations pull --branch staging
+```
+
+`migrations pull` overwrites local migration files with the ones from the target branch, so commit any local-only work first. After pulling, run `netlify database migrations apply` to bring the local dev DB up to date.
 
 ## Preview branching
 

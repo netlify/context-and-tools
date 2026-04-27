@@ -186,7 +186,8 @@ export default defineConfig({
 ### Query patterns
 
 ```typescript
-import { db, items } from "./db/index.js";
+import { db } from "./db";
+import { items } from "./db/schema";
 import { eq, desc } from "drizzle-orm";
 
 // Select all
@@ -219,33 +220,35 @@ npm install @netlify/database
 ```
 
 ```typescript
-import { getDatabase, getConnectionString } from "@netlify/database";
+import { getDatabase } from "@netlify/database";
 
-const { sql, pool } = getDatabase();
+const db = getDatabase();
 
 // Tagged template — parameters are safely bound, not interpolated
-const users = await sql`SELECT * FROM users WHERE active = ${true}`;
+const users = await db.sql`SELECT * FROM users WHERE active = ${true}`;
 
 // Insert with RETURNING
-const [user] = await sql`
+const [user] = await db.sql`
   INSERT INTO users (name, email)
   VALUES (${name}, ${email})
   RETURNING *
 `;
 
 // Bulk insert
-const rows = sql.values([
+const rows = db.sql.values([
   ["Ada", "ada@example.com"],
   ["Bob", "bob@example.com"],
 ]);
-await sql`INSERT INTO users (name, email) VALUES ${rows}`;
+await db.sql`INSERT INTO users (name, email) VALUES ${rows}`;
 ```
 
-Transactions go through the pool:
+Transactions go through `db.pool` so `BEGIN`, the queries, and `COMMIT`/`ROLLBACK` all run on the same connection:
 
 ```typescript
-const { pool } = getDatabase();
-const client = await pool.connect();
+import { getDatabase } from "@netlify/database";
+
+const db = getDatabase();
+const client = await db.pool.connect();
 try {
   await client.query("BEGIN");
   await client.query("INSERT INTO users (name, email) VALUES ($1, $2)", [name, email]);
@@ -259,7 +262,7 @@ try {
 }
 ```
 
-`getConnectionString()` returns the raw URL for third-party tools that need one. Prefer the helpers above for application code.
+For third-party tools that need a raw connection string, import `getConnectionString` from `@netlify/database` — but prefer `getDatabase()` for application code.
 
 ### Manual migrations
 

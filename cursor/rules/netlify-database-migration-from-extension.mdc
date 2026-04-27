@@ -4,169 +4,173 @@ alwaysApply: false
 ---
 # Switching to Netlify Database
 
-Step-by-step process for switching a project from an external Postgres provider to **Netlify Database** (`@netlify/database`, `NETLIFY_DB_URL`). The steps are provider-agnostic — they apply whether the source is the deprecated Netlify DB extension, a standalone Neon account, Supabase, Railway, RDS, or any other hosted Postgres.
+Step-by-step process for switching a project from an external Postgres provider to **Netlify Database** (`@netlify/database`, `NETLIFY_DB_URL`). The steps are provider-agnostic — they apply whether the source is the deprecated Netlify DB extension (`@netlify/neon`), a standalone Neon account, Supabase, RDS, a self-managed instance, or any other hosted Postgres.
 
 > **Terminology.** This document uses "switch" for the provider change and "migration" exclusively for schema migration files. The two are distinct operations that happen to overlap during this process.
 
-## Overview
+> **Brief data-loss window.** This flow trades a small data-loss risk for a much simpler cutover: any writes to the source between the final export and the production deploy will not make it across. For most projects that's a few minutes. High-traffic apps should plan a maintenance window or a dual-write strategy outside the scope of this guide.
 
-1. Export data from the source database.
-2. Swap application code to `@netlify/database`.
-3. Push a branch — Netlify provisions a preview database and auto-applies schema migrations.
-4. Import data into the preview database (rehearsal).
-5. Merge to provision the production database (Netlify applies schema on the deploy), then import data (cutover).
-6. Merge and clean up.
+## Prerequisites
 
-## Step 1 — Export data
+- A linked Netlify project currently serving from an existing Postgres source
+- Netlify CLI 26.0.0+ installed and authenticated
+- `pg_dump` and `pg_restore` available locally, with versions matching your source server
 
-Use any tool that produces replayable SQL. `pg_dump` is the standard choice:
+## The shape of the switch
 
-```bash
-pg_dump \
-  --data-only \
-  --column-inserts \
-  --no-owner \
-  --no-privileges \
-  --schema=public \
-  "$SOURCE_DB_URL" > tmp/prod-data.sql
-```
+Three phases, each independently reversible. The source database keeps serving production traffic until the Phase 2 merge, so any rollback before that has zero user-visible impact.
 
-- **`--data-only`** — schema is handled by Drizzle migrations; only export rows.
-- **`--column-inserts`** — produces one `INSERT` per row with explicit column lists. Resilient to column reordering.
-- **`--schema=public`** — excludes non-application schemas. See the extension-specific note below.
-- Keep the dump in a gitignored directory (`tmp/`). **Do not commit production data to source control** — not even with secrets stripped. PII, data size, and operational artifacts don't belong in git.
-- `pg_dump` 18+ emits `\restrict` / `\unrestrict` psql meta-commands that are not valid SQL. Strip them: `... | grep -v -E '^\\(restrict|unrestrict)' > tmp/prod-data.sql`
+1. **Phase 1 — Provision** the new database alongside the source. No code or traffic changes.
+2. **Phase 2 — Swap the code and rehearse** on a preview deploy with real data.
+3. **Phase 3 — Cut over** production with a fresh data move and a merge.
 
-> **Switching from the Netlify DB extension.** If the project uses Neon Auth, the source database contains a `neon_auth` schema with auth tables (`user`, `account`, `session`, etc.). The `--schema=public` flag excludes these automatically. If you're also switching auth providers, handle that separately.
+## Phase 1 — Provision the new database
 
-## Step 2 — Code swap
+Goal: Netlify Database is online with the correct schema baseline. App still reads from the source.
 
-Create a feature branch and make all changes in one commit.
+> **Switching from the Netlify DB extension.** `@netlify/database` and `@netlify/neon` use different env vars (`NETLIFY_DB_URL` vs `NETLIFY_DATABASE_URL`) and don't conflict. Keep `@netlify/neon` installed and the extension configured throughout the switch — cleanup happens at the end.
 
-### Packages
+On a new branch:
 
-Remove the old provider's packages and install `@netlify/database` plus Drizzle on the `@beta` dist-tag (required for the `drizzle-orm/netlify-database` adapter):
+1. Run `netlify database init` to install `@netlify/database`, scaffold a starter migration, and verify the database is reachable:
 
-```bash
-npm install @netlify/database drizzle-orm@beta
-npm install -D drizzle-kit@beta
-```
+    ```bash
+    netlify database init
+    ```
 
-> **Switching from the Netlify DB extension.** Remove `@netlify/neon`, `@neondatabase/serverless`, and `@neondatabase/toolkit`. Keep `@neondatabase/neon-js` only if the frontend uses it for Neon Auth and auth is not being switched in this pass.
+2. Replace the starter migration's SQL with the current shape of your source database. The fastest way is a schema-only export from the source, written into the `migration.sql` file that `init` created under `netlify/database/migrations/`:
 
-### Database client
+    ```bash
+    pg_dump --schema-only --no-owner --no-privileges "$SOURCE_DATABASE_URL"
+    ```
 
-Replace the existing Drizzle client setup. The `drizzle-orm/netlify-database` adapter picks the right driver for the runtime automatically — no manual driver branching or `getDatabase()` wiring needed:
+    What matters is that running this migration against an empty database leaves it with the right shape. If the project already has Drizzle migrations, point `drizzle-kit` at `netlify/database/migrations/` and move them in instead of the schema dump. `pg_dump` 18+ emits `\restrict` / `\unrestrict` psql meta-commands that are not valid SQL — strip them: `... | grep -v -E '^\\(restrict|unrestrict)'`.
 
-```typescript
-// db/index.ts
-import { drizzle } from 'drizzle-orm/netlify-database'
-import * as schema from './schema.js'
+    > **Switching from the Netlify DB extension with Neon Auth?** The source contains a `neon_auth` schema with auth tables. Add `--schema=public` to exclude them. If you're switching auth providers too, handle that separately.
 
-export const db = drizzle({ schema })
-export * from './schema.js'
-```
+3. Push the branch. Netlify detects `@netlify/database`, provisions a preview database branch, and applies your baseline migration. The preview goes live still serving from the source database — app code hasn't changed yet.
 
-Move the schema file to `db/schema.ts` at the project root if it isn't already there, and update application imports accordingly.
+4. Confirm the baseline applied cleanly:
 
-### Drizzle config
+    ```bash
+    netlify database status --branch <preview-branch>
+    ```
 
-```typescript
-import { defineConfig } from 'drizzle-kit'
+5. Merge the branch. Netlify provisions the production database branch and applies the baseline migration there too. Production still serves from the source.
 
-export default defineConfig({
-  dialect: 'postgresql',
-  schema: './db/schema.ts',
-  out: 'netlify/database/migrations',
-  migrations: { prefix: 'timestamp' },
-})
-```
+If the baseline fails on the preview, the deploy fails and production is unaffected. Iterate until a clean preview deploy confirms the schema is reproducible from nothing.
 
-### Move schema migrations
+## Phase 2 — Swap the code and rehearse on a preview
 
-Move existing migration files to the GA convention path:
+Goal: the new production code works against Netlify Database, proven on a preview deploy with real data.
 
-```bash
-git mv migrations netlify/database/migrations   # or wherever they currently live
-```
+On a new branch:
 
-### Pre-flight check: filename ordering
+1. Update application code to read and write through `@netlify/database`. Wire Drizzle to the native adapter:
 
-**Critical.** Netlify applies schema migrations **lexicographically by filename**. Drizzle Kit's `migrate` command applies by `idx` order from `_journal.json`. If the project ever changed its Drizzle prefix setting (e.g., `unix` → `timestamp`), the two orderings can diverge:
+    ```typescript
+    // db/index.ts
+    import { drizzle } from "drizzle-orm/netlify-database";
+    import * as schema from "./schema";
+
+    export const db = drizzle({ schema });
+    ```
+
+    > **Switching from the Netlify DB extension.** Replace `import { neon } from "@netlify/neon"` and any direct calls to `neon()` with the Drizzle adapter above. The `NETLIFY_DATABASE_URL` env var from the legacy extension is no longer read.
+
+    > **Not using Drizzle?** The same flow works with any Postgres-compatible driver — see the native-driver section in `SKILL.md`.
+
+2. Update Drizzle config to point at the GA migrations directory. Use the `withNetlifyDB()` helper, or set `out` manually:
+
+    ```typescript
+    // drizzle.config.ts
+    import { defineConfig } from "drizzle-kit";
+    import { withNetlifyDB } from "@netlify/database/drizzle";
+
+    export default defineConfig({
+      dialect: "postgresql",
+      schema: "./db/schema.ts",
+      ...withNetlifyDB(),
+      migrations: { prefix: "timestamp" },
+    });
+    ```
+
+3. Remove old-provider packages and any scripts that ran `drizzle-kit migrate` against explicit staging/production URLs. The GA product auto-applies schema migrations on every deploy.
+
+    > **Switching from the Netlify DB extension.** Remove `@netlify/neon`, `@neondatabase/serverless`, and `@neondatabase/toolkit`. Keep `@neondatabase/neon-js` only if the frontend uses it for Neon Auth and auth is not being switched in this pass.
+
+4. Push the branch. Netlify creates a preview deploy with its own preview database branch, forked from the (currently empty) production Netlify Database.
+
+5. Get the preview branch's connection string with credentials:
+
+    ```bash
+    netlify database status --branch <preview-branch> --show-credentials
+    ```
+
+6. Copy a snapshot of data from the source into the preview branch:
+
+    ```bash
+    pg_dump -Fc "$SOURCE_DATABASE_URL" | pg_restore --no-owner --dbname="$PREVIEW_DATABASE_URL"
+    ```
+
+7. Exercise the preview URL — click through reads and writes, validate the critical flows end-to-end. If something's off, iterate on the branch and push again. Each push gets a fresh preview branch, so the rehearsal can be repeated until the path is clean.
+
+The rehearsal is the core of this flow. By the time the preview looks right, both the code swap and the data move have been proven against a real deployed environment. The production cutover is a re-run of a path that's already been validated.
+
+## Phase 3 — Cut over production
+
+When the rehearsal is clean:
+
+1. Get the production database connection string with credentials:
+
+    ```bash
+    netlify database status --show-credentials
+    ```
+
+2. Export from the source and import into production Netlify Database:
+
+    ```bash
+    pg_dump -Fc "$SOURCE_DATABASE_URL" | pg_restore --no-owner --dbname="$PRODUCTION_DATABASE_URL"
+    ```
+
+3. Merge the Phase 2 branch to trigger a production deploy. Once it completes, the app reads and writes through Netlify Database.
+
+4. Confirm reads and writes against the new production database.
+
+## Pre-flight: filename ordering for migrated migration files
+
+If existing Drizzle migration files are being moved into `netlify/database/migrations/` rather than baselined from a schema dump, **filename ordering matters**. Netlify applies schema migrations lexicographically by filename. If the project ever changed its Drizzle prefix setting (e.g., `unix` → `timestamp`), the lex order can diverge from `_journal.json`'s `idx` order:
 
 - 10-digit unix prefixes (`1771681020_...`) sort **before** 14-digit timestamp prefixes (`20260214140526_...`) alphabetically
 - But the unix files may have been generated **after** the timestamp files chronologically
 
-If the lexicographic sort of `netlify/database/migrations/*.sql` does not match the `idx` order in `_journal.json`, **rename the offending files** to timestamp prefixes using the `when` values from `_journal.json`:
+If lex sort of `netlify/database/migrations/*` does not match `idx` order in `_journal.json`, rename the offending files to timestamp prefixes using the `when` values from `_journal.json`:
 
 ```bash
-date -u -r <unix_seconds> +%Y%m%d%H%M%S   # convert
+date -u -r <unix_seconds> +%Y%m%d%H%M%S
 git mv netlify/database/migrations/<old>_<name>.sql netlify/database/migrations/<new>_<name>.sql
 git mv netlify/database/migrations/meta/<old>_snapshot.json netlify/database/migrations/meta/<new>_snapshot.json
 # Update the `tag` in _journal.json to match
 ```
 
-Also check the snapshot chain (`id` / `prevId` in each `meta/<tag>_snapshot.json`). Mixed prefixes can corrupt the chain — walk it in journal order and patch any broken `prevId`.
+Also walk the snapshot chain (`id` / `prevId` in each `meta/<tag>_snapshot.json`) and patch any broken `prevId`.
 
-### Delete manual scripts
+## Rolling back
 
-The GA product auto-applies schema migrations on every deploy (preview and production). Remove any scripts that ran `drizzle-kit migrate` against explicit staging/production URLs.
+- **Before merging Phase 2** — abandon the Phase 2 branch. Phase 1 left an empty Netlify Database behind a baseline migration; that's harmless.
+- **After merging Phase 2** — revert the merge in the Netlify UI. The app redeploys with the previous code, which still reads from the source. Keep the source running and its credentials live until production has been stable on Netlify Database long enough to trust the switch.
 
-## Step 3 — Push and test the preview
+## Cleanup
 
-Push the branch. On the deploy preview:
+Once production has been stable on Netlify Database long enough to trust the switch:
 
-- Netlify detects `@netlify/database` in the dependency tree and **auto-provisions a branch database**.
-- Schema migrations are **auto-applied** before the preview goes live.
-- The preview DB is empty but the app connects and runs.
+- Remove the source database client from dependencies and any source connection strings from Netlify environment variables
+- Decommission the source database in its hosting provider
 
-## Step 4 — Import data into preview (rehearsal)
+> **Switching from the Netlify DB extension.** Run `npm uninstall @netlify/neon`, remove the Neon extension from the site under **Extensions** in the Netlify UI, and drop any remaining `NETLIFY_DATABASE_URL` references from code and environment. Deploy once more to finalize the removal.
 
-Get the preview database's connection string:
+## Operational notes for agents
 
-```bash
-netlify env:get NETLIFY_DB_URL --context deploy-preview
-```
-
-Or find it in the Netlify UI under **Project configuration → Database**.
-
-Import the dump:
-
-```bash
-psql "$PREVIEW_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f tmp/prod-data.sql
-```
-
-Verify the preview URL with real data. This rehearsal validates the dump against the new schema and gives a concrete timing for the production cutover window.
-
-## Step 5 — Production cutover
-
-Once the production Netlify Database is provisioned (by merging the branch), Netlify has already applied the schema migrations during the production deploy. Do **not** run `drizzle-kit migrate` against the production connection string — schema is the deploy's job, and running it manually is exactly the kind of out-of-band change the rest of this skill warns against.
-
-Re-export and import data:
-
-```bash
-# Re-export for freshness (minimize the cutover window)
-pg_dump --data-only --column-inserts --no-owner --no-privileges \
-  --schema=public "$SOURCE_DB_URL" | grep -v -E '^\\(restrict|unrestrict)' > tmp/prod-data-fresh.sql
-
-# Import
-psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f tmp/prod-data-fresh.sql
-```
-
-There **is** a downtime window: any write to the source database between the final export and the completed import is not captured. For small databases this is seconds to minutes. For high-write systems, consider a read-only window or a catch-up pass before the final cutover.
-
-## Step 6 — Merge and clean up
-
-Merge the branch to main. On the production deploy, Netlify detects that schema migrations are already applied and skips them.
-
-After verifying production:
-
-- Remove the old provider's packages from `package.json`
-- Remove references to the old connection string env var from code and environment
-- Update project documentation
-
-> **Switching from the Netlify DB extension.** Remove `@netlify/neon` and any remaining `@neondatabase/*` packages (except `@neondatabase/neon-js` if still used for auth). Remove or unset `NETLIFY_DATABASE_URL` from all deploy contexts.
-
-## Note on direct production writes
-
-The standard guidance in `references/migrations.md` says never to connect to the production database and run queries directly — all data changes should go through DML migrations committed to the repo. This process is the **one exception**: a one-time data seed during a provider switch, where committing production data to git is not appropriate. Once the switch is complete, resume using DML migrations for all production data changes.
+- **Don't commit production data to source control.** Pipe `pg_dump` directly into `pg_restore` rather than writing dumps to disk, or stage them in a gitignored directory (`tmp/`). Even with secrets stripped, PII and operational artifacts don't belong in git.
+- **Don't run `drizzle-kit migrate` against the production connection string** during or after the switch. Schema is the deploy's job — running it manually is exactly the kind of out-of-band change the rest of this skill warns against.
+- **The data import is the one documented exception** to the rule "never connect to the production database directly." See `references/migrations.md` for the broader rule. Once the switch is complete, resume using DML migrations for all production data changes.

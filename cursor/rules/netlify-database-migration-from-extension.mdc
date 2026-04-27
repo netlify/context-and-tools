@@ -14,7 +14,7 @@ Step-by-step process for switching a project from an external Postgres provider 
 2. Swap application code to `@netlify/database`.
 3. Push a branch — Netlify provisions a preview database and auto-applies schema migrations.
 4. Import data into the preview database (rehearsal).
-5. Provision the production database, apply schema, import data (cutover).
+5. Merge to provision the production database (Netlify applies schema on the deploy), then import data (cutover).
 6. Merge and clean up.
 
 ## Step 1 — Export data
@@ -45,35 +45,29 @@ Create a feature branch and make all changes in one commit.
 
 ### Packages
 
-Remove the old provider's packages and install `@netlify/database`:
+Remove the old provider's packages and install `@netlify/database` plus Drizzle on the `@beta` dist-tag (required for the `drizzle-orm/netlify-database` adapter):
 
 ```bash
-npm install @netlify/database
+npm install @netlify/database drizzle-orm@beta
+npm install -D drizzle-kit@beta
 ```
 
 > **Switching from the Netlify DB extension.** Remove `@netlify/neon`, `@neondatabase/serverless`, and `@neondatabase/toolkit`. Keep `@neondatabase/neon-js` only if the frontend uses it for Neon Auth and auth is not being switched in this pass.
 
 ### Database client
 
-Replace the existing Drizzle client setup. `getDatabase()` returns different drivers depending on the runtime (`NETLIFY_DB_DRIVER`, set by the platform):
+Replace the existing Drizzle client setup. The `drizzle-orm/netlify-database` adapter picks the right driver for the runtime automatically — no manual driver branching or `getDatabase()` wiring needed:
 
 ```typescript
-import { getDatabase } from '@netlify/database'
-import { drizzle as drizzleNeonHttp } from 'drizzle-orm/neon-http'
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
-import * as schema from './schema'
+// db/index.ts
+import { drizzle } from 'drizzle-orm/netlify-database'
+import * as schema from './schema.js'
 
-const database = getDatabase()
-
-export const db =
-  database.driver === 'serverless'
-    ? drizzleNeonHttp(database.httpClient, { schema })
-    : drizzlePg(database.pool, { schema })
-
-export { schema }
+export const db = drizzle({ schema })
+export * from './schema.js'
 ```
 
-Note: `getDatabase()` throws immediately if `NETLIFY_DB_URL` is not set. This is different from some providers' lazy clients — any code that imports the db module without the env var will fail at import time, not at query time.
+Move the schema file to `db/schema.ts` at the project root if it isn't already there, and update application imports accordingly.
 
 ### Drizzle config
 
@@ -82,10 +76,9 @@ import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './path/to/schema.ts',          // keep existing path
-  out: './netlify/db/migrations',          // GA convention
+  schema: './db/schema.ts',
+  out: 'netlify/database/migrations',
   migrations: { prefix: 'timestamp' },
-  dbCredentials: { url: process.env.NETLIFY_DB_URL! },
 })
 ```
 
@@ -94,7 +87,7 @@ export default defineConfig({
 Move existing migration files to the GA convention path:
 
 ```bash
-git mv migrations netlify/db/migrations   # or wherever they currently live
+git mv migrations netlify/database/migrations   # or wherever they currently live
 ```
 
 ### Pre-flight check: filename ordering
@@ -104,12 +97,12 @@ git mv migrations netlify/db/migrations   # or wherever they currently live
 - 10-digit unix prefixes (`1771681020_...`) sort **before** 14-digit timestamp prefixes (`20260214140526_...`) alphabetically
 - But the unix files may have been generated **after** the timestamp files chronologically
 
-If the lexicographic sort of `netlify/db/migrations/*.sql` does not match the `idx` order in `_journal.json`, **rename the offending files** to timestamp prefixes using the `when` values from `_journal.json`:
+If the lexicographic sort of `netlify/database/migrations/*.sql` does not match the `idx` order in `_journal.json`, **rename the offending files** to timestamp prefixes using the `when` values from `_journal.json`:
 
 ```bash
 date -u -r <unix_seconds> +%Y%m%d%H%M%S   # convert
-git mv netlify/db/migrations/<old>_<name>.sql netlify/db/migrations/<new>_<name>.sql
-git mv netlify/db/migrations/meta/<old>_snapshot.json netlify/db/migrations/meta/<new>_snapshot.json
+git mv netlify/database/migrations/<old>_<name>.sql netlify/database/migrations/<new>_<name>.sql
+git mv netlify/database/migrations/meta/<old>_snapshot.json netlify/database/migrations/meta/<new>_snapshot.json
 # Update the `tag` in _journal.json to match
 ```
 
@@ -147,12 +140,11 @@ Verify the preview URL with real data. This rehearsal validates the dump against
 
 ## Step 5 — Production cutover
 
-Once the production Netlify Database is provisioned (either by merging the branch or during a parallel-packages transition), apply schema and import data:
+Once the production Netlify Database is provisioned (by merging the branch), Netlify has already applied the schema migrations during the production deploy. Do **not** run `drizzle-kit migrate` against the production connection string — schema is the deploy's job, and running it manually is exactly the kind of out-of-band change the rest of this skill warns against.
+
+Re-export and import data:
 
 ```bash
-# Apply schema if not yet auto-applied by a deploy
-NETLIFY_DB_URL="$PROD_DB_URL" npx drizzle-kit migrate
-
 # Re-export for freshness (minimize the cutover window)
 pg_dump --data-only --column-inserts --no-owner --no-privileges \
   --schema=public "$SOURCE_DB_URL" | grep -v -E '^\\(restrict|unrestrict)' > tmp/prod-data-fresh.sql

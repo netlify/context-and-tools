@@ -414,10 +414,9 @@ When a migration you generated needs to change, what you do depends on whether i
 ## Common mistakes
 
 1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.
-2. **Wrong adapter import path.** The Drizzle adapter is `drizzle-orm/netlify-db`. Some draft docs show `drizzle-orm/netlify-database`, but that path doesn't exist in the published package and will fail to resolve.
-3. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Use `withNetlifyDB()` from `@netlify/database/drizzle`, or set `out: "netlify/database/migrations"` manually.
-4. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
-5. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.
-6. **Using `netlify database connect` to change schema.** Read-only only. Schema changes go through migrations.
-7. **Misunderstanding `netlify database migrations reset`.** It only deletes unapplied files. It cannot undo an applied migration — for that, roll forward with a new migration.
-8. **Assuming `netlify dev` applies migrations automatically.** It doesn't — only the deploy does. Run `netlify database migrations apply` locally yourself.
+2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Use `withNetlifyDB()` from `@netlify/database/drizzle`, or set `out: "netlify/database/migrations"` manually.
+3. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
+4. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.
+5. **Using `netlify database connect` to change schema.** Read-only only. Schema changes go through migrations.
+6. **Misunderstanding `netlify database migrations reset`.** It only deletes unapplied files. It cannot undo an applied migration — for that, roll forward with a new migration.
+7. **Assuming `netlify dev` applies migrations automatically.** It doesn't — only the deploy does. Run `netlify database migrations apply` locally yourself.

@@ -14,7 +14,7 @@ Read `$netlify-edge-functions` for edge compute patterns.
 Read `$netlify-blobs` for object storage API. Blobs is for file/asset storage only — not for dynamic data.
 
 **Need to store any dynamic, structured, or relational data?**
-Read `$netlify-database` for Netlify Database — the GA managed Postgres product with Drizzle ORM, migrations, and preview branching. Covers the legacy "Netlify DB" extension in `references/legacy-extension.md`.
+Read `$netlify-database` for Netlify Database — the GA managed Postgres product with Drizzle ORM, migrations, and preview branching.
 
 **Optimizing or transforming images?**
 Read `$netlify-image-cdn` for the image transformation endpoint and clean URL patterns. For user-uploaded images, see `$netlify-image-cdn/references/user-uploads.md`.

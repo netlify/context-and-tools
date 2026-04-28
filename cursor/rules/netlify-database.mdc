@@ -131,24 +131,10 @@ The connection is configured automatically — no connection string needed. If y
 
 ### Drizzle Kit config
 
-Create `drizzle.config.ts` at the project root. The simplest form uses the `withNetlifyDB()` helper, which sets the `out` directory to `netlify/database/migrations` (where the deploy applies migrations from):
+Create `drizzle.config.ts` at the project root. Set `out` to `netlify/database/migrations` — that's the directory the deploy applies migrations from:
 
 ```typescript
 // drizzle.config.ts
-import { defineConfig } from "drizzle-kit";
-import { withNetlifyDB } from "@netlify/database/drizzle";
-
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "./db/schema.ts",
-  ...withNetlifyDB(),
-  migrations: { prefix: "timestamp" },
-});
-```
-
-If you'd rather configure `out` manually:
-
-```typescript
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
@@ -403,7 +389,7 @@ When a migration you generated needs to change, what you do depends on whether i
 ## Common mistakes
 
 1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.
-2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Use `withNetlifyDB()` from `@netlify/database/drizzle`, or set `out: "netlify/database/migrations"` manually.
+2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Set `out: "netlify/database/migrations"` in `drizzle.config.ts` — migrations outside that directory are not applied by the deploy.
 3. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
 4. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.
 5. **Using `netlify database connect` to change schema.** Schema changes go through migration files — never DDL through `connect` or any direct connection.

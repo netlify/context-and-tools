@@ -70,7 +70,7 @@ On a new branch:
 
     ```typescript
     // db/index.ts
-    import { drizzle } from "drizzle-orm/netlify-database";
+    import { drizzle } from "drizzle-orm/netlify-db";
     import * as schema from "./schema";
 
     export const db = drizzle({ schema });

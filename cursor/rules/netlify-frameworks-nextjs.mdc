@@ -6,6 +6,8 @@ alwaysApply: false
 
 ## Setup
 
+> **Check current versions before pinning.** Knowledge cutoffs lag behind npm, and guessing a version tends to fail (`npm install` rejects it, or worse, installs something incompatible). Before pinning `next` or any other package in `package.json`, run `npm view <pkg> version` to get the current `latest`. Or omit explicit pins and let `npm install` pick them up.
+
 Next.js on Netlify uses the `@netlify/next` runtime, which is installed automatically. No manual adapter installation is required — Netlify detects Next.js and configures the build automatically.
 
 ```toml

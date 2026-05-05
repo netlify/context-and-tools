@@ -49,7 +49,22 @@ A few patterns matter throughout this workflow because the alternative is a user
 
 - **Announce intent before installing software or running an interactive flow.** A line like "I need the Stripe CLI for this — installing now via Homebrew" is enough. The harness may surface a permission prompt anyway, but the user shouldn't be surprised by *what* is being installed.
 - **Don't try to script around browser flows.** `stripe login`, `netlify login`, and first-time `stripe projects init` all open browsers and require user action. Surface what the user needs to do, then wait for confirmation.
-- **Narrate during multi-second commands.** `stripe projects add netlify/project` and `netlify deploy --prod` aren't instant. Say what's running rather than going silent.
+- **Narrate during multi-second commands.** `stripe projects add netlify/project`, `netlify deploy`, and `netlify deploy --prod` aren't instant. Say what's running rather than going silent.
+
+## Clarify before bootstrapping
+
+This skill provisions real infrastructure (a Stripe project, a Netlify site, env vars). Before doing that, make sure you understand the project well enough to do it once. A short clarifying exchange now saves a full rewrite later — the alternative is shipping the wrong auth model or the wrong payment shape and ripping it out on the second pass.
+
+Ask only the questions whose answers aren't already in the user's prompt. Two to four targeted questions, not an interview. Cover, for payment-taking projects:
+
+- **Payment shape.** Subscription (recurring), one-time purchase, credits/usage-based, marketplace/Connect? Each implies a different Checkout / Subscription / Connect flow downstream.
+- **Other primitives.** Does this project also need auth, dynamic data, file/asset storage? Each one pulls in another skill — **netlify-identity**, **netlify-database**, **netlify-blobs** — and shifts what the agent should do after this skill ends.
+- **Framework preference**, if the user has one. If not, defer the question until step 5.
+- **Project slug.** Default to a slug derived from the prompt (lowercase, hyphenated). Only ask if the prompt is genuinely ambiguous about the project subject.
+
+If the prompt already answered any of these — "build a tip jar with Stripe and Netlify Identity" answers payment shape and auth — don't re-ask. The point is to validate intent, not to gate on a checklist.
+
+After the user answers, proceed deterministically through the workflow. Don't loop back here.
 
 ## Workflow
 
@@ -121,6 +136,28 @@ grep NETLIFY_NETLIFY_SITE_ID .env
 
 If missing, run `stripe projects env --pull` to fetch it. If it's still missing, stop and surface the error — the rest of this workflow depends on it.
 
+#### Reconcile the linked Netlify account
+
+`stripe projects add netlify/project` uses the Stripe Projects CLI's *own* cached Netlify auth, which can be a different Netlify user than the one the local `netlify` CLI is signed in as. If the two accounts don't share team membership, the deploy in step 9 will fail with a confusing "access denied" — and by then the fix is much more expensive. Catch the mismatch now.
+
+Read the site's owning account, substituting the value from `.env`:
+
+```bash
+netlify api getSite --data='{"site_id":"<NETLIFY_NETLIFY_SITE_ID>"}'
+```
+
+Note `account_slug` and `account_name` from the response. Then read the local CLI's user and team list:
+
+```bash
+netlify status
+```
+
+If the site's `account_slug` isn't a team the local CLI user belongs to, **halt**. Don't try to resolve it automatically — there are two valid fixes and the user has to pick. Surface it like this:
+
+> "Stripe Projects linked the new Netlify site to team **<account_name>**, but your `netlify` CLI is signed in as **<email>**, which doesn't appear to belong to that team. Continuing here will fail at deploy time. Do you want to (a) re-sign the local `netlify` CLI as a user on that team, or (b) re-link Stripe Projects to your work Netlify account?"
+
+If the accounts match, continue.
+
 ### 5. Build the application
 
 This skill stops here for the app code. Hand off to the relevant Netlify skills (see below) and general Stripe knowledge for Checkout sessions, webhooks, customer/subscription handling, etc.
@@ -159,15 +196,45 @@ Two things to get right:
 - **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. The Stripe SDK reads this name by default — picking a different name means the app can't see it without extra wiring.
 - **Pass `--secret`.** This makes the value write-only after set, so it doesn't appear in deploy logs or the dashboard. Always use it for the secret key.
 
-### 9. Build and deploy
+### 9. Build, draft deploy, then promote to prod
 
-Run the project's build (e.g. `npm run build`) if it has one, then:
+The bootstrap ends with **two** deploys — a draft first, then a deliberate promotion to prod. There are two reasons for splitting them:
+
+- **Cost.** Draft and preview deploys are free; production deploys count against the user's billable build minutes. Burning a prod deploy on something that turns out to need another iteration is real money.
+- **Dashboard-only setup.** Some Netlify primitives can't finish configuration until the site exists, and they need clicks the agent can't make — enabling the Identity instance, toggling external OAuth providers, and so on. Those steps belong between the first deploy and the prod promotion, not after the site is already live.
+
+This is a deliberate human-in-the-loop checkpoint. Don't try to poll past it.
+
+#### Build
+
+Run the project's build (e.g. `npm run build`) if it has one.
+
+#### First deploy: draft
+
+```bash
+netlify deploy
+```
+
+No `--prod`. Capture the draft URL from the output and surface it to the user.
+
+#### Manual checkpoint
+
+Tell the user, plainly, that this is the moment to:
+
+- Complete any dashboard-only setup the project needs — enabling the Identity instance, configuring external OAuth providers, etc. If Identity is involved, point them at the **netlify-identity** skill's "Dashboard configuration" section.
+- Open the draft URL and verify the app works end-to-end, including the Stripe checkout flow against test-mode keys.
+
+Then **wait for explicit user confirmation** before promoting. Don't run `netlify deploy --prod` until they say so — promotion is a separate, deliberate step, not a continuation of the first deploy.
+
+#### Promote to prod
+
+When the user confirms, run:
 
 ```bash
 netlify deploy --prod
 ```
 
-Capture the live URL from the output and surface it to the user as the final result. Use `--prod` rather than a draft — there's no preview to gate on for a fresh site, and the goal of the bootstrap is a working live URL.
+Capture the live URL from the output and surface it as the final result.
 
 For preview deploys, branch deploys, environment-context vars, and the rest of deploy mechanics, see **netlify-deploy** and **netlify-cli-and-deploy**.
 

@@ -43,9 +43,9 @@ Migrations go in `netlify/database/migrations/`. Two layouts are supported and c
 - **Flat:** one `.sql` file per migration — `20260417143022_create_items.sql`
 - **Subdirectory:** a folder containing `migration.sql` — `20260417143022_create_items/migration.sql` (this is what `netlify database migrations new` and Drizzle Kit's default layout produce)
 
-Files apply lexicographically. **Default to timestamp prefixes** — when no precedent exists in the repo, set `migrations: { prefix: "timestamp" }` in `drizzle.config.ts` and use the `--scheme timestamp` flag for `migrations new`. Sequential indices (`0000_`, `0001_`, …) collide whenever two pieces of work generate migrations in parallel — this happens to teams and to solo developers iterating on multiple branches. Timestamp prefixes keep filenames unique.
+Files apply lexicographically. Timestamp prefixes are the default for both `drizzle-kit generate` and `netlify database migrations new`, and they keep filenames unique when two pieces of work generate migrations in parallel — common on teams and for solo developers iterating across branches.
 
-If a project is already established on sequential prefixes, leave it alone — the CLI's `migrations new` auto-detects the scheme — but expect collisions when working in parallel and resolve them by reset + regenerate.
+If a project is already established on sequential prefixes (`0000_`, `0001_`, …), leave it alone — the CLI's `migrations new` auto-detects the scheme — but expect collisions when working in parallel and resolve them by reset + regenerate.
 
 ```
 netlify/database/migrations/

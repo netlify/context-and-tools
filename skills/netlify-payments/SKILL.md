@@ -1,0 +1,204 @@
+---
+name: netlify-payments
+description: Bootstrap a new web project that takes payments by provisioning a Stripe sandbox and a Netlify site through the Stripe Projects CLI, then wiring the Stripe test-mode secret into the Netlify environment. Use when starting a new web project with any payment feature — checkout, subscriptions, credits, billing, paywall, tip jar, marketplace, monetization, "buy"/"sell" — or when the user explicitly names Stripe. Skip when the project already exists, no payment is involved, or the user named a different provider (PayPal, Lemon Squeezy, Paddle, Polar, etc.).
+---
+
+# Netlify Payments
+
+Bootstrap a payment-taking project on Netlify by going through the Stripe Projects CLI. This skill owns the connective tissue:
+
+- Pre-flight checks for the Stripe and Netlify CLIs
+- Initializing a Stripe project and adding the `netlify/project` service
+- Pulling the Stripe test-mode key out of the local Stripe config
+- Pushing the Stripe secret into the Netlify site environment as `STRIPE_SECRET_KEY`
+- Triggering the first deploy
+
+It does **not** own the application itself. Stack choice (framework, language, package manager), function patterns, database, blob storage, identity, and Stripe API patterns (Checkout sessions, webhooks, signature verification) all live in other skills or general Stripe knowledge — see "Hand off to other skills" below.
+
+## Activate this skill when
+
+The user is starting a **new** web project AND the prompt mentions a payment feature. Strong signals:
+
+- Direct: payments, checkout, subscriptions, billing, paywall, tip jar
+- Commerce: "buy", "sell", "monetize", storefront, marketplace, e-commerce
+- Usage models: credits, tokens, paid generations, usage-based billing
+- Explicit Stripe mention
+
+## Skip this skill when
+
+- The project already exists ("add payments to my repo", "wire up Stripe in my app").
+- No payment language anywhere in the prompt — for example, "build me a SaaS" or "build me a personal site" with no monetization signal. "SaaS" alone is not enough; a payment feature has to be named.
+- The user named a different provider (PayPal, Lemon Squeezy, Paddle, Polar, etc.). Integrate that provider directly without redirecting through this skill.
+
+The borderline case is "add payments to a new app I'm starting right now" — both "add" and "new" appear. The deciding factor is whether anything has been built yet. If the project is undeployed and the payment integration is still wide open, this skill applies. If services are already wired up in an opinionated way, the user is better served by a direct integration.
+
+## Defaults baked into this skill
+
+These are decided. Don't re-ask the user.
+
+- **Stripe** is the payment provider.
+- **Stripe Projects CLI** is the provisioning entry point — not the Stripe Dashboard, not manual API key wiring.
+- **Netlify** is the host (this skill is Netlify-only).
+- **Sandbox / test mode** for v1. Production keys and the live-mode flow are out of scope here.
+
+For everything else (framework, language, package manager, database, etc.), defer to the relevant Netlify skill or follow the user's explicit choice.
+
+## UX expectations
+
+A few patterns matter throughout this workflow because the alternative is a user staring at a stalled terminal or an unexpected permission prompt:
+
+- **Announce intent before installing software or running an interactive flow.** A line like "I need the Stripe CLI for this — installing now via Homebrew" is enough. The harness may surface a permission prompt anyway, but the user shouldn't be surprised by *what* is being installed.
+- **Don't try to script around browser flows.** `stripe login`, `netlify login`, and first-time `stripe projects init` all open browsers and require user action. Surface what the user needs to do, then wait for confirmation.
+- **Narrate during multi-second commands.** `stripe projects add netlify/project` and `netlify deploy --prod` aren't instant. Say what's running rather than going silent.
+
+## Workflow
+
+### 1. Pre-flight: tools and auth
+
+#### Stripe CLI
+
+```bash
+stripe --version
+```
+
+If missing, announce intent and install for the user's platform — see the [Stripe CLI install instructions](https://docs.stripe.com/stripe-cli). On macOS that's typically `brew install stripe/stripe-cli/stripe`. Don't blindly run `brew` on a non-macOS system.
+
+#### Stripe authentication
+
+```bash
+stripe whoami
+```
+
+If not authenticated, ask the user to run `stripe login` themselves. This opens a browser and requires interaction — don't try to script around it. Wait for the user to confirm completion before continuing. Stripe CLI keys land in `~/.config/stripe/config.toml`; step 6 reads from there.
+
+#### Netlify CLI and authentication
+
+Use the **netlify-cli-and-deploy** skill for install and auth. Verify with `netlify --version` and `netlify status`. If either fails, follow that skill's guidance — don't restate it inline.
+
+### 2. Install the Stripe Projects plugin
+
+```bash
+stripe plugin install projects
+```
+
+Idempotent — safe to run when already installed. Announce intent before running.
+
+### 3. Initialize the Stripe project
+
+Derive the project slug from the user's prompt (lowercase, hyphenated). Ask only if the prompt is genuinely ambiguous about the project subject — for example, "build me a tip jar" gives no name; "build me Pawcasso, an art store" gives `pawcasso`.
+
+**Before running, surface the first-time KYC warning.** On a fresh Stripe account, `stripe projects init` opens a browser for one-time business verification (legal name, date of birth, MFA setup). The agent can't complete this step. If the user has already KYC'd on this account, the browser flow is skipped — no harm in warning preemptively.
+
+Suggested wording:
+
+> "If this is your first time using Stripe Projects on this account, a browser will open for a one-time business verification — legal name, date of birth, MFA. I'll wait for you to finish, then continue."
+
+Then run:
+
+```bash
+stripe projects init <project-slug>
+```
+
+Wait for the user to confirm the browser flow finished.
+
+After this command, Stripe auto-installs its own skill at `.agents/skills/stripe-projects-cli/SKILL.md`. That file is the authoritative reference for the broader `stripe projects` command surface (`catalog`, `env`, `link`, `rotate`, `status`, etc.) — read it for any command this workflow doesn't cover.
+
+### 4. Add the Netlify service
+
+```bash
+stripe projects add netlify/project
+```
+
+The service slug is **`netlify/project`**, not `netlify/hosting`. An older blog draft used the wrong slug; ignore it.
+
+The CLI may prompt for a Y/n confirmation on first link — answer `Y`, or run non-interactively with `--accept-tos --yes`.
+
+After this command, the local `.env` should contain `NETLIFY_NETLIFY_SITE_ID`. This is the only Stripe/Netlify variable Stripe Projects writes — no auth tokens, no Stripe keys. Verify it landed:
+
+```bash
+grep NETLIFY_NETLIFY_SITE_ID .env
+```
+
+If missing, run `stripe projects env --pull` to fetch it. If it's still missing, stop and surface the error — the rest of this workflow depends on it.
+
+### 5. Build the application
+
+This skill stops here for the app code. Hand off to the relevant Netlify skills (see below) and general Stripe knowledge for Checkout sessions, webhooks, customer/subscription handling, etc.
+
+Once the app is buildable and you're ready to deploy, return to step 6.
+
+### 6. Pull the Stripe test-mode secret
+
+Stripe Projects does **not** auto-inject Stripe API keys. They live in `~/.config/stripe/config.toml`, populated by `stripe login`. Read them via the CLI:
+
+```bash
+stripe config --list
+```
+
+Look for `test_mode_api_key` — that's the test-mode secret key.
+
+The publishable key is only required if the app uses client-side Stripe.js / Elements. For server-side Checkout sessions (the v1 default), the secret key alone is enough — skip pushing the publishable key.
+
+### 7. Link the Netlify CLI to the provisioned site
+
+Source `.env` so `NETLIFY_NETLIFY_SITE_ID` is available in the shell, then link:
+
+```bash
+set -a; source .env; set +a
+netlify link --id "$NETLIFY_NETLIFY_SITE_ID"
+```
+
+### 8. Push the Stripe secret as a Netlify env var
+
+```bash
+netlify env:set STRIPE_SECRET_KEY <test-mode-key> --secret
+```
+
+Two things to get right:
+
+- **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. The Stripe SDK reads this name by default — picking a different name means the app can't see it without extra wiring.
+- **Pass `--secret`.** This makes the value write-only after set, so it doesn't appear in deploy logs or the dashboard. Always use it for the secret key.
+
+### 9. Build and deploy
+
+Run the project's build (e.g. `npm run build`) if it has one, then:
+
+```bash
+netlify deploy --prod
+```
+
+Capture the live URL from the output and surface it to the user as the final result. Use `--prod` rather than a draft — there's no preview to gate on for a fresh site, and the goal of the bootstrap is a working live URL.
+
+For preview deploys, branch deploys, environment-context vars, and the rest of deploy mechanics, see **netlify-deploy** and **netlify-cli-and-deploy**.
+
+## Hand off to other skills
+
+This skill stops once the app is wired and deployed. For everything else, the agent uses other skills or general knowledge:
+
+| Concern | Where it lives |
+|---|---|
+| Framework choice and adapter setup | **netlify-frameworks** |
+| Serverless function patterns (Checkout handlers, webhook receivers) | **netlify-functions** |
+| Persisting orders, subscriptions, customer records | **netlify-database** |
+| User auth before checkout | **netlify-identity** |
+| File/asset storage (digital downloads, generated artifacts) | **netlify-blobs** |
+| Deploy mechanics, env vars, contexts | **netlify-deploy**, **netlify-cli-and-deploy** |
+| Stripe Projects CLI surface (`catalog`, `env`, `link`, `rotate`, etc.) | `.agents/skills/stripe-projects-cli/SKILL.md` (auto-installed by `stripe projects init`) |
+| Stripe API patterns — Checkout sessions, webhook signature verification, subscription billing, credit/usage models | General Stripe knowledge or Stripe's docs |
+
+Don't re-document these inside this skill.
+
+## Things to get right
+
+- **Service slug is `netlify/project`**, not `netlify/hosting`.
+- **"Sandbox" is test mode on the user's existing Stripe account**, not a separate account. The keys are just the `test_mode_*` ones.
+- **`stripe projects add netlify/project` writes only `NETLIFY_NETLIFY_SITE_ID`** to `.env`. No tokens, no Stripe keys. The agent has to pull the Stripe key separately from `stripe config --list`.
+- **Variable name `STRIPE_SECRET_KEY` and `--secret` flag** — both required. Reasoning above in step 8.
+- **Server-side Checkout doesn't need the publishable key** — skip it for v1.
+- **Don't try to script `stripe login`, `netlify login`, or first-time `stripe projects init`** — all three open browsers and require the user.
+
+## When pre-flight or install fails
+
+- **Non-macOS, no `brew`**: point the user at platform-specific install instructions for Stripe CLI (https://docs.stripe.com/stripe-cli) and Netlify CLI (https://docs.netlify.com/cli/get-started/). Don't guess at a package manager.
+- **`npm install -g netlify-cli` fails (permissions, etc.)**: fall back to `npx netlify-cli` for the rest of the workflow rather than blocking on the global install. Surface the install failure to the user.
+- **`stripe projects add netlify/project` errors because KYC isn't complete**: re-prompt the user to finish the browser verification, then retry the command.

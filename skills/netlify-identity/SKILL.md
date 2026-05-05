@@ -9,16 +9,69 @@ Netlify Identity is a user management service for signups, logins, password reco
 
 **Always use `@netlify/identity`.** Never use `netlify-identity-widget` or `gotrue-js` — they are deprecated. `@netlify/identity` provides a unified, headless TypeScript API that works in both browser and server contexts (Netlify Functions, Edge Functions, SSR frameworks).
 
+## Dashboard configuration (the agent does not own this)
+
+**All Identity instance configuration is dashboard-only — there is no public API.** Outside of a Netlify Agent Runner deploy, the Identity instance must be enabled in the dashboard before any auth flow will work. If you write Identity code first and only discover this when `/.netlify/identity/signup` 404s after a production deploy, that's wasted work — surface the dashboard handoff up front instead.
+
+**Dashboard URL pattern:** `https://app.netlify.com/projects/<project-slug>/configuration/identity` (it's under project configuration — not under Integrations, and not a top-level sidebar item).
+
+### Dashboard-only operations
+
+- **Enable Identity** — turns the Identity instance on for the site. **Required** before any auth flow works.
+- **Registration mode** — Open (anyone can sign up, the default) or Invite only.
+- **Autoconfirm** — ON skips the email-confirmation step on signup; OFF requires the new user to click a confirmation email before they can log in.
+- **External providers** — Add Google / GitHub / GitLab / Bitbucket / Facebook. The "Use Netlify's app" option means no `client_id`/`secret` needed — good for prototypes. Adding an OAuth provider does NOT disable email/password — email/password is always available unless the front-end omits it.
+- **Custom email templates / SMTP** — advanced; out of scope for typical prototypes.
+
+There is no CLI command and no public API for any of these. **Do not** curl `https://api.netlify.com/...` to flip toggles, **do not** read auth tokens out of `~/Library/Preferences/netlify/config.json`, and **do not** probe for an undocumented endpoint. Hand it to the user.
+
+### Recommended settings per use case
+
+| Use case | Registration | Autoconfirm | External providers |
+|---|---|---|---|
+| Prototype / demo | Open | ON | as requested |
+| Production with email signup | Open or Invite per product | OFF (real email confirmation) | configured with custom email templates / SMTP as needed |
+
+### Handoff checklist
+
+When the dashboard work is needed, give the user a copy-pasteable checklist **between the draft deploy and the production deploy** — not after the prod deploy fails:
+
+```
+Before this works end-to-end, flip these in the Netlify dashboard at
+https://app.netlify.com/projects/<your-slug>/configuration/identity:
+
+- [ ] Identity → Enable
+- [ ] Registration → Open (default) or Invite only
+- [ ] Autoconfirm → ON for prototypes; OFF for prod with email confirmation
+- [ ] External providers → Add Google (etc.) with "Use Netlify's app"
+
+Tell me when these are flipped and I'll run the production deploy.
+```
+
+## Before you build
+
+If the prompt didn't already specify, ask the user a few short questions before scaffolding any auth code — the answers shape both the dashboard config above and the auth UI you'll write:
+
+- Email/password only, OAuth only, or both?
+- Which OAuth providers (Google, GitHub, GitLab, Bitbucket, Facebook)?
+- Autoconfirm (for prototypes) or email confirmation (for production)?
+- Public signup or invite-only?
+
+**If you don't have preferences here, tell me what you want overall and I'll pick sensible defaults** — typically email/password + Google OAuth, autoconfirm ON, registration Open for a prototype.
+
+Asking these *after* coding causes rework — both the auth UI shape and the dashboard config fall out of these answers.
+
+## When something fails, surface and stop
+
+If a deploy fails, an Identity callback 404s, an OAuth flow doesn't return, or `/.netlify/identity/*` is unreachable — report the failure to the user with the deploy log URL, the exact error, and the site URL, then stop. Do not curl the Netlify API to "fix" the Identity instance, do not invent recovery commands, do not bypass the dashboard. Identity instance state has no public API to repair — the recovery is always a dashboard handoff.
+
 ## Setup
 
 ```bash
 npm install @netlify/identity
 ```
 
-Identity is automatically enabled when a deploy created by a Netlify Agent Runner session includes Identity code. Otherwise, it must be manually enabled in **Project configuration > Identity** in the Netlify dashboard (`https://app.netlify.com/projects/<project-slug>/configuration/identity`). It is not under Integrations, and not a top-level sidebar item — it lives in the project's configuration pages. These are the default settings:
-
-- **Registration** — Open (anyone can sign up). This is the default — no configuration needed to allow public signups or OAuth logins. Only change to Invite only in **Project configuration > Identity** if you explicitly want to restrict registration.
-- **Autoconfirm** — Off (new signups require email confirmation). Enable in **Project configuration > Identity** to skip confirmation during development.
+The Identity instance must be enabled in the dashboard first (see [Dashboard configuration](#dashboard-configuration-the-agent-does-not-own-this) above). The one exception: a deploy created by a Netlify Agent Runner session that includes Identity code auto-enables the instance.
 
 ### Local Development
 
@@ -132,9 +185,9 @@ function handleOAuthClick(provider: 'google' | 'github' | 'gitlab' | 'bitbucket'
 }
 ```
 
-Enable providers in **Project configuration > Identity > External providers** before using OAuth. Registration is open by default, so no additional signup-related configuration is needed for OAuth users to create accounts — only the provider itself must be enabled.
+Providers must be enabled in the dashboard before `oauthLogin()` works — see [Dashboard configuration](#dashboard-configuration-the-agent-does-not-own-this) above. Registration is Open by default, so OAuth users can create accounts without any extra signup-related configuration; only the provider itself must be enabled.
 
-Email/password is always available as a login method — there is **no "Email provider" toggle** in Identity settings, only External providers for OAuth. To restrict users to OAuth-only, simply omit the email/password form from your UI; the front-end is the gate.
+Email/password is always available as a login method — there is **no "Email provider" toggle** in Identity settings, only External providers for OAuth. To restrict users to OAuth-only, omit the email/password form from your UI; the front-end is the gate.
 
 ### Handling Callbacks
 

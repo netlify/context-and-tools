@@ -82,17 +82,16 @@ On a new branch:
 
     > **Not using Drizzle?** The same flow works with any Postgres-compatible driver — see the native-driver section in `SKILL.md`.
 
-2. Update Drizzle config to point at the GA migrations directory. Use the `withNetlifyDB()` helper, or set `out` manually:
+2. Update Drizzle config to point at the GA migrations directory:
 
     ```typescript
     // drizzle.config.ts
     import { defineConfig } from "drizzle-kit";
-    import { withNetlifyDB } from "@netlify/database/drizzle";
 
     export default defineConfig({
       dialect: "postgresql",
       schema: "./db/schema.ts",
-      ...withNetlifyDB(),
+      out: "netlify/database/migrations",
       migrations: { prefix: "timestamp" },
     });
     ```

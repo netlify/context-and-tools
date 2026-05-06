@@ -6,10 +6,12 @@ on:
     paths:
       - "skills/**"
       - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-codex-skills.yml"
   pull_request:
     paths:
       - "skills/**"
       - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-codex-skills.yml"
 
 permissions:
   contents: write

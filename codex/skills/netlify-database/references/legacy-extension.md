@@ -12,7 +12,7 @@ These signals indicate the project is on the legacy extension, not the GA produc
 - `NETLIFY_DATABASE_URL` referenced in code or env files (note: different from the GA `NETLIFY_DB_URL`)
 - The Neon extension is installed under **Extensions** in the Netlify UI
 
-The legacy extension was historically set up via `netlify db init` on older versions of the CLI. That command is gone in the current CLI — `netlify db init` (and its `netlify database init` alias) now sets up Netlify Database (the GA product). If a project shows the signals above, it was created on an older CLI version, not by anything reachable today.
+The legacy extension was historically set up via `netlify db init` on older versions of the CLI. That command is gone in the current CLI — `netlify db init` (the short alias for `netlify database init`) now sets up Netlify Database (the GA product), not the extension. If a project shows the signals above, it was created on an older CLI version, not by anything reachable today.
 
 ## Keeping an extension project working
 
@@ -41,5 +41,6 @@ Common hallucinations to avoid:
 - Using `@netlify/neon` with `NETLIFY_DB_URL` (wrong env var)
 - Telling a user to "claim" their Netlify Database into a Neon account — that step only existed in the extension flow and is not part of Netlify Database (GA)
 - Recommending `netlify db init` to a legacy-extension user expecting it to reinstall the extension — the current CLI's `db init` sets up the GA product, not the extension
+- Assuming `netlify db <command>` still targets the extension. It's the short alias for `netlify database <command>` and runs the GA product.
 
 When in doubt, check `package.json` and the env vars actually set on the site before suggesting commands.

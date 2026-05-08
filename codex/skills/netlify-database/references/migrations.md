@@ -8,7 +8,7 @@ Prefer Drizzle Kit for generating migrations. Manual SQL migration files are an 
 
 The platform applies migrations to every Netlify-hosted database (preview branches and production) automatically on deploy. You never run `drizzle-kit migrate` against `NETLIFY_DB_URL` from a preview or production context. For local, use `netlify database migrations apply` — it targets the local development database only.
 
-`drizzle-kit push` is not used in this workflow at all — always generate a migration file and let the deploy apply it. And never run DDL through `netlify database connect`, `psql`, or any other direct connection: the connection is read-only, and schema changes out-of-band cause drift between the migration history and the actual database.
+`drizzle-kit push` is not used in this workflow at all — always generate a migration file and let the deploy apply it. And never run DDL through `netlify database connect`, `psql`, or any other direct connection: schema changes out-of-band cause drift between the migration history and the actual database.
 
 ## Schema migration workflow
 
@@ -49,8 +49,6 @@ netlify/database/migrations/
   20260418091500_add_items_is_active/
     migration.sql
 ```
-
-The migrations directory location can be overridden by setting `db.migrations.path` in `netlify.toml`.
 
 ## Iterating on a migration you haven't shipped yet
 

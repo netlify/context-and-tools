@@ -46,7 +46,7 @@ This means:
 
 - Use `netlify database migrations apply` for the local DB. Do NOT run `drizzle-kit migrate` against `NETLIFY_DB_URL` in any context.
 - Do NOT run `drizzle-kit push` at all. Generate a migration and let the deploy apply it.
-- Do NOT run raw DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) via `netlify database connect`, `psql`, or any other direct connection. The connection is read-only for a reason.
+- Do NOT run raw DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) via `netlify database connect`, `psql`, or any other direct connection. Schema changes go through migration files; out-of-band DDL drifts the migration history from the actual schema.
 - Do NOT export `NETLIFY_DB_URL` from a preview or production context and run a client against it. Migrations drift the moment anything touches the schema out-of-band.
 
 The one documented exception is a **one-time data import** during a provider switch — see `references/migration-from-extension.md`. Outside that specific flow, the rule is absolute: schema changes go through migration files, migration files get applied by the deploy.
@@ -131,24 +131,10 @@ The connection is configured automatically — no connection string needed. If y
 
 ### Drizzle Kit config
 
-Create `drizzle.config.ts` at the project root. The simplest form uses the `withNetlifyDB()` helper, which sets the `out` directory to `netlify/database/migrations` (where the deploy applies migrations from):
+Create `drizzle.config.ts` at the project root. Set `out` to `netlify/database/migrations` — that's the directory the deploy applies migrations from:
 
 ```typescript
 // drizzle.config.ts
-import { defineConfig } from "drizzle-kit";
-import { withNetlifyDB } from "@netlify/database/drizzle";
-
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "./db/schema.ts",
-  ...withNetlifyDB(),
-  migrations: { prefix: "timestamp" },
-});
-```
-
-If you'd rather configure `out` manually:
-
-```typescript
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
@@ -339,7 +325,7 @@ netlify database connect --query "SELECT * FROM items LIMIT 10" --json
 netlify database connect --json
 ```
 
-The connection is read-only. **Never run DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) or any mutating query through `netlify database connect`.** Schema changes go through migration files.
+**Never run DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) through `netlify database connect`, `psql`, or any other direct connection.** Schema changes go through migration files — out-of-band DDL drifts the migration history from the actual schema.
 
 ### `netlify database migrations new`
 
@@ -389,17 +375,6 @@ Wipes the local development database — drops all schemas and tables. Only affe
 netlify database reset
 ```
 
-### Customizing the migrations directory
-
-The default is `netlify/database/migrations`. To override, set `db.migrations.path` in `netlify.toml`:
-
-```toml
-[db.migrations]
-  path = "db/migrations"
-```
-
-The CLI commands and the deploy both honor the override.
-
 ## Iterating on migrations
 
 When a migration you generated needs to change, what you do depends on whether it's been applied anywhere yet:
@@ -414,9 +389,9 @@ When a migration you generated needs to change, what you do depends on whether i
 ## Common mistakes
 
 1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.
-2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Use `withNetlifyDB()` from `@netlify/database/drizzle`, or set `out: "netlify/database/migrations"` manually.
+2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Set `out: "netlify/database/migrations"` in `drizzle.config.ts` — migrations outside that directory are not applied by the deploy.
 3. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
 4. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.
-5. **Using `netlify database connect` to change schema.** Read-only only. Schema changes go through migrations.
+5. **Using `netlify database connect` to change schema.** Schema changes go through migration files — never DDL through `connect` or any direct connection.
 6. **Misunderstanding `netlify database migrations reset`.** It only deletes unapplied files. It cannot undo an applied migration — for that, roll forward with a new migration.
 7. **Assuming `netlify dev` applies migrations automatically.** It doesn't — only the deploy does. Run `netlify database migrations apply` locally yourself.

@@ -193,7 +193,7 @@ netlify env:set STRIPE_SECRET_KEY <test-mode-key> --secret
 
 Two things to get right:
 
-- **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. The Stripe SDK reads this name by default — picking a different name means the app can't see it without extra wiring.
+- **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. This is the convention Stripe's own examples use, so app code should read it explicitly — e.g., `new Stripe(Netlify.env.get("STRIPE_SECRET_KEY"))` in a Netlify Function. The Stripe SDK does not auto-read any env var; the name only matters for consistency with the code that reads it.
 - **Pass `--secret`.** This makes the value write-only after set, so it doesn't appear in deploy logs or the dashboard. Always use it for the secret key.
 
 ### 9. Build, draft deploy, then promote to prod

@@ -43,6 +43,9 @@ Read `$netlify-identity` for Netlify Identity setup, OAuth, role-based access, a
 **Deploying a site to Netlify?**
 Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.
 
+**Bootstrapping a new project that takes payments?**
+Read `$netlify-payments` for provisioning a Stripe sandbox + Netlify site through the Stripe Projects CLI and wiring the test-mode secret. New projects only — for adding Stripe to an existing project, use general Stripe knowledge plus `netlify-functions` and `netlify-cli-and-deploy`.
+
 ## General Rules
 
 - Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)

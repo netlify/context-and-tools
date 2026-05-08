@@ -1,6 +1,6 @@
 ---
+name: netlify-payments
 description: Bootstrap a new web project that takes payments by provisioning a Stripe sandbox and a Netlify site through the Stripe Projects CLI, then wiring the Stripe test-mode secret into the Netlify environment. Use when starting a new web project with any payment feature — checkout, subscriptions, credits, billing, paywall, tip jar, marketplace, monetization, "buy"/"sell" — or when the user explicitly names Stripe. Skip when the project already exists, no payment is involved, or the user named a different provider (PayPal, Lemon Squeezy, Paddle, Polar, etc.).
-alwaysApply: false
 ---
 
 # Netlify Payments

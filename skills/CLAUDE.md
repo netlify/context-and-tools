@@ -34,8 +34,8 @@ Read `netlify-frameworks/SKILL.md` for adapter/plugin setup. Framework-specific 
 **Controlling CDN caching behavior?**
 Read `netlify-caching/SKILL.md` for cache headers, stale-while-revalidate, cache tags, and purge.
 
-**Adding AI capabilities or choosing an AI model?**
-Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup, supported models, and provider SDKs.
+**Adding AI capabilities, choosing an AI model, or generating images with AI?**
+Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup, supported models, provider SDKs, and image generation (text-to-image and image-to-image via Gemini).
 
 **Adding user authentication, signups, logins, or access control?**
 Read `netlify-identity/SKILL.md` for Netlify Identity setup, OAuth, role-based access, and protecting routes and functions.

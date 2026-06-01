@@ -23,6 +23,16 @@ export const config: Config = {
 
 The handler receives a standard Web API `Request` and returns a `Response`. The second argument is a Netlify `Context` object.
 
+The bare default export shown above is the recommended form. The default export can also be an object with a `fetch` method — prefer this form only if (1) other functions in the project already use it, or (2) the function also subscribes to platform events (see [Event Handlers](#event-handlers) below), since events are exposed as named handlers on the same object:
+
+```typescript
+export default {
+  fetch(req: Request, context: Context) {
+    return new Response("Hello, world!");
+  },
+};
+```
+
 ## File Structure
 
 Place functions in `netlify/functions/`:
@@ -86,13 +96,55 @@ export const config: Config = {
 
 For long-running tasks (up to 15 minutes). The client receives an immediate `202` response; return values are ignored.
 
-Name the file with a `-background` suffix:
+Enable background mode by setting `background: true` in config:
 
-```
-netlify/functions/process-background.ts
+```typescript
+export default async (req: Request) => {
+  await someLongRunningTask();
+};
+
+export const config: Config = {
+  path: "/process",
+  background: true,
+};
 ```
 
 Store results externally (Netlify Blobs, database) for later retrieval.
+
+The legacy filename convention (`process-background.ts`) is still supported, but new functions should use `config.background`.
+
+## Resource Configuration
+
+Functions default to 1024 MB of memory and a proportional amount of compute. Configure per-function resources via `memory` or `vcpu` — they scale together, so set whichever maps to how you think about the workload. The two are mutually exclusive.
+
+```typescript
+export const config: Config = {
+  memory: "2gb",  // or memory: 2048; allowed range 1024–4096 MB
+  // vcpu: 1.5,   // alternatively; allowed range 0.5–2.0
+};
+```
+
+- `memory`: number (MB) or string with unit (`"2gb"`, `"1024mb"`, case-insensitive).
+- `vcpu`: number between 0.5 and 2.0. Maps linearly: `0.5` → 1024 MB, `2.0` → 4096 MB.
+
+Both can also be set in `netlify.toml`:
+
+```toml
+[functions.heavy]
+  memory = "2gb"
+```
+
+## Region
+
+Override the deployment region per function via the `region` property. Accepts an airport code (`iad`, `dub`, `fra`, `lhr`, `nrt`, `pdx`, `sfo`, `sin`, `syd`, `yul`, `cmh`, `gru`).
+
+```typescript
+export const config: Config = {
+  region: "dub",  // Dublin (eu-west-1)
+};
+```
+
+Falls back to the site-level region if unset. Plan-gated; some plans don't allow region overrides.
 
 ## Scheduled Functions
 
@@ -124,6 +176,56 @@ export default async (req: Request) => {
 };
 ```
 
+## Event Handlers
+
+A function can subscribe to platform events by exporting an object instead of a function as its default. Each event has a named handler property:
+
+```typescript
+import type { DeploySucceededEvent, UserSignupEvent } from "@netlify/functions";
+
+export default {
+  deploySucceeded(event: DeploySucceededEvent) {
+    console.log(`Deploy ${event.deploy.id} succeeded`);
+  },
+
+  userSignup(event: UserSignupEvent) {
+    return {
+      user: {
+        ...event.user,
+        appMetadata: { ...event.user.appMetadata, roles: ["member"] },
+      },
+    };
+  },
+};
+```
+
+A single function can declare multiple handlers; multiple functions can also subscribe to the same event.
+
+**Available handlers:**
+
+| Handler | Trigger |
+|---|---|
+| `fetch` | HTTP request (equivalent to a bare function default export) |
+| `deployBuilding` / `deploySucceeded` / `deployFailed` / `deployDeleted` / `deployLocked` / `deployUnlocked` | Deploy lifecycle |
+| `userSignup` / `userLogin` / `userValidate` / `userModified` / `userDeleted` | Identity lifecycle |
+| `formSubmitted` | Form submission verified |
+
+### Identity handlers: deny an action
+
+`userSignup`, `userLogin`, `userValidate`, and `userModified` can reject the action by calling `event.deny()`. The end user receives a 401; no observability error is produced (unlike throwing).
+
+```typescript
+export default {
+  userLogin(event: UserLoginEvent) {
+    if (!event.user.email?.endsWith("@example.com")) {
+      return event.deny();
+    }
+  },
+};
+```
+
+If multiple functions subscribe to the same event, the first to call `event.deny()` aborts the chain.
+
 ## Context Object
 
 | Property | Description |
@@ -153,7 +255,7 @@ const apiKey = Netlify.env.get("API_KEY");
 | Synchronous timeout | 60 seconds |
 | Background timeout | 15 minutes |
 | Scheduled timeout | 30 seconds |
-| Memory | 1024 MB |
+| Memory | 1024 MB default; configurable 1024–4096 MB (see [Resource Configuration](#resource-configuration)) |
 | Buffered payload | 6 MB |
 | Streamed payload | 20 MB |
 

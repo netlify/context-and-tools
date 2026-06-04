@@ -76,10 +76,24 @@ Add the marketplace and install the plugin:
 
 ```
 /plugin marketplace add netlify/context-and-tools
-/plugin install netlify-skills@netlify-context-and-tools
+/plugin install netlify@netlify-context-and-tools
 ```
 
-This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
+The `netlify` plugin bundles three layers so a fresh session is Netlify-aware end to end:
+
+- **Skills** — all Netlify platform references. The included `skills/CLAUDE.md` acts as a router that tells the agent which skill to read based on what you're building.
+- **MCP server** — the [`@netlify/mcp`](https://github.com/netlify/netlify-mcp) server, auto-launched via `npx`, giving the agent authenticated read access to your Netlify teams, projects, and deploys. It authenticates through the Netlify CLI's stored credentials (or set `NETLIFY_PERSONAL_ACCESS_TOKEN`).
+- **Slash commands** — wrappers for the local-dev CLI surface the MCP doesn't cover:
+  - `/netlify:init` — initialize a project and link it to a team/site
+  - `/netlify:dev` — start the local dev server with env + primitives wired
+  - `/netlify:db` — manage Netlify DB (status, create, branch)
+  - `/netlify:logs` — stream function / edge / deploy logs into context
+  - `/netlify:blobs` — read/write/list/delete the linked site's Blobs store
+  - `/netlify:functions` — scaffold and invoke functions locally
+
+**Prerequisites:** the [Netlify CLI](https://docs.netlify.com/cli/get-started/) (`npm i -g netlify-cli`) for the slash commands, and Node.js for the `npx`-launched MCP server. The slash commands are Claude Code only; the Cursor and Codex builds ship skills only.
+
+> Upgrading from the old `netlify-skills` plugin: the plugin was renamed to `netlify` in v2 (so commands namespace cleanly as `/netlify:*`). Remove the old one with `/plugin uninstall netlify-skills` before installing.
 
 ### Cursor
 

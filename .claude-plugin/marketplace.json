@@ -5,8 +5,8 @@
   },
   "plugins": [
     {
-      "name": "netlify-skills",
-      "description": "Netlify platform skills — functions, edge functions, blobs, database, identity, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment",
+      "name": "netlify",
+      "description": "Netlify for Claude Code — platform skills (functions, edge functions, blobs, database, identity, image CDN, forms, config, CLI, frameworks, caching, AI gateway, deploy) + the Netlify MCP server (authenticated team/project/deploy introspection) + slash commands for the local-dev CLI surface (init, dev, db, logs, blobs, functions)",
       "source": "./"
     }
   ]

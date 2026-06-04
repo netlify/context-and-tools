@@ -1,9 +1,15 @@
 {
-  "name": "netlify-skills",
-  "version": "1.1.0",
-  "description": "Netlify platform skills for Claude Code",
+  "name": "netlify",
+  "version": "2.0.0",
+  "description": "Netlify for Claude Code — platform skills, the Netlify MCP server, and slash commands wrapping the local-dev CLI surface (init, dev, db, logs, blobs, functions)",
   "author": {
     "name": "Netlify"
   },
-  "repository": "https://github.com/netlify/context-and-tools"
+  "repository": "https://github.com/netlify/context-and-tools",
+  "mcpServers": {
+    "netlify": {
+      "command": "npx",
+      "args": ["-y", "@netlify/mcp"]
+    }
+  }
 }

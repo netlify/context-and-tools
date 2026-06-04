@@ -1,3 +1,4 @@
 {
+  "scenarios": "./axis-scenarios",
   "agents": ["codex", "claude-code", "gemini"]
 }

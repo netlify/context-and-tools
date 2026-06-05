@@ -43,6 +43,9 @@ Read `$netlify-identity` for Netlify Identity setup, OAuth, role-based access, a
 **Deploying a site to Netlify?**
 Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.
 
+**Building an MCP server, or exposing an app/API to AI agents as MCP tools?**
+Read `$netlify-mcp-servers` for the MCP SDK + Streamable HTTP transport on a Netlify Function, authentication (single secret vs per-user API keys), read/write safety, file uploads, and connecting clients.
+
 ## General Rules
 
 - Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)

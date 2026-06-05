@@ -1,0 +1,162 @@
+---
+name: netlify-mcp-servers
+description: Build, deploy, and secure Model Context Protocol (MCP) servers on Netlify. Use whenever the task involves creating an MCP server, exposing an app or API to AI agents as MCP tools, letting Claude / Cursor / Claude Code call a custom remote server, or adding MCP tools to an existing Netlify site. Covers the MCP SDK + Streamable HTTP transport on a Netlify Function, authentication (single shared secret vs per-user API keys with Netlify Identity), read/write safety, file uploads, and connecting clients. Use even when the user just says "MCP", "tool server for an agent", or "let an AI use my API".
+---
+
+# Netlify MCP Servers
+
+An MCP server exposes **tools** (and optionally resources/prompts) that an AI client — Claude Desktop, Claude Code, Cursor — can call. On Netlify, a remote MCP server is just **one Netlify Function** that speaks the MCP protocol over HTTP. This skill gets you a working, secure server and connects a client to it.
+
+The same setup works two ways:
+
+- **Standalone server** — a repo whose only job is the MCP endpoint (e.g. wrapping a third-party API).
+- **Added to an existing app** — one more function alongside your site. Have its tools call the **same service/data layer your UI and REST routes already use**, so logic isn't duplicated.
+
+## Before you build
+
+Decide one thing up front, because it shapes the auth code:
+
+- **Who calls this server?** Just you (a personal/single-user server) → use a **single shared secret**. Multiple people, each acting as themselves → use **per-user API keys** backed by Netlify Identity. See [authentication](references/authentication.md).
+
+If you're not sure, start with the single shared secret — it's a few lines and you can layer per-user keys on later. I'll default to that unless you say otherwise.
+
+## Stack
+
+Use the official MCP SDK with its Streamable HTTP transport, running statelessly inside a Netlify Function.
+
+```bash
+npm install @modelcontextprotocol/sdk@1.24.0 fetch-to-node zod
+```
+
+**Pin the SDK to `1.24.0`.** Versions `1.25+` tightened the Streamable HTTP transport so it rejects (HTTP 406) any POST whose `Accept` header doesn't contain *both* `application/json` and `text/event-stream`. Some clients don't send both, so the stricter versions break connections that `1.24.0` handles fine. This is worth re-checking over time as the SDK evolves — but pin for now so things just work. Letting the SDK own the protocol also means you don't hand-maintain JSON-RPC framing or the protocol-version handshake.
+
+## The server function
+
+This is the load-bearing part — the transport wiring is exactly where the official older guide tends to trip people up. Put it in `netlify/functions/mcp.ts`:
+
+```typescript
+import type { Config, Context } from "@netlify/functions";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { toFetchResponse, toReqRes } from "fetch-to-node";
+import { z } from "zod";
+import { checkBearer } from "../lib/mcp/bearer"; // see Authentication
+
+function buildServer() {
+  const server = new McpServer({ name: "my-mcp", version: "0.1.0" });
+
+  server.tool(
+    "get_item",
+    "Fetch a single item by id. Read-only.",
+    { id: z.string().describe("The item's unique id") },
+    async ({ id }) => ({
+      content: [{ type: "text", text: JSON.stringify(await getItem(id)) }],
+    }),
+  );
+
+  return server;
+}
+
+export default async (req: Request, _context: Context) => {
+  if (!checkBearer(req)) return new Response("Unauthorized", { status: 401 });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  // The SDK transport speaks Node req/res; bridge the Web Request/Response.
+  const { req: nodeReq, res: nodeRes } = toReqRes(req);
+
+  // Stateless: a fresh server + transport per request, no session to persist.
+  // enableJsonResponse returns one application/json body instead of opening an
+  // SSE stream — the right fit for a serverless POST.
+  const server = buildServer();
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+
+  nodeRes.on("close", () => {
+    void transport.close();
+    void server.close();
+  });
+
+  await server.connect(transport);
+  await transport.handleRequest(nodeReq, nodeRes, await req.json());
+
+  return toFetchResponse(nodeRes);
+};
+
+export const config: Config = { path: "/mcp" };
+```
+
+That's a complete, deployable server. Everything else is tools, auth, and safety.
+
+## Defining tools
+
+Each tool is a `name`, a one-line `description`, a `zod` input schema, and a handler that returns `{ content: [...] }`. The description and parameter `.describe()` text are the only thing the model sees — write them like API docs for an agent: say what the tool does, when to use it, and call out anything irreversible.
+
+As the count grows, give each tool its own module and register them in `buildServer()`. Servers with many tools often keep a registry (an array of `{ name, description, inputSchema, handler }`) and wire `tools/list` + `tools/call` once — the transport setup above is identical either way.
+
+## Authentication
+
+The MCP client must prove it's allowed to call your server. Every request carries `Authorization: Bearer <token>`; reject anything else with a 401.
+
+**Single shared secret** (personal / single-user). One env var, compared in constant time. Put this in `netlify/lib/mcp/bearer.ts`:
+
+```typescript
+import { timingSafeEqual } from "node:crypto";
+
+export function checkBearer(req: Request): boolean {
+  const expected = Netlify.env.get("MCP_BEARER_TOKEN");
+  if (!expected) return false;
+  const match = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i);
+  if (!match) return false;
+  const a = Buffer.from(match[1]);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b); // avoid leaking length-timing
+}
+```
+
+Generate the token with `openssl rand -hex 32` and store it as a secret env var.
+
+**Per-user API keys** (multi-user). Netlify Identity gates a web UI where each user mints their own keys; you store only a **hash** of each key (never the plaintext) tied to that user, resolve the key to a user on every request, and flow that user into your tool handlers so tools act as the right person. Full pattern — schema, generation, hashing, revocation, resolving the user — in [authentication](references/authentication.md).
+
+## Safety and permissions
+
+Tools are a public API handed to an autonomous agent. Be deliberate:
+
+- **Expose the least that does the job.** Separate reads from writes, and think hard before exposing destructive tools. A common, sound choice is to **omit delete tools entirely** and keep destructive actions in a human-operated UI.
+- **Guard irreversible or public actions** by putting explicit instructions in the tool's description — e.g. "show the user the exact text and get confirmation before posting." This is a soft, model-level guard, so back it with a real kill switch: a token you can revoke instantly.
+- **Keep the client's credential separate from your backend's.** The client authenticates to your server (bearer/API key); your server authenticates to the database or third-party API with its *own* secret. Never pass your backend god-key out to the client.
+- **Use least-privilege backend credentials** — app passwords or scoped tokens, not account-level ones, so a leak is contained and revocable.
+- **Validate inputs** (your `zod` schemas do this) and **log every tool call** so you can see what the agent did — `console.info` shows up in Netlify function logs.
+
+## Connecting a client
+
+Native remote-MCP support is now the norm; reach for the `mcp-remote` bridge only as a fallback.
+
+- **Claude Code** — `claude mcp add --transport http my-mcp https://<site>.netlify.app/mcp --header "Authorization: Bearer <token>"`
+- **Cursor** — add the server to `mcp.json` with the URL and an `Authorization` header.
+- **Claude Desktop / claude.ai** — add a **Custom Connector** (Settings → Connectors). Connectors are OAuth-oriented; for a static-bearer server the `mcp-remote` bridge is the reliable path.
+- **Fallback (older / stdio-only clients)** — `npx mcp-remote https://<site>.netlify.app/mcp --header "Authorization: Bearer <token>"`
+
+Full client matrix and the OAuth / Custom Connector deep-dive: [connecting clients](references/connecting-clients.md).
+
+## Local dev and deploy
+
+- **Run it:** `netlify dev` serves the function at `http://localhost:8888/mcp`.
+- **Test it:** the MCP Inspector — `npx @modelcontextprotocol/inspector` — connect via Streamable HTTP to your URL with an `Authorization: Bearer` header and list/call tools. Or point `claude mcp add --transport http` at the localhost URL.
+- **Identity caveat:** Netlify Identity does **not** work under `netlify dev`, so per-user-key auth must be tested on a deploy preview. See the **netlify-identity** skill.
+- **Deploy:** push to Git, or `netlify deploy --build --prod`.
+- **Secrets:** set tokens/keys as env vars (`netlify env:set MCP_BEARER_TOKEN <value> --secret`) — never in code.
+
+## Cross-cutting rules
+
+- Never hardcode secrets. Store tokens, API keys, and signing secrets as Netlify environment variables (mark them secret).
+- Inside functions, read env vars with `Netlify.env.get("VAR")`, not `process.env`.
+- Add `.netlify` to `.gitignore`.
+
+## Related skills and references
+
+- [authentication](references/authentication.md) — single-secret vs per-user API keys (Identity) in depth.
+- [connecting clients](references/connecting-clients.md) — full client matrix, OAuth, and Custom Connectors.
+- [file uploads](references/file-uploads.md) — letting an agent upload images/files via presigned URLs to Netlify Blobs.
+- **netlify-functions** — function syntax, routing, limits. **netlify-identity** — Identity setup. **netlify-database** / **netlify-blobs** — where to store keys and files. **netlify-cli-and-deploy** — deploys and env vars.

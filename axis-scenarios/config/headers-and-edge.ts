@@ -8,7 +8,7 @@ export default {
   judge: [
     { check: "Adds a `[[headers]]` block with `for = '/assets/*'` and a `[headers.values]` table including `Cache-Control = 'public, max-age=31536000, immutable'` (or equivalent immutable long-lived header)" },
     { check: "Adds an `[[edge_functions]]` entry with `function = 'auth'` and `path = '/admin/*'`" },
-    { check: "Excludes the public subpath via `excluded_path = '/admin/public/*'` (string or array) on the same edge_functions entry" },
+    { check: "Excludes the public subpath via `excludedPath = '/admin/public/*'` (string or array) on the same edge_functions entry" },
     { check: "Does NOT try to attach the edge function via `[[redirects]]` or `[[headers]]` — edge function routing goes in `[[edge_functions]]`" },
     { check: "Does NOT add the same Cache-Control via a redirect rule with `to` — static file headers belong in `[[headers]]`" },
     { check: "Function name in the config matches the file basename ('auth' for `auth.ts`)" },

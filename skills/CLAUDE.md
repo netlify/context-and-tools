@@ -10,11 +10,11 @@ Read `netlify-functions/SKILL.md` for modern function syntax, routing, backgroun
 **Need low-latency middleware, geo-based logic, or request manipulation?**
 Read `netlify-edge-functions/SKILL.md` for edge compute patterns.
 
-**Storing files, images, or simple key-value data?**
-Read `netlify-blobs/SKILL.md` for object storage API.
+**Storing files, images, or other assets?**
+Read `netlify-blobs/SKILL.md` for object storage API. Blobs is for file/asset storage only — not for dynamic data.
 
-**Need a relational database?**
-Read `netlify-db/SKILL.md` for Neon Postgres setup, Drizzle ORM, and migrations. It also covers when Blobs is a better fit.
+**Need to store any dynamic, structured, or relational data?**
+Read `netlify-database/SKILL.md` for Netlify Database — the GA managed Postgres product with Drizzle ORM, migrations, and preview branching.
 
 **Optimizing or transforming images?**
 Read `netlify-image-cdn/SKILL.md` for the image transformation endpoint and clean URL patterns. For user-uploaded images, see `netlify-image-cdn/references/user-uploads.md`.
@@ -34,8 +34,8 @@ Read `netlify-frameworks/SKILL.md` for adapter/plugin setup. Framework-specific 
 **Controlling CDN caching behavior?**
 Read `netlify-caching/SKILL.md` for cache headers, stale-while-revalidate, cache tags, and purge.
 
-**Adding AI capabilities or choosing an AI model?**
-Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup, supported models, and provider SDKs.
+**Adding AI capabilities, choosing an AI model, or generating images with AI?**
+Read `netlify-ai-gateway/SKILL.md` for AI Gateway setup, supported models, provider SDKs, and image generation (text-to-image and image-to-image via Gemini).
 
 **Adding user authentication, signups, logins, or access control?**
 Read `netlify-identity/SKILL.md` for Netlify Identity setup, OAuth, role-based access, and protecting routes and functions.

@@ -54,6 +54,22 @@ git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlif
 
 This gives you `codex/AGENTS.md` (the skill router) and `codex/skills/` with all Netlify skills. Codex discovers `AGENTS.md` automatically and activates skills by name using `$skill-name` syntax.
 
+### GitHub Copilot CLI
+
+Copy the pre-built `codex/` directory into your project root, then point Copilot CLI at it:
+
+```bash
+git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlify-skills && \
+  cp -r /tmp/netlify-skills/codex . && \
+  rm -rf /tmp/netlify-skills
+```
+
+```bash
+export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="$PWD/codex"
+```
+
+Copilot CLI reads `AGENTS.md` from any directory listed in `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` and uses it as a router into the skill files under `codex/skills/`. Add the export to your shell profile to persist across sessions.
+
 ### Claude Code
 
 Add the marketplace and install the plugin:

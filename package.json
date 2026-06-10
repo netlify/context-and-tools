@@ -1,0 +1,23 @@
+{
+  "name": "context-and-tools",
+  "version": "1.0.0",
+  "description": "Public Netlify skills for AI coding agents. Each skill is a focused, factual reference for a Netlify platform primitive — designed to help agents build correctly on Netlify without needing to search docs.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/netlify/context-and-tools.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/netlify/context-and-tools/issues"
+  },
+  "homepage": "https://github.com/netlify/context-and-tools#readme",
+  "devDependencies": {
+    "@netlify/axis": "^1.14.0"
+  }
+}

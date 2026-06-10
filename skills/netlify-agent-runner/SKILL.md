@@ -12,7 +12,21 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 - The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`), or you can specify `--project <name>` to target any Netlify site
 - The Netlify CLI must be installed and authenticated
 
-Agent tasks run **remotely on Netlify infrastructure** against the site's connected repository. By default they use the main (or master) branch. To target a different branch, use `-b` and make sure it has been pushed to the remote first.
+## How Agent Tasks Run
+
+Read this before creating a task — agent tasks behave differently from running an agent locally, and the differences are easy to miss.
+
+- **Remote, not local.** Tasks run on Netlify infrastructure, not on your machine. They operate on the site's **connected repository**, not your local working tree. The remote agent only sees what has been pushed to the remote — it cannot see uncommitted or unpushed changes.
+- **Branch-based.** By default a task runs against the production branch (`main` or `master`). To target a different branch, use `-b <branch>` and make sure that branch has been **pushed to the remote first**, or the agent will be working from code that doesn't exist remotely.
+- **Asynchronous.** `netlify agents:create` returns as soon as the task is queued — it does **not** block until the work is finished. When the command returns, the task is still running remotely.
+- **No webhooks or callbacks.** Nothing notifies you when a task changes state or completes. To find out what's happening, you have to **poll** with `netlify agents:show <task-id>` or `netlify agents:list`.
+- **Statuses are terminal or not.** A task moves through `new` → `running` → one of `done`, `error`, or `cancelled`. Keep polling until the status is one of those last three before you act on the results.
+
+### Typical workflow
+
+1. **Create** a task: `netlify agents:create "<prompt>" -a <agent>`. Note the task ID it returns (use `--json` to capture it reliably).
+2. **Poll** for status: `netlify agents:show <task-id>`. Repeat periodically — there is no completion notification — until the status is `done`, `error`, or `cancelled`.
+3. **Review** the results once the task reaches `done` (or inspect the failure on `error`).
 
 ## Creating Agent Tasks
 
@@ -104,11 +118,19 @@ Some of the many things you can do with Agent Runners:
 
 ## Using as an Agent
 
-If you are an AI agent, you can use `netlify agents:create` to delegate work to a different model. This is useful for:
+If you are an AI agent, you can use `netlify agents:create` to delegate work to an agent running remotely on Netlify — for example, to get a second opinion from a different model.
+
+**IMPORTANT — ask for permission first.** Agent tasks run on Netlify infrastructure and incur cost for the user. You MUST get the user's explicit permission before running any `netlify agents:create` command. Explain what you want to run, which agent you want to use, and why. Never run these commands without the user's approval.
+
+Before delegating, understand what you're handing off (see [How Agent Tasks Run](#how-agent-tasks-run) above):
+
+- **It runs remotely against the pushed branch — not your local work.** The remote agent only sees code that has been committed and pushed. Do **not** delegate work that depends on your local, in-progress changes; the remote agent can't see them and will work from stale code. If a task needs your current changes, commit and push them first (or finish the work yourself).
+- **It's asynchronous — delegating does not block you.** The task runs remotely while you keep working. But because there are no callbacks, you have to poll (`netlify agents:show <task-id>`) to learn the outcome. Don't assume the task is done just because you delegated it — check the status before relying on or describing its results.
+- **It's a separate, self-contained task — not a continuation of your session.** The remote agent starts fresh from the repo and the prompt you give it. It has none of your conversation context, so write a complete, standalone prompt.
+
+Useful for:
 
 - **Cross-validation** — get a second opinion on your implementation from a different model
 - **Edge case discovery** — another model may catch issues you missed
 - **Alternative approaches** — see how a different model would solve the same problem
-- **Parallel work** — delegate independent tasks while you continue on other work
-
-**IMPORTANT:** Agent tasks incur cost for the user. You MUST ask the user for explicit permission before running any `netlify agents:create` command. Explain what you want to run, which agent you want to use, and why. Never run these commands without the user's approval.
+- **Parallel work** — kick off an independent task remotely while you continue on other work, then poll for its result

@@ -15,5 +15,11 @@
     "skills/netlify-deploy",
     "skills/netlify-ai-gateway",
     "skills/netlify-identity"
-  ]
+  ],
+  "mcpServers": {
+    "netlify": {
+      "command": "npx",
+      "args": ["-y", "@netlify/mcp"]
+    }
+  }
 }

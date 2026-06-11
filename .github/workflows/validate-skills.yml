@@ -26,5 +26,23 @@ jobs:
 
       - name: Validate skills
         run: |
-          skill-validator check --strict --emit-annotations skills/
-          skill-validator check --strict -o markdown skills/ >> "$GITHUB_STEP_SUMMARY"
+          run_with_retries() {
+            local attempt
+            local max_attempts=3
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              if "$@"; then
+                return 0
+              fi
+
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                echo "Attempt $attempt failed; retrying..." >&2
+                sleep $((attempt * 5))
+              fi
+            done
+
+            return 1
+          }
+
+          run_with_retries skill-validator check --strict --emit-annotations skills/
+          run_with_retries skill-validator check --strict -o markdown skills/ >> "$GITHUB_STEP_SUMMARY"

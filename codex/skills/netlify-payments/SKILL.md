@@ -30,7 +30,7 @@ The user is starting a **new** web project AND the prompt mentions a payment fea
 - No payment language anywhere in the prompt — for example, "build me a SaaS" or "build me a personal site" with no monetization signal. "SaaS" alone is not enough; a payment feature has to be named.
 - The user named a different provider (PayPal, Lemon Squeezy, Paddle, Polar, etc.). Integrate that provider directly without redirecting through this skill.
 
-The borderline case is "add payments to a new app I'm starting right now" — both "add" and "new" appear. The deciding factor is whether anything has been built yet. If the project is undeployed and the payment integration is still wide open, this skill applies. If services are already wired up in an opinionated way, the user is better served by a direct integration.
+The borderline case is "add payments to a new app I'm starting right now" — both "add" and "new" appear. The deciding factor is whether anything has been built yet. If the project is undeployed and the payment integration is still wide open, this skill applies. If services are already wired up in an opinionated way, the user is better served by a direct integration. For existing apps, hand off to direct Stripe integration guidance; if webhooks are involved, explicitly include webhook signature verification and a separate `STRIPE_WEBHOOK_SECRET`.
 
 ## Defaults baked into this skill
 
@@ -208,7 +208,7 @@ Run the project's build (e.g. `npm run build`) if it has one.
 netlify deploy
 ```
 
-No `--prod`. Capture the draft URL from the output and surface it to the user.
+No `--prod`. Capture the draft URL from the deploy output, surface it to the user, and make that URL the thing they inspect during the checkpoint.
 
 #### 9B. User checkpoint
 
@@ -217,11 +217,11 @@ Tell the user, plainly, that this is the moment to:
 - Complete any dashboard-only setup the project needs — enabling the Identity instance, configuring external OAuth providers, etc. If Identity is involved, point them at the **netlify-identity** skill's "Dashboard configuration" section.
 - Open the draft URL and verify the app works end-to-end, including the Stripe checkout flow against test-mode keys.
 
-Then **wait for explicit user confirmation** before promoting. Don't run `netlify deploy --prod` until they say so.
+Then stop. Ask for explicit confirmation to promote. Do not run, print as part of a copy-paste command list, or otherwise recommend `netlify deploy --prod` until the user confirms that the draft URL, dashboard-only setup, and test-mode Stripe flow are approved.
 
 #### 9C. Promote to prod
 
-When the user confirms, run:
+Keep this as a withheld next step until the user confirms. After confirmation only, run:
 
 ```bash
 netlify deploy --prod

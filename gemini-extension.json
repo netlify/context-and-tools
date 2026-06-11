@@ -18,8 +18,7 @@
   ],
   "mcpServers": {
     "netlify": {
-      "command": "npx",
-      "args": ["-y", "@netlify/mcp"]
+      "httpUrl": "https://netlify-mcp.netlify.app/mcp"
     }
   }
 }

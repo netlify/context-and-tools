@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Payments: one-time checkout without auth",
   prompt:
-    "I'm starting a new Netlify project named Print Drop. It sells one downloadable poster through a one-time Stripe Checkout payment. There is no login and no customer account area. Do not run commands; give me the exact bootstrap sequence and call out what you would skip.",
+    "I'm starting a new Netlify project named Print Drop. It sells one downloadable poster through a one-time Stripe Checkout payment. There is no login and no customer account area. Do not provision external services, mutate files, or run bootstrap commands. You may inspect local skill files/documentation before answering. Give me the exact bootstrap sequence and call out what you would skip.",
   judge: [
     { check: "Uses the new-project Stripe Projects bootstrap path because this is a new Stripe payment project" },
     { check: "Derives the project slug `print-drop` without asking for it" },

@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Payments: new subscription bootstrap with auth",
   prompt:
-    "I'm starting a new Netlify app called Studio Pass. It will sell a $10/month subscription and require members to sign in before checkout. Do not run any commands. Walk me through the bootstrap workflow you would use from an empty local project, including the Stripe and Netlify CLI commands and the points where you would stop for my input.",
+    "I'm starting a new Netlify app called Studio Pass. It will sell a $10/month subscription and require members to sign in before checkout. Do not provision external services, mutate files, or run bootstrap commands. You may inspect local skill files/documentation before answering. Walk me through the bootstrap workflow you would use from an empty local project, including the Stripe and Netlify CLI commands and the points where you would stop for my input.",
   judge: [
     { check: "Treats this as a new payment-taking project and uses the `netlify-payments` bootstrap flow" },
     { check: "Starts by clarifying any missing intent before provisioning, but does NOT re-ask for the subscription payment shape, auth requirement, or project slug because the prompt already provides them" },

@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Payments: draft deploy checkpoint before production",
   prompt:
-    "I'm at the end of a new Stripe Projects + Netlify bootstrap and the app builds locally. Give me the final deploy sequence. The app also uses Netlify Identity with Google OAuth. Do not run anything.",
+    "I'm at the end of a new Stripe Projects + Netlify bootstrap and the app builds locally. Give me the final deploy sequence. The app also uses Netlify Identity with Google OAuth. Do not provision external services, mutate files, or run deploy commands. You may inspect local skill files/documentation before answering.",
   judge: [
     { check: "Runs the project build first if the project has a build command" },
     { check: "Uses `netlify deploy` without `--prod` for the first deploy" },

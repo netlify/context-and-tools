@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Payments: existing app skips Stripe Projects bootstrap",
   prompt:
-    "This repo is an existing deployed Netlify app. Add Stripe Checkout to it for a new paid plan. Do not initialize any new projects or services; explain the right integration approach and commands for environment variables.",
+    "This repo is an existing deployed Netlify app. Add Stripe Checkout to it for a new paid plan. Do not initialize any new projects or services, provision external services, or mutate files. You may inspect local skill files/documentation before answering. Explain the right integration approach and commands for environment variables.",
   judge: [
     { check: "Does NOT run or recommend `stripe projects init`, because the prompt says the app already exists" },
     { check: "Does NOT run or recommend `stripe projects add netlify/project` as the primary path for this existing project" },

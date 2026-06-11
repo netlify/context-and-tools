@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Payments: ambiguous project slug clarification",
   prompt:
-    "Build me a new tip jar on Netlify with Stripe. Do not run commands yet. What would you ask before bootstrapping, and what would you do after I answer?",
+    "Build me a new tip jar on Netlify with Stripe. Do not provision external services, mutate files, or run bootstrap commands yet. You may inspect local skill files/documentation before answering. What would you ask before bootstrapping, and what would you do after I answer?",
   judge: [
     { check: "Recognizes this as a new payment-taking project that should use the Netlify Payments / Stripe Projects bootstrap after clarification" },
     { check: "Asks for a project name or slug because `tip jar` does not identify a concrete project subject" },

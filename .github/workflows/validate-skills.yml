@@ -3,18 +3,56 @@ on:
   pull_request:
     paths:
       - "skills/**"
+      - ".github/workflows/validate-skills.yml"
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      SKILL_VALIDATOR_VERSION: 1.5.6
+      SKILL_VALIDATOR_SHA256: c97faee388056023c616e312927faffd07e028bcd76d799e42da612dad7972df
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
 
       - name: Install skill-validator
         run: |
-          brew install agent-ecosystem/tap/skill-validator
+          mkdir -p "$HOME/.local/bin"
+          curl --fail --silent --show-error --location \
+            --retry 5 \
+            --retry-delay 2 \
+            --retry-connrefused \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 300 \
+            --output "$RUNNER_TEMP/skill-validator.tar.gz" \
+            "https://github.com/agent-ecosystem/skill-validator/releases/download/v${SKILL_VALIDATOR_VERSION}/skill-validator_${SKILL_VALIDATOR_VERSION}_linux_amd64.tar.gz"
+          echo "${SKILL_VALIDATOR_SHA256}  $RUNNER_TEMP/skill-validator.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/skill-validator.tar.gz" -C "$RUNNER_TEMP" skill-validator
+          install -m 0755 "$RUNNER_TEMP/skill-validator" "$HOME/.local/bin/skill-validator"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/skill-validator" --version
 
       - name: Validate skills
         run: |
-          skill-validator check --strict --emit-annotations skills/
-          skill-validator check --strict -o markdown skills/ >> "$GITHUB_STEP_SUMMARY"
+          run_with_retries() {
+            local attempt
+            local max_attempts=3
+
+            for attempt in $(seq 1 "$max_attempts"); do
+              if "$@"; then
+                return 0
+              fi
+
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                echo "Attempt $attempt failed; retrying..." >&2
+                sleep $((attempt * 5))
+              fi
+            done
+
+            return 1
+          }
+
+          run_with_retries skill-validator check --strict --emit-annotations skills/
+          run_with_retries skill-validator check --strict -o markdown skills/ >> "$GITHUB_STEP_SUMMARY"

@@ -226,7 +226,7 @@ For secrets and configuration:
 ## Reference
 
 - Netlify CLI Docs: https://docs.netlify.com/cli/get-started/
-- netlify.toml Reference: https://docs.netlify.com/configure-builds/file-based-configuration/
+- netlify.toml Reference: https://docs.netlify.com/build/configure-builds/file-based-configuration/
 
 ## References
 

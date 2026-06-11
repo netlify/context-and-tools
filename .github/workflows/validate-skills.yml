@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "skills/**"
+      - ".github/workflows/validate-skills.yml"
 
 jobs:
   validate:

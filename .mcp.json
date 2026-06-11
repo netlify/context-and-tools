@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "netlify": {
-      "command": "npx",
-      "args": ["-y", "@netlify/mcp"],
-      "note": "Official Netlify MCP server (stdio, requires Node 22+). Authenticates at runtime via your Netlify CLI login / OAuth; set NETLIFY_PERSONAL_ACCESS_TOKEN to override (never commit it). Lets the agent create and manage Netlify projects, deploys, and environment variables."
+      "type": "http",
+      "url": "https://netlify-mcp.netlify.app/mcp",
+      "note": "Official Netlify MCP server (hosted, streamable HTTP). Authorizes via OAuth on first connection — the agent is prompted to sign in to Netlify; no token or local install required. Lets the agent create and manage Netlify projects, deploys, and environment variables."
     }
   }
 }

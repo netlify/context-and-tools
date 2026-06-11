@@ -7,7 +7,7 @@ alwaysApply: false
 
 Bootstrap a payment-taking project on Netlify by going through the Stripe Projects CLI. This skill owns the connective tissue:
 
-- Pre-flight checks for the Stripe and Netlify CLIs
+- Tools and authentication setup for the Stripe and Netlify CLIs
 - Initializing a Stripe project and adding the `netlify/project` service
 - Pulling the Stripe test-mode key out of the local Stripe config
 - Pushing the Stripe secret into the Netlify site environment as `STRIPE_SECRET_KEY`
@@ -68,7 +68,7 @@ After the user answers, proceed deterministically through the workflow. Don't lo
 
 ## Workflow
 
-### 1. Pre-flight: tools and auth
+### 1. Tools and auth setup
 
 #### Stripe CLI
 
@@ -193,23 +193,16 @@ netlify env:set STRIPE_SECRET_KEY <test-mode-key> --secret
 
 Two things to get right:
 
-- **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. The Stripe SDK reads this name by default — picking a different name means the app can't see it without extra wiring.
+- **Variable name is `STRIPE_SECRET_KEY`.** Not `STRIPE_API_KEY` or anything else. This is the convention Stripe's own examples use, so app code should read it explicitly — e.g., `new Stripe(Netlify.env.get("STRIPE_SECRET_KEY"))` in a Netlify Function. The Stripe SDK does not auto-read any env var; the name only matters for consistency with the code that reads it.
 - **Pass `--secret`.** This makes the value write-only after set, so it doesn't appear in deploy logs or the dashboard. Always use it for the secret key.
 
-### 9. Build, draft deploy, then promote to prod
+### 9. Build, draft deploy, checkpoint, then promote to prod
 
-The bootstrap ends with **two** deploys — a draft first, then a deliberate promotion to prod. There are two reasons for splitting them:
+The bootstrap ends with a draft deploy first, a user checkpoint, then an explicit production promotion. Keep these as separate phases; don't treat production as an automatic continuation of the draft deploy.
 
-- **Cost.** Draft and preview deploys are free; production deploys count against the user's billable build minutes. Burning a prod deploy on something that turns out to need another iteration is real money.
-- **Dashboard-only setup.** Some Netlify primitives can't finish configuration until the site exists, and they need clicks the agent can't make — enabling the Identity instance, toggling external OAuth providers, and so on. Those steps belong between the first deploy and the prod promotion, not after the site is already live.
-
-This is a deliberate human-in-the-loop checkpoint. Don't try to poll past it.
-
-#### Build
+#### 9A. Build and create a draft deploy
 
 Run the project's build (e.g. `npm run build`) if it has one.
-
-#### First deploy: draft
 
 ```bash
 netlify deploy
@@ -217,16 +210,16 @@ netlify deploy
 
 No `--prod`. Capture the draft URL from the output and surface it to the user.
 
-#### Manual checkpoint
+#### 9B. User checkpoint
 
 Tell the user, plainly, that this is the moment to:
 
 - Complete any dashboard-only setup the project needs — enabling the Identity instance, configuring external OAuth providers, etc. If Identity is involved, point them at the **netlify-identity** skill's "Dashboard configuration" section.
 - Open the draft URL and verify the app works end-to-end, including the Stripe checkout flow against test-mode keys.
 
-Then **wait for explicit user confirmation** before promoting. Don't run `netlify deploy --prod` until they say so — promotion is a separate, deliberate step, not a continuation of the first deploy.
+Then **wait for explicit user confirmation** before promoting. Don't run `netlify deploy --prod` until they say so.
 
-#### Promote to prod
+#### 9C. Promote to prod
 
 When the user confirms, run:
 
@@ -263,8 +256,9 @@ Don't re-document these inside this skill.
 - **Variable name `STRIPE_SECRET_KEY` and `--secret` flag** — both required. Reasoning above in step 8.
 - **Server-side Checkout doesn't need the publishable key** — skip it for v1.
 - **Don't try to script `stripe login`, `netlify login`, or first-time `stripe projects init`** — all three open browsers and require the user.
+- **Draft before production.** Draft and preview deploys are free; production deploys count against billable build minutes. Dashboard-only setup, such as enabling Identity or external OAuth providers, also belongs between the draft deploy and production promotion.
 
-## When pre-flight or install fails
+## When setup or install fails
 
 - **Non-macOS, no `brew`**: point the user at platform-specific install instructions for Stripe CLI (https://docs.stripe.com/stripe-cli) and Netlify CLI (https://docs.netlify.com/cli/get-started/). Don't guess at a package manager.
 - **`npm install -g netlify-cli` fails (permissions, etc.)**: fall back to `npx netlify-cli` for the rest of the workflow rather than blocking on the global install. Surface the install failure to the user.

@@ -121,12 +121,23 @@ npx netlify functions:create FUNCTION_NAME
 ## Logs
 
 ```bash
-# Stream function logs
+# View recent logs from functions and edge functions (defaults to last 10m)
 npx netlify logs
 
-# View logs for specific function
-npx netlify logs:function FUNCTION_NAME
+# Stream logs in real time
+npx netlify logs --follow
+
+# Stream logs for a specific function
+npx netlify logs --source functions --function FUNCTION_NAME --follow
+
+# View historical logs for a specific function over a longer window
+npx netlify logs --source functions --function FUNCTION_NAME --since 24h
+
+# Include deploy logs alongside function logs
+npx netlify logs --source deploy --source functions --since 1h
 ```
+
+Sources accepted by `--source`: `functions`, `edge-functions`, `deploy`. When omitted, it defaults to `functions` and `edge-functions`. Run `netlify logs --help` for the full option list.
 
 ## Troubleshooting Commands
 

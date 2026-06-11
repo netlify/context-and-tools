@@ -1,3 +1,5 @@
 tmp/
 .DS_Store
+node_modules/
+.axis/
 skills/*-workspace/

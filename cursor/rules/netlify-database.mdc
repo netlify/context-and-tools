@@ -141,11 +141,8 @@ export default defineConfig({
   dialect: "postgresql",
   schema: "./db/schema.ts",
   out: "netlify/database/migrations",
-  migrations: { prefix: "timestamp" },
 });
 ```
-
-**Default to `migrations: { prefix: "timestamp" }`.** Drizzle Kit's default sequential indices (`0000_`, `0001_`, …) collide whenever two pieces of work generate migrations in parallel — this happens to teams and to solo developers iterating on multiple branches. Timestamp prefixes keep filenames unique and order stable. If a project is already established on sequential prefixes, leave it alone, but expect collisions when working in parallel.
 
 ### Package scripts
 

@@ -38,6 +38,15 @@ remote_images = ["https://example\\.com/.*", "https://cdn\\.images\\.com/.*"]
 
 Values are regex patterns.
 
+When referencing an allow-listed remote image, **percent-encode the source URL** before placing it in the `url` parameter:
+
+```html
+<!-- source: https://cdn.example.com/marketing/banner.jpg -->
+<img src="/.netlify/images?url=https%3A%2F%2Fcdn.example.com%2Fmarketing%2Fbanner.jpg&w=800&fm=webp&q=80" />
+```
+
+Percent-encode the source value (e.g. with `encodeURIComponent`) whenever it contains characters that would otherwise be read as Image CDN params — `?`, `&`, `=`, `#`, or whitespace. This applies to remote URLs and relative paths alike (a filename or user-generated key can contain them too, e.g. `url=/uploads/a%26b.jpg`). Basic paths without those characters don't need encoding.
+
 ## Clean URL Rewrites
 
 Create user-friendly image URLs with redirects:

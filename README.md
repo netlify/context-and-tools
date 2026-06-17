@@ -9,7 +9,7 @@ Public Netlify skills for AI coding agents. Each skill is a focused, factual ref
 | [netlify-functions](skills/netlify-functions/SKILL.md) | Serverless functions — modern syntax, routing, background/scheduled/streaming |
 | [netlify-edge-functions](skills/netlify-edge-functions/SKILL.md) | Edge compute — Deno runtime, middleware, geolocation |
 | [netlify-blobs](skills/netlify-blobs/SKILL.md) | Object storage — key-value and binary data |
-| [netlify-db](skills/netlify-db/SKILL.md) | Managed Postgres (Neon) with Drizzle ORM and migrations |
+| [netlify-database](skills/netlify-database/SKILL.md) | Managed Postgres (Neon) with Drizzle ORM and migrations |
 | [netlify-image-cdn](skills/netlify-image-cdn/SKILL.md) | Image transformation and optimization via CDN |
 | [netlify-forms](skills/netlify-forms/SKILL.md) | HTML form handling, AJAX submissions, spam filtering |
 | [netlify-config](skills/netlify-config/SKILL.md) | `netlify.toml` — redirects, headers, build settings, deploy contexts |
@@ -111,6 +111,18 @@ This copies `.mdc` rule files into `.cursor/rules/`, where Cursor automatically 
 </details>
 
 
+
+### Grok Build
+
+Netlify is listed in the [official xAI plugin marketplace](https://github.com/xai-org/plugin-marketplace). In Grok Build, open the extensions modal (`/plugins`) and use the **Marketplace** tab to find and install **netlify**.
+
+Grok Build uses the same plugin format as Claude Code, so it installs all Netlify skills directly from this repository — no separate build step or generated output. Marketplace sources live in `~/.grok/config.toml` under `[[marketplace.sources]]`; if the xAI marketplace isn't already configured, add it there. See the [xAI Skills, Plugins & Marketplaces docs](https://docs.x.ai/build/features/skills-plugins-marketplaces) for details.
+
+### Netlify MCP server
+
+The Claude Code and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
+
+It connects to Netlify's hosted server over HTTP (`https://netlify-mcp.netlify.app/mcp`) and authorizes via OAuth on first use — no token or local install required. The rules-based integrations (Cursor, Codex, Copilot) don't bundle the MCP server — add it to those clients manually using the [Netlify MCP docs](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/).
 
 ### Other AI agents
 

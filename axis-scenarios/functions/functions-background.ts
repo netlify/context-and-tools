@@ -8,7 +8,7 @@ const shared = [
   { check: "File is located under netlify/functions/" },
   {
     check:
-      "Uses default export async handler with (req: Request, context: Context) signature",
+      "Uses a default export async handler whose first parameter is a Web API Request; the second context parameter may be omitted if unused (the skill's background example omits it)",
   },
   { check: "Awaits req.json() to read the jobId from the request body" },
   { check: "Imports Config and/or Context types from @netlify/functions" },

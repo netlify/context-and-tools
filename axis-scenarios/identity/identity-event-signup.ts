@@ -14,7 +14,7 @@ const shared = [
   },
   {
     check:
-      "Spreads/preserves the user's existing metadata and roles rather than overwriting them wholesale.",
+      "Spreads the user's existing app metadata (e.g. ...event.user.appMetadata or ...user.app_metadata) so unrelated metadata fields are preserved. Setting roles to ['member'] is acceptable — preserving a prior roles array is NOT required for a new signup.",
   },
 ];
 

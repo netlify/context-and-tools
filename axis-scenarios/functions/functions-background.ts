@@ -11,7 +11,6 @@ const shared = [
       "Uses a default export async handler whose first parameter is a Web API Request; the second context parameter may be omitted if unused (the skill's background example omits it)",
   },
   { check: "Awaits req.json() to read the jobId from the request body" },
-  { check: "Imports Config and/or Context types from @netlify/functions" },
   {
     check:
       "Does not rely on the function's return value being delivered to the client (background functions return 202 immediately and the response body is ignored)",
@@ -38,6 +37,10 @@ export default {
   // longer sufficient here.
   variants: withSkillVariantsStrict([
     ...shared,
+    // Typed imports are the skill's TS idiom — a with-skill expectation, not a
+    // baseline requirement (a valid plain-JS function shouldn't fail the
+    // lenient baseline, so this is not in `shared`).
+    { check: "Imports Config and/or Context types from @netlify/functions" },
     {
       check:
         "Enables background mode by setting background: true in the exported config object — this is the recommended form. Relying on the -background filename suffix alone (without config.background) does NOT satisfy this check.",

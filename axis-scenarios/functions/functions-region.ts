@@ -11,7 +11,6 @@ const shared = [
       "Uses a default export async handler that accepts a Web API Request and returns a Response",
   },
   { check: "Exports a config with path: '/api/eu/handler'" },
-  { check: "Imports Config and/or Context types from @netlify/functions" },
 ];
 
 export default {
@@ -31,6 +30,10 @@ export default {
   // with-skill: expect `region` set to the Dublin airport code.
   variants: withSkillVariantsStrict([
     ...shared,
+    // Typed imports are the skill's TS idiom — a with-skill expectation, not a
+    // baseline requirement (a valid plain-JS function shouldn't fail the
+    // lenient baseline, so this is not in `shared`).
+    { check: "Imports Config and/or Context types from @netlify/functions" },
     {
       check:
         "Sets `region` in the exported config to the Dublin airport code 'dub'. Using a non-airport-code value such as 'eu-west-1', 'europe', or a full region name does NOT satisfy this check.",

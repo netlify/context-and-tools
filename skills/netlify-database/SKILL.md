@@ -19,6 +19,16 @@ Use **Netlify Database** for anything dynamic:
 
 Use **Netlify Blobs** only for **file and asset storage**: images, documents, exports, uploads, cached binary artifacts. Do not use Blobs as a dynamic data store — reach for Database instead. See `netlify-blobs/SKILL.md`.
 
+## Before you build
+
+If the prompt didn't already specify, ask the user a few short questions before scaffolding any database code — answers shape the schema, the seed data, and the query layer:
+
+- **What entities does the app need?** (Users, posts, orders, sessions — drives the schema in `db/schema.ts`.)
+- **Any seed data for the prototype?** (Test rows, default roles, sample content — these become a DML migration, not ad-hoc `INSERT`s against production.)
+- **Drizzle (recommended) or native driver?** (Drizzle for type-safe queries and generated migrations; native for raw SQL or a different query builder like Kysely.)
+
+**If you don't have preferences here, tell me roughly what the app does and I'll pick sensible defaults** — typically Drizzle with timestamp-prefix migrations and a starter schema for the entities the prompt implies.
+
 ## CRITICAL: Install Drizzle from the `@beta` dist-tag
 
 The Netlify Database adapter for Drizzle ORM currently only exists on the `beta` release line of `drizzle-orm`. Install **both** `drizzle-orm` and `drizzle-kit` from the `@beta` dist-tag:
@@ -36,7 +46,22 @@ The `@beta` tag only affects the installed version — imports are written as `d
 
 The CLI ships a complete database surface under `netlify database` (alias: `netlify db`) that replaces hand-rolled scripts and direct API/UI work. Reach for these commands first before writing custom tooling. **Requires Netlify CLI 26.0.0+** — if a `netlify database` subcommand isn't recognized, run `npm install -g netlify-cli@latest`.
 
+The corollary: **never go around the CLI**, even for read-only operations. Specifically:
+
+- **Do not run `psql`, `pg_dump`, or any other raw Postgres client** against a Netlify-hosted database, even for "harmless" `SELECT`s. Use `netlify database connect --query "..."` instead.
+- **Do not curl `https://api.netlify.com/...`** to manage the database.
+- **Do not read auth tokens** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) to authenticate side-channel calls.
+- **Do not use `netlify api <method>`** as a recovery hatch when a deploy fails to provision the database. The supported recovery is documented under [If the first deploy fails to provision the database](#if-the-first-deploy-fails-to-provision-the-database).
+
+Wandering off the documented surface is how agents end up touching the wrong database, deleting the wrong resource, or leaking credentials. If the documented happy path doesn't work, surface the failure to the user with context — see [When something fails, surface and stop](#when-something-fails-surface-and-stop) below.
+
 Full reference is in [Netlify CLI commands](#netlify-cli-commands-for-netlify-database) below.
+
+## When something fails, surface and stop
+
+When a `netlify` command fails, a deploy fails to provision the database, or any documented happy path errors out, the right action is to **report the failure to the user** with the deploy log URL, the exact error, and the affected site/branch — and stop. Do not invent recovery commands or escalate to lower-level tools.
+
+Specific failure modes (like the first-deploy 401) get their own playbooks below. The general rule applies everywhere: a stuck agent surfacing context is far safer than a "helpful" agent that wanders off and deletes the wrong database.
 
 ## CRITICAL: Never apply migrations to a Netlify-hosted database
 
@@ -79,7 +104,32 @@ If you'd rather wire things up by hand, install the package directly:
 npm install @netlify/database
 ```
 
-Either way, presence of `@netlify/database` in the dependency tree triggers provisioning on the next deploy. A database can also be created manually from the Netlify UI before first deploy.
+Either way, the presence of `@netlify/database` in the dependency tree triggers provisioning on the next deploy. A database can also be created manually from the Netlify UI before first deploy, but the package + deploy path is the supported automation flow.
+
+### Provisioning workflow: preview-first
+
+The supported inner loop is **preview-first**, not `--prod`-first:
+
+1. **First deploy: `netlify deploy`** (no `--prod`). This provisions the database if needed, applies any pending migrations to the production branch, and produces a draft URL. Verify the deploy log shows `Netlify Database setup completed in <n>s` (and, if migrations exist, `Loading migrations from netlify/database/migrations directory`) before continuing.
+2. **User verifies on the draft URL** — and completes any dashboard-only setup along the way (e.g., enabling Identity if the project also uses it; see `netlify-identity/SKILL.md`).
+3. **Promote: `netlify deploy --prod`**.
+
+Why preview-first matters: the preview deploy provisions the database and applies migrations exactly the way the production deploy will, so a failure during preview is recoverable without prod ever entering a half-configured state. `--prod`-first works in the happy case but is harder to recover from when something goes wrong.
+
+### If the first deploy fails to provision the database
+
+**Symptom:** the build (or the Netlify Database setup extension inside the build) fails with a `401 Access Denied` on `createSiteDatabase`, typically on the very first deploy of a brand-new site. The deploy log shows the failure inside the extension's setup step.
+
+**If the failure happened on `netlify deploy --prod` as the very first deploy**, the first thing to try is the supported preview-first flow — run `netlify deploy` (no `--prod`). The failure has only been observed on `--prod`-first attempts on brand-new sites.
+
+**If a preview deploy also fails — or the original failure was already on a preview — report the failure to the user and stop.** Do not work around it. Specifically, do not:
+
+- Curl `https://api.netlify.com/...` directly
+- Run `netlify api createSiteDatabase` (or any other `netlify api` call to manually create what the platform was supposed to provision)
+- Pull auth tokens out of `~/Library/Preferences/netlify/config.json`
+- Connect via `psql` to "check on things"
+
+The recovery is to give the user the deploy log URL, the site URL, and the exact error, and let them decide what to do next (file a support issue, recreate the site fresh, switch teams, etc.). Wandering off the happy path is how agents end up deleting the wrong resource — being stuck and clear is much safer than being "helpful" with side-channel calls.
 
 ## Drizzle ORM (recommended path)
 
@@ -289,88 +339,7 @@ If the request is ambiguous ("update this record"), confirm that the user wants 
 
 The CLI ships a complete database surface under `netlify database` (alias: `netlify db`). Requires CLI 26.0.0+. Most commands accept `--json` for machine-readable output — useful when scripting or reading results from an agent.
 
-### `netlify database init`
-
-Interactive bootstrap: installs `@netlify/database` (and Drizzle if chosen), writes `drizzle.config.ts`, scaffolds and applies a starter migration, and runs a sample query. Use `--yes` for non-interactive mode.
-
-### `netlify database status`
-
-Reports whether the database is enabled, whether `@netlify/database` is installed, the connection string for the active branch, and the applied/pending/missing/out-of-order migrations. **Defaults to the local development database** — pass `--branch <name>` to target a remote preview or production branch.
-
-```bash
-netlify database status                          # local
-netlify database status --branch my-feature      # remote branch
-netlify database status --json
-netlify database status --show-credentials       # include username/password in connection string
-```
-
-### `netlify database connect`
-
-Connects to the database. Defaults to an interactive REPL — for agent and script use, always pass `--query` for one-shot execution:
-
-```bash
-# List tables
-netlify database connect --query "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-
-# Inspect columns
-netlify database connect --query "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'items'"
-
-# JSON output
-netlify database connect --query "SELECT * FROM items LIMIT 10" --json
-
-# Get connection details only (no query)
-netlify database connect --json
-```
-
-**Never run DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`) through `netlify database connect`, `psql`, or any other direct connection.** Schema changes go through migration files — out-of-band DDL drifts the migration history from the actual schema.
-
-### `netlify database migrations new`
-
-Scaffolds a new migration file as `netlify/database/migrations/<prefix>_<slug>/migration.sql`. Auto-detects the numbering scheme from existing files; prompts when undetermined.
-
-```bash
-netlify database migrations new -d "add users table"
-netlify database migrations new -d "add users table" --scheme timestamp
-```
-
-### `netlify database migrations apply`
-
-Applies pending migrations to the **local development database**. The CLI does **not** apply migrations to the local DB automatically when `netlify dev` starts — you run this command yourself when you're ready. Hosted databases (preview branches, production) are handled by the deploy.
-
-```bash
-netlify database migrations apply
-netlify database migrations apply --to <name>   # apply up to a specific migration
-```
-
-### `netlify database migrations pull`
-
-Downloads migration files from a remote branch (defaults to `production`) and overwrites local files. Useful when local migration history has drifted from production — for example, after another contributor shipped a migration you don't have locally.
-
-```bash
-netlify database migrations pull                  # from production
-netlify database migrations pull --branch staging # from a specific branch
-netlify database migrations pull --branch         # from your current local git branch
-netlify database migrations pull --force          # skip the overwrite confirmation
-```
-
-### `netlify database migrations reset`
-
-Deletes local migration files that have **not yet been applied** to the target database. Applied migrations and their data are left alone — the command can't undo something already applied.
-
-Typical use: you generated a migration, realized it was wrong, and want to start over. Run `reset`, update `db/schema.ts`, then `npm run db:generate` produces a fresh migration.
-
-```bash
-netlify database migrations reset                  # against local dev DB
-netlify database migrations reset --branch <name>  # against a remote branch
-```
-
-### `netlify database reset`
-
-Wipes the local development database — drops all schemas and tables. Only affects the local DB; never touches preview branches or production. Use this when you want to replay all migrations from scratch.
-
-```bash
-netlify database reset
-```
+Full per-command reference — `init`, `status`, `connect`, `migrations new` / `apply` / `pull` / `reset`, and `reset` — is in `references/cli-commands.md`. The one rule that applies across all of them: **never run DDL (`CREATE`/`ALTER`/`DROP`/`TRUNCATE`) through `connect`, `psql`, or any direct connection** — schema changes go through migration files.
 
 ## Iterating on migrations
 

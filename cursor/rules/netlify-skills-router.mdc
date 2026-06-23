@@ -56,7 +56,7 @@ Read `netlify-deploy/SKILL.md` for the full deployment workflow — authenticati
 
 ## Use only documented Netlify CLI surfaces
 
-The supported way to interact with Netlify is the documented `netlify` CLI. Stay on it. Specifically:
+The supported way to interact with Netlify is the documented `netlify` CLI. Stay on it. "Documented CLI surfaces" means commands covered by these skills, `netlify --help`, or the public CLI reference — not direct API calls, config-file tokens, or undocumented endpoints. Specifically:
 
 - **Do not call `https://api.netlify.com/...` directly** via `curl` or `fetch`. Endpoint shapes are not part of the public contract.
 - **Do not read auth tokens** out of `~/Library/Preferences/netlify/config.json` (or anywhere else on disk) to authenticate side-channel calls.
@@ -67,7 +67,7 @@ The `netlify api <method>` command is a thin wrapper over the API and is documen
 
 ## When a happy path fails, surface and stop
 
-When a documented CLI command, deploy, or extension fails, your job is to **report the failure to the user with context** (deploy log URL, the exact error, the site/branch involved) and stop. Do not work around it.
+When a documented CLI command, deploy, or extension fails, first follow any explicit recovery step in the relevant skill. If the skill has no recovery step, or the documented recovery also fails, **report the failure to the user with context** (deploy log URL, the exact error, the site/branch involved) and stop. Do not work around it.
 
 Specifically: do not invent recovery commands, do not run `netlify api <method>` to manually create or delete a resource the platform was supposed to provision, do not switch to a different tool to do the same thing the failing command was trying to do. A stuck agent that surfaces the right context is far safer than a "helpful" agent that wanders off and inadvertently deletes a database or site.
 

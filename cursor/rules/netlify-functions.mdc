@@ -113,38 +113,29 @@ Store results externally (Netlify Blobs, database) for later retrieval.
 
 The legacy filename convention (`process-background.ts`) is still supported, but new functions should use `config.background`.
 
-## Resource Configuration
-
-Functions default to 1024 MB of memory and a proportional amount of compute. Configure per-function resources via `memory` or `vcpu` — they scale together, so set whichever maps to how you think about the workload. The two are mutually exclusive.
-
-```typescript
-export const config: Config = {
-  memory: "2gb",  // or memory: 2048; allowed range 1024–4096 MB
-  // vcpu: 1.5,   // alternatively; allowed range 0.5–2.0
-};
-```
-
-- `memory`: number (MB) or string with unit (`"2gb"`, `"1024mb"`, case-insensitive).
-- `vcpu`: number between 0.5 and 2.0. Maps linearly: `0.5` → 1024 MB, `2.0` → 4096 MB.
-
-Both can also be set in `netlify.toml`:
-
-```toml
-[functions.heavy]
-  memory = "2gb"
-```
-
 ## Region
 
-Override the deployment region per function via the `region` property. Accepts an airport code (`iad`, `dub`, `fra`, `lhr`, `nrt`, `pdx`, `sfo`, `sin`, `syd`, `yul`, `cmh`, `gru`).
+Functions deploy to `cmh` (Ohio) by default. This is a deliberate choice: US East is centrally located for an international audience, has a broad provider ecosystem, and gives most projects the lowest overall latency without any configuration.
 
-```typescript
-export const config: Config = {
-  region: "dub",  // Dublin (eu-west-1)
-};
-```
+Do NOT override `config.region` unless the user has stated a specific reason — for example, a database or backend service in another region with measurable roundtrip savings, a data-residency requirement, or an audience concentrated in one region whose compute dependencies (database, backend services) also live in that region.
 
-Falls back to the site-level region if unset. Plan-gated; some plans don't allow region overrides.
+Two constraints to be aware of before adding `config.region`:
+
+- A function runs in exactly one region. Don't try to deploy the same function to multiple regions — if the user wants geo-routing, route between distinct functions with an edge function instead.
+- For framework adapter–generated functions (Next.js, Astro, Nuxt, etc.) the region must be set site-wide in the Netlify UI, not via `config.region` in code. The generated files can't carry per-function config.
+
+See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
+
+## Memory or vCPU
+
+Functions run with 1024 MB of memory and a proportional amount of compute by default. The default fits most workloads, and raising it has a direct cost impact: function billing scales linearly with the configured size.
+
+Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them when:
+
+- The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
+- The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
+
+`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
 
 ## Scheduled Functions
 

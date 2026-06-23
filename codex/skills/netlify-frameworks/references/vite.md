@@ -2,6 +2,8 @@
 
 ## Setup
 
+> **Check current versions before pinning.** Knowledge cutoffs lag behind npm, and guessing a version tends to fail (`npm install` rejects it, or worse, installs something incompatible). Before pinning `@netlify/vite-plugin`, `vite`, `@vitejs/plugin-react`, or any other package in `package.json`, run `npm view <pkg> version` to get the current `latest`. Or omit explicit pins and let `npm install` pick them up.
+
 Install the Netlify Vite plugin:
 
 ```bash

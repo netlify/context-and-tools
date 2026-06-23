@@ -6,6 +6,7 @@ type Variant = NonNullable<ScenarioInput["variants"]>[number];
 // variant mirrors how users actually run agents — they don't cherry-pick which
 // skill is relevant, they make the bundle available and let the agent decide.
 export const ALL_NTL_SKILLS = [
+  "./skills/netlify-agent-runner",
   "./skills/netlify-ai-gateway",
   "./skills/netlify-blobs",
   "./skills/netlify-caching",

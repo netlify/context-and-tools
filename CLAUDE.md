@@ -6,6 +6,8 @@ This repository contains public Netlify skills — factual platform reference fo
 
 - `context/` — Steering guides (e.g., POWER.md for Kiro deployments)
 - `.claude-plugin/` — Plugin marketplace config for Claude Code installation
+- `.grok-plugin/` — Plugin manifest for Grok Build (same plugin format as Claude Code; hand-authored, not generated)
+- `.mcp.json` — Netlify MCP server config bundled with the Claude Code and Grok Build plugins (hosted HTTP endpoint; OAuth at runtime)
 - `skills/` — Netlify platform skills (source of truth for all agent formats)
 - `cursor/rules/` — Auto-generated Cursor `.mdc` rule files (do NOT edit directly)
 - `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)

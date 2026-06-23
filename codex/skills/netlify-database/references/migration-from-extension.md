@@ -92,7 +92,6 @@ On a new branch:
       dialect: "postgresql",
       schema: "./db/schema.ts",
       out: "netlify/database/migrations",
-      migrations: { prefix: "timestamp" },
     });
     ```
 

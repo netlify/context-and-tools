@@ -28,7 +28,9 @@ Use the official MCP SDK with its Streamable HTTP transport, running statelessly
 npm install @modelcontextprotocol/sdk@1.24.0 fetch-to-node zod
 ```
 
-**Pin the SDK to `1.24.0`.** Versions `1.25+` tightened the Streamable HTTP transport so it rejects (HTTP 406) any POST whose `Accept` header doesn't contain *both* `application/json` and `text/event-stream`. Some clients don't send both, so the stricter versions break connections that `1.24.0` handles fine. This is worth re-checking over time as the SDK evolves — but pin for now so things just work. Letting the SDK own the protocol also means you don't hand-maintain JSON-RPC framing or the protocol-version handshake.
+**Pin the SDK to `1.24.0`** — the version verified to work with the `fetch-to-node` bridge below on a Netlify Function. In `1.25+` the Node `StreamableHTTPServerTransport` was re-implemented as a thin wrapper over a new Web-standard transport (via `@hono/node-server`); that internal rewrite hasn't been re-verified against this bridge, so pin for now and re-check as the SDK evolves. (On a current SDK you may be able to skip `fetch-to-node` entirely and hand the Web `Request` straight to the new transport, running unpinned — but that path isn't verified on Netlify yet.)
+
+A separate gotcha, independent of the SDK version: the transport returns **HTTP 406** to any POST whose `Accept` header lacks *both* `application/json` and `text/event-stream`. That's an MCP-spec requirement the *client* must satisfy — a 406 means fix the client's `Accept` header, not the server. Letting the SDK own the protocol also means you don't hand-maintain JSON-RPC framing or the protocol-version handshake.
 
 ## The server function
 
@@ -61,6 +63,14 @@ export default async (req: Request, _context: Context) => {
   if (!checkBearer(req)) return new Response("Unauthorized", { status: 401 });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
+  // Parse before allocating the transport so a malformed body is a clean 400, not a 500.
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("Invalid JSON body", { status: 400 });
+  }
+
   // The SDK transport speaks Node req/res; bridge the Web Request/Response.
   const { req: nodeReq, res: nodeRes } = toReqRes(req);
 
@@ -79,7 +89,7 @@ export default async (req: Request, _context: Context) => {
   });
 
   await server.connect(transport);
-  await transport.handleRequest(nodeReq, nodeRes, await req.json());
+  await transport.handleRequest(nodeReq, nodeRes, body);
 
   return toFetchResponse(nodeRes);
 };
@@ -111,7 +121,9 @@ export function checkBearer(req: Request): boolean {
   if (!match) return false;
   const a = Buffer.from(match[1]);
   const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b); // avoid leaking length-timing
+  // Length check first because timingSafeEqual throws (RangeError) on unequal-length
+  // buffers. The token is fixed-length, so the early return leaks nothing useful.
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 ```
 
@@ -128,6 +140,10 @@ Tools are a public API handed to an autonomous agent. Be deliberate:
 - **Keep the client's credential separate from your backend's.** The client authenticates to your server (bearer/API key); your server authenticates to the database or third-party API with its *own* secret. Never pass your backend god-key out to the client.
 - **Use least-privilege backend credentials** — app passwords or scoped tokens, not account-level ones, so a leak is contained and revocable.
 - **Validate inputs** (your `zod` schemas do this) and **log every tool call** so you can see what the agent did — `console.info` shows up in Netlify function logs.
+
+## File uploads
+
+When a tool needs the agent to supply a file (an image to post, a doc to attach), don't push the bytes through the tool call as base64 — it bloats the model's context and runs into payload limits. Instead hand the agent a short-lived, single-use **presigned URL** to `PUT` the raw bytes to, store them in **Netlify Blobs**, and reference the file by a stable key from your other tools. Sign the URL with an **HMAC** (over the upload id, content-type, size, and expiry) keyed by a secret env var and verify it in constant time — the signature *is* the authorization, so the `PUT` carries no bearer token. On the upload endpoint, enforce the declared content-type and size and reject replays. Full three-step flow (`prepare_upload` → `PUT` → `finalize_upload`) with code: [file uploads](references/file-uploads.md).
 
 ## Connecting a client
 

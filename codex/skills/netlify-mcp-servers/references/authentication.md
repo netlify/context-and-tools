@@ -20,7 +20,7 @@ Store keys in [Netlify Database](../../netlify-database/SKILL.md). The essential
 
 A workable row shape:
 
-```
+```text
 api_keys
   id          uuid
   user_email  text        -- who this key acts as

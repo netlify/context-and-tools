@@ -23,6 +23,16 @@ export const config: Config = {
 
 The handler receives a standard Web API `Request` and returns a `Response`. The second argument is a Netlify `Context` object.
 
+The bare default export shown above is the recommended form. The default export can also be an object with a `fetch` method — prefer this form only if (1) other functions in the project already use it, or (2) the function also subscribes to platform events (see [Event Handlers](#event-handlers) below), since events are exposed as named handlers on the same object:
+
+```typescript
+export default {
+  fetch(req: Request, context: Context) {
+    return new Response("Hello, world!");
+  },
+};
+```
+
 ## File Structure
 
 Place functions in `netlify/functions/`:
@@ -86,13 +96,46 @@ export const config: Config = {
 
 For long-running tasks (up to 15 minutes). The client receives an immediate `202` response; return values are ignored.
 
-Name the file with a `-background` suffix:
+Enable background mode by setting `background: true` in config:
 
-```
-netlify/functions/process-background.ts
+```typescript
+export default async (req: Request) => {
+  await someLongRunningTask();
+};
+
+export const config: Config = {
+  path: "/process",
+  background: true,
+};
 ```
 
 Store results externally (Netlify Blobs, database) for later retrieval.
+
+The legacy filename convention (`process-background.ts`) is still supported, but new functions should use `config.background`.
+
+## Region
+
+Functions deploy to `cmh` (Ohio) by default. This is a deliberate choice: US East is centrally located for an international audience, has a broad provider ecosystem, and gives most projects the lowest overall latency without any configuration.
+
+Do NOT override `config.region` unless the user has stated a specific reason — for example, a database or backend service in another region with measurable roundtrip savings, a data-residency requirement, or an audience concentrated in one region whose compute dependencies (database, backend services) also live in that region.
+
+Two constraints to be aware of before adding `config.region`:
+
+- A function runs in exactly one region. Don't try to deploy the same function to multiple regions — if the user wants geo-routing, route between distinct functions with an edge function instead.
+- For framework adapter–generated functions (Next.js, Astro, Nuxt, etc.) the region must be set site-wide in the Netlify UI, not via `config.region` in code. The generated files can't carry per-function config.
+
+See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
+
+## Memory or vCPU
+
+Functions run with 1024 MB of memory and a proportional amount of compute by default. The default fits most workloads, and raising it has a direct cost impact: function billing scales linearly with the configured size.
+
+Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them when:
+
+- The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
+- The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
+
+`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
 
 ## Scheduled Functions
 
@@ -124,6 +167,56 @@ export default async (req: Request) => {
 };
 ```
 
+## Event Handlers
+
+A function can subscribe to platform events by exporting an object instead of a function as its default. Each event has a named handler property:
+
+```typescript
+import type { DeploySucceededEvent, UserSignupEvent } from "@netlify/functions";
+
+export default {
+  deploySucceeded(event: DeploySucceededEvent) {
+    console.log(`Deploy ${event.deploy.id} succeeded`);
+  },
+
+  userSignup(event: UserSignupEvent) {
+    return {
+      user: {
+        ...event.user,
+        appMetadata: { ...event.user.appMetadata, roles: ["member"] },
+      },
+    };
+  },
+};
+```
+
+A single function can declare multiple handlers; multiple functions can also subscribe to the same event.
+
+**Available handlers:**
+
+| Handler | Trigger |
+|---|---|
+| `fetch` | HTTP request (equivalent to a bare function default export) |
+| `deployBuilding` / `deploySucceeded` / `deployFailed` / `deployDeleted` / `deployLocked` / `deployUnlocked` | Deploy lifecycle |
+| `userSignup` / `userLogin` / `userValidate` / `userModified` / `userDeleted` | Identity lifecycle |
+| `formSubmitted` | Form submission verified |
+
+### Identity handlers: deny an action
+
+`userSignup`, `userLogin`, `userValidate`, and `userModified` can reject the action by calling `event.deny()`. The end user receives a 401; no observability error is produced (unlike throwing).
+
+```typescript
+export default {
+  userLogin(event: UserLoginEvent) {
+    if (!event.user.email?.endsWith("@example.com")) {
+      return event.deny();
+    }
+  },
+};
+```
+
+If multiple functions subscribe to the same event, the first to call `event.deny()` aborts the chain.
+
 ## Context Object
 
 | Property | Description |
@@ -153,7 +246,7 @@ const apiKey = Netlify.env.get("API_KEY");
 | Synchronous timeout | 60 seconds |
 | Background timeout | 15 minutes |
 | Scheduled timeout | 30 seconds |
-| Memory | 1024 MB |
+| Memory | 1024 MB default; configurable 1024–4096 MB (see [Resource Configuration](#resource-configuration)) |
 | Buffered payload | 6 MB |
 | Streamed payload | 20 MB |
 

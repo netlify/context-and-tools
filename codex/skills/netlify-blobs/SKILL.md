@@ -13,6 +13,17 @@ Netlify Blobs is zero-config object storage for **files and assets**: images, do
 npm install @netlify/blobs
 ```
 
+## Before you build
+
+If the prompt didn't already specify, ask the user a few short questions before scaffolding any blob storage — answers shape access patterns, scoping, and how the assets are served back to clients:
+
+- **What kind of asset?** (User uploads, exported documents, cached binaries, generated images — drives the storage and serving pattern.)
+- **Who should be able to read it?** Public (anyone with a URL, or an unauthenticated endpoint that streams the blob) or private (only authenticated users, gated by your server code)? Blobs have **no built-in access control** — the serving layer is the gate. When in doubt, default to private; making something public later is easy, while pulling back data that was inadvertently exposed is not.
+- **Site-scoped or deploy-scoped?** Site-scoped (`getStore()`) persists across deploys — the right default for user data. Deploy-scoped (`getDeployStore()`) is tied to a single deploy and disappears when that deploy is replaced — use only when the lifecycle should match a deploy (e.g., per-deploy build artifacts).
+- **Roughly how big and how many?** Helps choose between a single large blob vs many small keyed blobs, and informs whether you'll need `list({ prefix: ... })` patterns.
+
+**If you don't have preferences here, tell me what the assets are and I'll pick sensible defaults** — typically site-scoped with private access, served through an authenticated function.
+
 ## Getting a Store
 
 ```typescript

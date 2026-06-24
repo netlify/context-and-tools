@@ -5,7 +5,7 @@
     "skills/netlify-functions",
     "skills/netlify-edge-functions",
     "skills/netlify-blobs",
-    "skills/netlify-db",
+    "skills/netlify-database",
     "skills/netlify-image-cdn",
     "skills/netlify-forms",
     "skills/netlify-frameworks",
@@ -15,5 +15,10 @@
     "skills/netlify-deploy",
     "skills/netlify-ai-gateway",
     "skills/netlify-identity"
-  ]
+  ],
+  "mcpServers": {
+    "netlify": {
+      "httpUrl": "https://netlify-mcp.netlify.app/mcp"
+    }
+  }
 }

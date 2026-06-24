@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "netlify": {
+      "type": "http",
+      "url": "https://netlify-mcp.netlify.app/mcp",
+      "note": "Official Netlify MCP server (hosted, streamable HTTP). Authorizes via OAuth on first connection — the agent is prompted to sign in to Netlify; no token or local install required. Lets the agent create and manage Netlify projects, deploys, and environment variables."
+    }
+  }
+}

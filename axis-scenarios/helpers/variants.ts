@@ -30,3 +30,25 @@ export function withSkillVariants(...skills: string[]): Variant[] {
     { name: "with-skill", skills: skills.length > 0 ? skills : ALL_NTL_SKILLS },
   ];
 }
+
+// Same variant pair, but the `with-skill` run is judged against a stricter
+// rubric. Use this when a capability has both a "still works" form and a
+// narrower *recommended* form: the scenario's base `judge` (inherited by
+// no-context) accepts either, while `strictJudge` here demands the recommended
+// path that loading the skill should produce. A variant's `judge` REPLACES the
+// base judge rather than merging, so `strictJudge` must list every check the
+// with-skill run should be held to — typically the shared checks plus the
+// stricter ones.
+export function withSkillVariantsStrict(
+  strictJudge: Variant["judge"],
+  ...skills: string[]
+): Variant[] {
+  return [
+    { name: "no-context" },
+    {
+      name: "with-skill",
+      skills: skills.length > 0 ? skills : ALL_NTL_SKILLS,
+      judge: strictJudge,
+    },
+  ];
+}

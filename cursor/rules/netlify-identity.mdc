@@ -343,32 +343,64 @@ function App() {
 
 ## Identity Event Functions
 
-Special serverless functions that trigger on Identity lifecycle events. These use the **legacy named `handler` export** (not the modern default export).
+Functions can subscribe to Identity lifecycle events by exporting an object whose properties are named event handlers. See the **netlify-functions** skill for the full event-handler pattern.
 
-**Event names:** `identity-validate`, `identity-signup`, `identity-login`
+**Available identity handlers:**
+
+| Handler | Trigger |
+|---|---|
+| `userValidate` | User attempts to sign up. Can deny. |
+| `userSignup` | User completes signup. Can deny or mutate. |
+| `userLogin` | User logs in. Can deny or mutate. |
+| `userModified` | User profile is updated. Can deny or mutate. |
+| `userDeleted` | User is deleted. Notification only. |
+
+Each handler receives a typed event with a parsed `user` object (camelCase fields: `appMetadata`, `userMetadata`, `confirmedAt`, etc.).
+
+### Mutate the user
+
+Return `{ user: ... }` to substitute the user record before it's persisted. This is the common pattern for role assignment at signup.
 
 ```typescript
-// netlify/functions/identity-signup.mts
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions'
+// netlify/functions/identity.mts
+import type { UserSignupEvent } from '@netlify/functions'
 
-const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  const { user } = JSON.parse(event.body || '{}')
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      app_metadata: {
-        ...user.app_metadata,
-        roles: ['member'],
+export default {
+  userSignup(event: UserSignupEvent) {
+    return {
+      user: {
+        ...event.user,
+        appMetadata: {
+          ...event.user.appMetadata,
+          roles: ['member'],
+        },
       },
-    }),
-  }
+    }
+  },
 }
-
-export { handler }
 ```
 
-The response body replaces `app_metadata` and/or `user_metadata` on the user record — include all fields you want to keep.
+### Deny an action
+
+Call `event.deny()` to reject a signup, login, validation, or modification. The end user receives a 401. Do not throw — `event.deny()` is the canonical denial mechanism and does not produce an error in observability.
+
+```typescript
+import type { UserValidateEvent } from '@netlify/functions'
+
+export default {
+  userValidate(event: UserValidateEvent) {
+    if (!event.user.email?.endsWith('@example.com')) {
+      return event.deny()
+    }
+  },
+}
+```
+
+If multiple functions subscribe to the same event, the first to call `event.deny()` aborts the chain — subsequent functions are not invoked.
+
+### Legacy filename convention
+
+The previous syntax — files named `identity-validate.ts`, `identity-signup.ts`, `identity-login.ts`, exporting `handler` and signaling denial via non-2xx response — still works. New functions should prefer the typed handler syntax above.
 
 ## Roles and Authorization
 

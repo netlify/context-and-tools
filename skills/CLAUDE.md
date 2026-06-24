@@ -43,6 +43,9 @@ Read `netlify-identity/SKILL.md` for Netlify Identity setup, OAuth, role-based a
 **Deploying a site to Netlify?**
 Read `netlify-deploy/SKILL.md` for the full deployment workflow — authentication, site linking, preview and production deploys.
 
+**Want to run AI agents (Claude, Codex, Gemini) remotely on your site?**
+Read `netlify-agent-runner/SKILL.md` for creating, listing, and managing remote agent tasks.
+
 ## General Rules
 
 - Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)

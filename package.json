@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/netlify/context-and-tools#readme",
   "devDependencies": {
-    "@netlify/axis": "^1.16.2"
+    "@netlify/axis": "^1.17.0"
   }
 }

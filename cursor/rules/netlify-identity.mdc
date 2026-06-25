@@ -9,6 +9,12 @@ Netlify Identity is a user management service for signups, logins, password reco
 
 **Always use `@netlify/identity`.** Never use `netlify-identity-widget` or `gotrue-js` — they are deprecated. `@netlify/identity` provides a unified, headless TypeScript API that works in both browser and server contexts (Netlify Functions, Edge Functions, SSR frameworks).
 
+## Identity is app-level — don't confuse it with site access control
+
+Netlify Identity manages **your app's end users** (signups, logins, roles) and issues the `nf_jwt` cookie. It is a different layer from **Secure Access / Password Protection**, which gates *who can load the site at all* (a perimeter, configured per-team or per-site and largely Enterprise-only), and from **Team/Org SAML SSO**, which controls *who can log in to the Netlify dashboard*. The same provider — Google, say — can appear in more than one: Google as an Identity OAuth provider signs in *app users*; Google as a SAML IdP signs in *Netlify team members*. They are unrelated systems with separate sessions, which is where the confusion comes from.
+
+If the task involves "lock this site to my company," "only employees can access it," password protection, or SSO at the site/team level, **read the `netlify-access-control` skill first** to pick the right layer. This skill covers the app-level user-management layer only.
+
 ## Dashboard configuration (user handoff required)
 
 **All Identity instance configuration is dashboard-only — there is no public API.** The agent owns the code, deploys, and the handoff checklist; the user owns flipping dashboard settings. Outside of a Netlify Agent Runner deploy, the Identity instance must be enabled in the dashboard before any auth flow will work. If you write Identity code first and only discover this when `/.netlify/identity/signup` 404s after a production deploy, that's wasted work — surface the dashboard handoff up front instead.
@@ -59,6 +65,7 @@ Tell me when these are flipped and I'll run the production deploy.
 
 If the prompt didn't already specify, ask the user a few short questions before scaffolding any auth code — the answers shape both the dashboard config above and the auth UI you'll write:
 
+- Should the whole site be locked so only your company/team can even load it (a perimeter), should it be public with per-user accounts inside the app, or both? This decides whether Netlify Identity alone is enough or you also need site-level access control — if "company-only" or "both" comes up, check the `netlify-access-control` skill before scaffolding.
 - Which sign-in methods should this app expose: email/password, OAuth, or both?
 - Which parts of the app need authenticated access: the whole app, specific routes, or only specific actions?
 - Who can create accounts: public signup or invite-only?
@@ -182,6 +189,8 @@ await logout()
 
 ### OAuth
 
+**When Netlify Identity is the goal, never build a from-scratch third-party OAuth flow.** Don't tell the user to go register their own Google/GitHub OAuth app, don't ask for a `client_id`/`secret`, and don't write your own `/auth/callback` token-exchange handler. Identity already brokers the OAuth handshake: the provider is enabled in the dashboard with the **"Use Netlify's app"** option (no credentials needed — see the handoff checklist above), and your code just calls `oauthLogin(provider)` + `handleAuthCallback()`. Scaffolding raw OAuth alongside Identity is the single most common source of rework in this flow — it produces two competing auth systems that then have to be untangled by hand. Custom OAuth credentials exist only to *brand* the consent screen, and even then they're pasted into the dashboard, not wired into app code.
+
 OAuth is a two-step flow: `oauthLogin(provider)` redirects away from the site, then `handleAuthCallback()` processes the redirect when the user returns.
 
 ```typescript
@@ -265,7 +274,7 @@ const unsubscribe = onAuthChange((event, user) => {
 
 ### Settings-Driven UI
 
-Fetch the project's Identity settings to conditionally render signup forms and OAuth buttons.
+You cannot see a project's live Identity configuration while you are writing the code — there is no API, MCP tool, or CLI command that reports whether Identity is enabled or which providers are on; that state lives in the dashboard. So **don't hard-code which providers exist.** Call `getSettings()` at startup and render the signup form and OAuth buttons from what it returns, so the UI matches whatever the user actually enabled — and a provider you assumed was on but isn't won't render a dead button. (`getSettings()` only works against a deployed site; ask the user what's configured when scaffolding pre-deploy.)
 
 ```typescript
 import { getSettings } from '@netlify/identity'

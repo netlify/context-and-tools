@@ -11,7 +11,7 @@ Netlify Identity is a user management service for signups, logins, password reco
 
 ## Identity is app-level — don't confuse it with site access control
 
-Netlify Identity manages **your app's end users** (signups, logins, roles) and issues the `nf_jwt` cookie. It is a different layer from **Secure Access / Password Protection**, which gates *who can load the site at all* (a perimeter, configured per-team or per-site and largely Enterprise-only), and from **Team/Org SAML SSO**, which controls *who can log in to the Netlify dashboard*. The same provider — Google, say — can appear in more than one: Google as an Identity OAuth provider signs in *app users*; Google as a SAML IdP signs in *Netlify team members*. They are unrelated systems with separate sessions, which is where the confusion comes from.
+Netlify Identity manages **your app's end users** (signups, logins, roles) and issues the `nf_jwt` cookie. It is a different layer from **Secure Access / Password Protection**, which gates *who can load the site at all* (Basic shared-password is Pro+; team-login/SAML gating is Enterprise), and from **Team/Org SAML SSO**, which controls *who can log in to the Netlify dashboard*. The same provider can appear in more than one (Google, say): Google as an Identity OAuth provider signs in *app users*; Google as a SAML IdP signs in *Netlify team members*. They are unrelated systems with separate sessions, which is where the confusion comes from.
 
 If the task involves "lock this site to my company," "only employees can access it," password protection, or SSO at the site/team level, **read the `netlify-access-control` skill first** to pick the right layer. This skill covers the app-level user-management layer only.
 

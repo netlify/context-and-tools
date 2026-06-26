@@ -2,7 +2,6 @@ import type { ScenarioInput } from "@netlify/axis";
 import { withSkillVariants } from "../helpers/variants";
 
 export default {
-  skip: true,
   name: "Database: inspect tables and columns",
   prompt:
     "List the tables in my Netlify Database, and then show the columns of the 'items' table. Use the appropriate tooling — I want to see actual output, not a script for me to run later.",

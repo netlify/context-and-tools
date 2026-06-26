@@ -2,7 +2,6 @@ import type { ScenarioInput } from "@netlify/axis";
 import { withSkillVariants } from "../helpers/variants";
 
 export default {
-  skip: true,
   name: "Database: production data change",
   prompt:
     "We need to seed three default categories ('General', 'Announcements', 'Support') into the categories table in production. The table already exists. Make this happen so it lands in production.",

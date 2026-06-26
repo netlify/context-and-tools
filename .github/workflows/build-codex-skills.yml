@@ -27,8 +27,12 @@ jobs:
       - name: Build Codex skills from source
         run: bash scripts/build-codex-skills.sh
 
+      # Only commit regenerated output on push to main. On PRs the build still
+      # runs above (to catch a broken script), but committing here is skipped so
+      # generated files stay out of PR diffs and the cursor/codex jobs don't race
+      # to push to the contributor's branch.
       - name: Commit updated Codex skills
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

@@ -9,7 +9,6 @@ export default {
     { check: "File lives under `netlify/edge-functions/`" },
     { check: "Reads the visitor country via `context.geo.country.code` (or equivalent `context.geo` field) — NOT by parsing a request header" },
     { check: "Returns a redirect (e.g. `Response.redirect(new URL('/fr', req.url))`) for visitors from the mapped countries; uses an appropriate status (302 / 307 / 308)" },
-    { check: "Does NOT redirect when the requested URL already has a locale prefix — the function should not infinitely redirect or fight itself" },
     { check: "Config scopes the function to the root via `path: '/'` (the prompt says it runs on /, not all paths)" },
     { check: "Returns `undefined` or `context.next()` for unmatched countries so the request continues to the default page" },
     { check: "Does NOT hardcode the country code from a Netlify.env variable or process.env — it must be derived from each request's geo" },

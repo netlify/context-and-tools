@@ -12,7 +12,6 @@ export default {
     { check: "Includes input fields for name, email, and message with `name=` attributes (Netlify identifies fields by `name`)" },
     { check: "Sets `action='/thanks'` (NOT `/thanks.html` — Netlify serves the page at the clean URL) so the browser navigates there on success" },
     { check: "Does NOT use AJAX / `fetch` to submit — this is a plain HTML form, so the browser's default POST is what triggers Netlify Forms" },
-    { check: "Does NOT add a `<input type='hidden' name='form-name' ...>` skeleton — that's only required for JS-rendered forms, not static HTML where the parser sees the form directly" },
   ],
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

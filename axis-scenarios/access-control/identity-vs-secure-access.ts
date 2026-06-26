@@ -8,7 +8,7 @@ export default {
   judge: [
     {
       check:
-        "Recognizes that Secure Access / Password Protection (and team SSO) is a site-access perimeter that gates Netlify team members — it does NOT, by itself, give app code a logged-in end user or issue an `nf_jwt`",
+        "Recognizes that site-access controls and app identity are separate layers: basic password protection admits any visitor who has the shared password, team-login protection limits site access to Netlify team members, and neither, by itself, gives app code a logged-in end user or issues an `nf_jwt`",
     },
     {
       check:

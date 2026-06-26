@@ -274,7 +274,7 @@ const unsubscribe = onAuthChange((event, user) => {
 
 ### Settings-Driven UI
 
-You cannot see a project's live Identity configuration while you are writing the code — there is no API, MCP tool, or CLI command that reports whether Identity is enabled or which providers are on; that state lives in the dashboard. So **don't hard-code which providers exist.** Call `getSettings()` at startup and render the signup form and OAuth buttons from what it returns, so the UI matches whatever the user actually enabled — and a provider you assumed was on but isn't won't render a dead button. (`getSettings()` only works against a deployed site; ask the user what's configured when scaffolding pre-deploy.)
+You cannot see a project's live Identity configuration while you are writing the code — there is no API, MCP tool, or CLI command that reports whether Identity is enabled or which providers are on; that state lives in the dashboard. So **don't hard-code which providers exist.** Call `getSettings()` at startup and render the signup form and OAuth buttons from what it returns, so the UI matches whatever the user actually enabled — and a provider you assumed was on but isn't won't render a dead button. (`getSettings()` hits `/.netlify/identity/settings` and works against any origin serving the page, including localhost under `netlify dev`, which proxies to the live service — but it can't tell you anything pre-run, so ask the user what's configured while you're still scaffolding.)
 
 ```typescript
 import { getSettings } from '@netlify/identity'

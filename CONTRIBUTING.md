@@ -12,6 +12,16 @@ Thanks for improving the Netlify skills! This guide covers how to make changes a
 
 Each skill is a `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) and a markdown body. Keep skills factual and platform-focused — "how does this Netlify feature work?", not workflow or framework opinions. Keep `SKILL.md` under 500 lines and put deeper content in a `references/` subdirectory.
 
+## Testing skills with AXIS
+
+Skill changes can be validated against representative agent scenarios with [AXIS](https://axis.run). From the repo root:
+
+```bash
+npx axis run
+```
+
+AXIS runs **locally only** — it's non-deterministic and intentionally not part of CI. See [`axis-scenarios/README.md`](axis-scenarios/README.md) for how to run it, read reports, and write scenarios.
+
 ## Commit and PR title conventions
 
 We use [Conventional Commits](https://www.conventionalcommits.org/). A CI check (`lint-pr-title`) enforces that every **PR title** is conventional. An optional scope is allowed, e.g. `feat(netlify-database): add connection pooling guidance`.

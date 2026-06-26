@@ -1,5 +1,5 @@
 ---
-description: Use when the task involves authentication, user signups, logins, password recovery, OAuth providers, role-based access control, or protecting routes and functions. Always use `@netlify/identity`. Never use `netlify-identity-widget` or `gotrue-js` — they are deprecated.
+description: Use when the task involves authentication, user signups, logins, password recovery, OAuth providers, role-based access control, or protecting routes and functions. Always use `@netlify/identity` for new projects; `netlify-identity-widget` and `gotrue-js` still work but are no longer recommended.
 alwaysApply: false
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: false
 
 Netlify Identity is a user management service for signups, logins, password recovery, user metadata, and role-based access control. It is built on [GoTrue](https://github.com/netlify/gotrue) and issues JSON Web Tokens (JWTs).
 
-**Always use `@netlify/identity`.** Never use `netlify-identity-widget` or `gotrue-js` — they are deprecated. `@netlify/identity` provides a unified, headless TypeScript API that works in both browser and server contexts (Netlify Functions, Edge Functions, SSR frameworks).
+**Always use `@netlify/identity` for new projects.** `netlify-identity-widget` and `gotrue-js` still work and are maintained, but are no longer the recommended choice. `@netlify/identity` provides a unified, headless TypeScript API that works in both browser and server contexts (Netlify Functions, Edge Functions, SSR frameworks).
 
 ## Identity is app-level — don't confuse it with site access control
 
@@ -26,7 +26,7 @@ If the task involves "lock this site to my company," "only employees can access 
 - **Enable Identity** — turns the Identity instance on for the site. **Required** before any auth flow works.
 - **Registration mode** — Open (anyone can sign up, the default) or Invite only.
 - **Autoconfirm** — ON skips the email-confirmation step on signup; OFF requires the new user to click a confirmation email before they can log in.
-- **External providers** — Add Google / GitHub / GitLab / Bitbucket / Facebook. The "Use Netlify's app" option means no `client_id`/`secret` needed — good for prototypes. Adding an OAuth provider does NOT disable email/password — email/password is always available unless the front-end omits it.
+- **External providers** — Add Google / GitHub / GitLab / Bitbucket. The "Use Netlify's app" option means no `client_id`/`secret` needed — good for prototypes. Adding an OAuth provider does NOT disable email/password — email/password is always available unless the front-end omits it.
 - **Custom email templates / SMTP** — advanced; out of scope for typical prototypes.
 
 There is no CLI command and no public API for any of these. **Do not** curl `https://api.netlify.com/...` to flip toggles, **do not** read auth tokens out of `~/Library/Preferences/netlify/config.json`, and **do not** probe for an undocumented endpoint. Give the user the dashboard URL and exact checklist instead.
@@ -70,7 +70,7 @@ If the prompt didn't already specify, ask the user a few short questions before 
 - Which parts of the app need authenticated access: the whole app, specific routes, or only specific actions?
 - Who can create accounts: public signup or invite-only?
 - Should new email/password users be able to log in immediately for a prototype (Autoconfirm ON), or confirm by email first for production (Autoconfirm OFF)?
-- Which OAuth providers should be enabled (Google, GitHub, GitLab, Bitbucket, Facebook)?
+- Which OAuth providers should be enabled (Google, GitHub, GitLab, Bitbucket)?
 
 **If you don't have preferences here, tell me what you want overall and I'll pick sensible defaults** — typically email/password + Google OAuth, autoconfirm ON, registration Open for a prototype.
 
@@ -148,7 +148,9 @@ async function handleLogin(email: string, password: string) {
     showSuccess(`Welcome back, ${user.name ?? user.email}`)
   } catch (error) {
     if (error instanceof AuthError) {
-      showError(error.status === 401 ? 'Invalid email or password.' : error.message)
+      // Bad credentials → GoTrue returns 400 (invalid_grant) server-side; in the
+      // browser the status is undefined, so fall back to the message there.
+      showError(error.status === 400 ? 'Invalid email or password.' : error.message)
     }
   }
 }
@@ -345,14 +347,19 @@ function App() {
 
 | Status | Meaning |
 |--------|---------|
-| 401 | Invalid credentials or expired token |
+| 400 | Invalid login credentials — wrong email/password (GoTrue `invalid_grant`) |
+| 401 | Missing, invalid, or expired bearer token on an authenticated endpoint |
 | 403 | Action not allowed (e.g., signups disabled) |
 | 422 | Validation error (e.g., weak password, malformed email) |
 | 404 | User or resource not found |
 
+Note: in the browser, `login()` surfaces gotrue-js failures as an `AuthError` with `status` **undefined** (the HTTP status isn't propagated), so don't branch on `status` for bad-credentials UX there — fall back to `error.message`. Server-side (`login()` in a Function) passes the real status through, so `400` is reliable.
+
 ## Identity Event Functions
 
 Functions can subscribe to Identity lifecycle events by exporting an object whose properties are named event handlers. See the **netlify-functions** skill for the full event-handler pattern.
+
+The typed handler API below (the `userSignup`/`userValidate`/… object export, the typed `*Event` types, and `event.deny()`) requires **`@netlify/functions` ≥ 5.2.0** — it isn't present in 5.1.x. On older installs, use the legacy filename convention described at the end of this section.
 
 **Available identity handlers:**
 

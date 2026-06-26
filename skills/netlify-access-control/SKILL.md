@@ -15,7 +15,7 @@ description: Use when the task involves controlling who can reach a Netlify site
 | **Password Protection** (Secure access to *sites*) | "Can this request even *load the site*?" | Basic: anyone with a shared password · Team login: Netlify team members | Basic: Pro+ · Team login: Enterprise | Dashboard-only |
 | **Team / Org SAML SSO** (Secure access to *Netlify*) | "Can you log in to the *Netlify dashboard*?" (and, with strict mode, pass the site gate) | Netlify team members, via a corporate SAML IdP | Enterprise | Dashboard-only |
 
-These are independent. The `nf_jwt` cookie is issued **only** by Netlify Identity; Password Protection and SAML SSO sessions are separate, with their own lifecycles, and do not populate `nf_jwt`.
+These are independent. The `nf_jwt` cookie is issued by app-level JWT auth: Netlify Identity, or a configured external JWT provider such as Auth0/Okta (the two are mutually exclusive); Password Protection and SAML SSO sessions are separate, with their own lifecycles, and do not populate `nf_jwt`.
 
 > **Note on terminology:** Netlify's docs file Identity, Password Protection, role-based access, and more under an umbrella called "Secure access to your sites," while SAML SSO lives under "Secure access to Netlify." So "Secure Access" is not one feature — when a user says it, find out whether they mean *gating site visitors* (Password Protection) or *gating dashboard login* (SAML SSO).
 

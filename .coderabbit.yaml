@@ -1,0 +1,7 @@
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# cursor/ and codex/ are generated mirrors of skills/ (see .gitattributes).
+# Exclude them from review so feedback lands on the source, not the generated output.
+reviews:
+  path_filters:
+    - "!cursor/**"
+    - "!codex/**"

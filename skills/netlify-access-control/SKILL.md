@@ -58,7 +58,7 @@ Password Protection, Team/Org SAML SSO, and the Auth0 extension are all configur
 - **Do not** `curl https://api.netlify.com/...`, read tokens off disk, or probe for an undocumented endpoint to inspect or change access settings.
 - If a documented path fails, report it to the user with context (what you tried, the URL, the error) and stop — don't work around it.
 
-For the one piece an agent *can* read at runtime — which Identity providers are live — call `getSettings()` from `@netlify/identity` in the deployed app rather than hard-coding assumptions. See the netlify-identity skill.
+For the one piece an agent *can* read at runtime (which Identity providers are live), call `getSettings()` from `@netlify/identity` rather than hard-coding assumptions. It hits `/.netlify/identity/settings` and works against any origin serving the page, including localhost under `netlify dev` (which proxies to the live service). See the netlify-identity skill.
 
 ## References
 

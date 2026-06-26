@@ -66,8 +66,8 @@ While writing code, an agent **cannot** read whether Identity is enabled, which 
 
 ```typescript
 import { getSettings } from '@netlify/identity'
-// Returns autoconfirm, disableSignup, and providers — read this in the deployed app
+// Returns autoconfirm, disableSignup, and providers — read this from the running app
 const settings = await getSettings()
 ```
 
-`getSettings()` only works against a deployed site (Identity doesn't run under `netlify dev`), so it helps the running app render the right buttons — it does not help at authoring time. Before scaffolding, ask the user what's already configured rather than guessing, and hand off any dashboard changes with an explicit checklist.
+`getSettings()` hits `/.netlify/identity/settings` and works against any origin serving the page — including localhost under `netlify dev`, which proxies to the live service — so it helps the running app render the right buttons. It does not help at authoring time (before the app runs), so ask the user what's already configured rather than guessing, and hand off any dashboard changes with an explicit checklist.

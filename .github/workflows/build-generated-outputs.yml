@@ -1,0 +1,55 @@
+name: Build generated outputs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+      - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-generated-outputs.yml"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+      - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-generated-outputs.yml"
+
+permissions:
+  contents: write
+
+# One build at a time per branch, so runs never race to push to the same ref.
+concurrency:
+  group: build-generated-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Build Cursor rules from skills
+        run: bash scripts/build-cursor-rules.sh
+
+      - name: Build Codex skills from skills
+        run: bash scripts/build-codex-skills.sh
+
+      # Commit both generated trees in a SINGLE commit so the mirrors always
+      # travel with the source change — on PRs as well as main. That keeps
+      # cursor/ and codex/ in parity with skills/ at every commit (including
+      # whatever commit the release-please PR ends up tagging), and one job /
+      # one push means the cursor and codex builds can't race each other.
+      - name: Commit regenerated outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cursor/rules/ codex/
+          if git diff --cached --quiet; then
+            echo "Generated outputs already up to date"
+          else
+            git commit -m "chore: rebuild generated cursor/codex from skills [skip ci]"
+            git push
+          fi

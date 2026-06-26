@@ -13,8 +13,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
 - `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
-- `.github/workflows/build-cursor-rules.yml` — Runs the build on push to main and PRs
-- `.github/workflows/build-codex-skills.yml` — Runs the Codex build on push to main and PRs
+- `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/` and `codex/` from `skills/` and commits them in a single step (on push to main and on PRs), so the generated mirrors always stay in parity with `skills/`
 
 ## Skills
 

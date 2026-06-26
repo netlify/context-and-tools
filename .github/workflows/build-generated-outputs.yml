@@ -27,9 +27,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      # push + same-repo PRs: check out the writable branch so we can commit the
+      # regenerated mirrors back to it.
+      - name: Checkout writable branch
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref || github.ref }}
+
+      # Fork PRs: github.head_ref names a branch that doesn't exist in this repo,
+      # so check out the PR merge ref instead (this repo's scripts + the fork's
+      # changes), read-only — the fork step below only verifies, never pushes.
+      - name: Checkout fork PR (read-only)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/checkout@v7
 
       - name: Build Cursor rules from skills
         run: bash scripts/build-cursor-rules.sh

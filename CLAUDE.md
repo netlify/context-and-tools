@@ -21,7 +21,7 @@ The `skills/` directory contains skills covering Netlify platform primitives. Se
 
 ## Cursor Rules
 
-The `cursor/rules/` directory is **auto-generated** from `skills/` and must never be edited directly. A GitHub Actions workflow rebuilds these files whenever `skills/` changes — on PRs and on push to `main` — and commits them alongside the change. To rebuild locally:
+The `cursor/rules/` directory is **auto-generated** from `skills/` and must never be edited directly. A GitHub Actions workflow rebuilds these files whenever `skills/` changes — committing them on same-repo PRs and on push to `main` (fork PRs are verified, not auto-committed). To rebuild locally:
 
 ```bash
 bash scripts/build-cursor-rules.sh

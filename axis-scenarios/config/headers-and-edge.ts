@@ -1,5 +1,6 @@
 import type { ScenarioInput } from "@netlify/axis";
 import { withSkillVariants } from "../helpers/variants";
+import { copyFixture } from "../helpers/setup";
 
 export default {
   name: "Config: static headers and edge function routing",
@@ -13,5 +14,6 @@ export default {
     { check: "Does NOT add the same Cache-Control via a redirect rule with `to` — static file headers belong in `[[headers]]`" },
     { check: "Function name in the config matches the file basename ('auth' for `auth.ts`)" },
   ],
+  setup: copyFixture("edge-auth-site"),
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

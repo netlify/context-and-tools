@@ -107,6 +107,7 @@ import { getUser } from '@netlify/identity'
 import type { Context } from '@netlify/functions'
 
 export default async (req: Request, context: Context) => {
+  // TODO(AX-78): verify getUser() resolves nf_jwt server-side in a function
   const user = await getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
   return Response.json({ id: user.id, email: user.email })

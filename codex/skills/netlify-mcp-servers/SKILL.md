@@ -22,25 +22,24 @@ If you're not sure, start with the single shared secret — it's a few lines and
 
 ## Stack
 
-Use the official MCP SDK with its Streamable HTTP transport, running statelessly inside a Netlify Function.
+Use the official MCP SDK with its Web-standard Streamable HTTP transport, running statelessly inside a Netlify Function.
 
 ```bash
-npm install @modelcontextprotocol/sdk@1.24.0 fetch-to-node zod
+npm install @modelcontextprotocol/sdk zod
 ```
 
-**Pin the SDK to `1.24.0`** — the version verified to work with the `fetch-to-node` bridge below on a Netlify Function. In `1.25+` the Node `StreamableHTTPServerTransport` was re-implemented as a thin wrapper over a new Web-standard transport (via `@hono/node-server`); that internal rewrite hasn't been re-verified against this bridge, so pin for now and re-check as the SDK evolves. (On a current SDK you may be able to skip `fetch-to-node` entirely and hand the Web `Request` straight to the new transport, running unpinned — but that path isn't verified on Netlify yet.)
+A Netlify Function already speaks the web platform — it receives a `Request` and returns a `Response`. The SDK ships a transport built on exactly those primitives, `WebStandardStreamableHTTPServerTransport` (the same core the SDK runs on internally, and what Cloudflare Workers / Deno / Bun use): you hand it the `Request` and return the `Response` it produces — no adapter, no version pin. Older guides reach for the Node-flavored `StreamableHTTPServerTransport` plus a `fetch-to-node` bridge to synthesize the Node `req`/`res` objects it expects; on Netlify you need neither, and skipping them is both simpler and what's verified to work here.
 
-A separate gotcha, independent of the SDK version: the transport returns **HTTP 406** to any POST whose `Accept` header lacks *both* `application/json` and `text/event-stream`. That's an MCP-spec requirement the *client* must satisfy — a 406 means fix the client's `Accept` header, not the server. Letting the SDK own the protocol also means you don't hand-maintain JSON-RPC framing or the protocol-version handshake.
+One gotcha, independent of all this: the transport returns **HTTP 406** to any POST whose `Accept` header lacks *both* `application/json` and `text/event-stream`. That's an MCP-spec requirement the *client* must satisfy — a 406 means fix the client's `Accept` header, not the server. Letting the SDK own the protocol also means you don't hand-maintain JSON-RPC framing or the protocol-version handshake.
 
 ## The server function
 
-This is the load-bearing part — the transport wiring is exactly where the official older guide tends to trip people up. Put it in `netlify/functions/mcp.ts`:
+With the Web-standard transport this is a few lines — most of what older guides show was the Node bridge, which you don't need. Put it in `netlify/functions/mcp.ts`:
 
 ```typescript
 import type { Config, Context } from "@netlify/functions";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { toFetchResponse, toReqRes } from "fetch-to-node";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
 import { checkBearer } from "../lib/mcp/bearer"; // see Authentication
 
@@ -61,37 +60,24 @@ function buildServer() {
 
 export default async (req: Request, _context: Context) => {
   if (!checkBearer(req)) return new Response("Unauthorized", { status: 401 });
+
+  // Stateless JSON server: it only does request/response over POST. Reject other
+  // methods — a GET makes the transport open an SSE stream that never closes, which
+  // a serverless function can't serve (you'll get a 502).
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
-  // Parse before allocating the transport so a malformed body is a clean 400, not a 500.
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response("Invalid JSON body", { status: 400 });
-  }
-
-  // The SDK transport speaks Node req/res; bridge the Web Request/Response.
-  const { req: nodeReq, res: nodeRes } = toReqRes(req);
-
-  // Stateless: a fresh server + transport per request, no session to persist.
-  // enableJsonResponse returns one application/json body instead of opening an
-  // SSE stream — the right fit for a serverless POST.
+  // Fresh server + transport per request, no session to persist. enableJsonResponse
+  // returns one application/json body instead of an SSE stream — the right fit here.
   const server = buildServer();
-  const transport = new StreamableHTTPServerTransport({
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
 
-  nodeRes.on("close", () => {
-    void transport.close();
-    void server.close();
-  });
-
+  // Hand over the Web Request, return the Web Response. The transport owns JSON-RPC
+  // framing, body parsing (a malformed body comes back as a clean 400), and the handshake.
   await server.connect(transport);
-  await transport.handleRequest(nodeReq, nodeRes, body);
-
-  return toFetchResponse(nodeRes);
+  return transport.handleRequest(req);
 };
 
 export const config: Config = { path: "/mcp" };

@@ -137,6 +137,8 @@ Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name`
 
 ## Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commit/PR title conventions and how releases are cut.
+
 Keep skills focused on Netlify platform primitives. Each skill should answer "how does this Netlify feature work?" rather than "how should I structure my project?"
 
 Follow the existing format: YAML frontmatter with `name` and `description`, markdown body, code examples with TypeScript where applicable. Use `references/` subdirectories for content that would push a SKILL.md past 500 lines.

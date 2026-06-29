@@ -115,7 +115,7 @@ The legacy filename convention (`process-background.ts`) is still supported, but
 
 ## Region
 
-Functions deploy to `cmh` (Ohio) by default. This is a deliberate choice: US East is centrally located for an international audience, has a broad provider ecosystem, and gives most projects the lowest overall latency without any configuration.
+Functions deploy to `cmh` (Ohio) by default for new sites. This is a deliberate choice: US East is centrally located for an international audience, has a broad provider ecosystem, and gives most projects the lowest overall latency without any configuration. Sites created before October 4, 2023 may have a different default region — check Project configuration > Build & deploy > Continuous deployment > Functions region to confirm.
 
 Do NOT override `config.region` unless the user has stated a specific reason — for example, a database or backend service in another region with measurable roundtrip savings, a data-residency requirement, or an audience concentrated in one region whose compute dependencies (database, backend services) also live in that region.
 
@@ -135,7 +135,7 @@ Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them w
 - The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
 - The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
 
-`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
+`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
 
 ## Scheduled Functions
 

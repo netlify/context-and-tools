@@ -20,6 +20,7 @@ export const ALL_NTL_SKILLS = [
   "./skills/netlify-functions",
   "./skills/netlify-identity",
   "./skills/netlify-image-cdn",
+  "./skills/netlify-mcp-servers",
 ];
 
 // Standard variant pair every scenario runs: a baseline with no extra context,

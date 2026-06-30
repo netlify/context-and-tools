@@ -46,6 +46,9 @@ Read `netlify-deploy/SKILL.md` for the full deployment workflow — authenticati
 **Want to run AI agents (Claude, Codex, Gemini) remotely on your site?**
 Read `netlify-agent-runner/SKILL.md` for creating, listing, and managing remote agent tasks.
 
+**Building an MCP server, or exposing an app/API to AI agents as MCP tools?**
+Read `netlify-mcp-servers/SKILL.md` for the MCP SDK + Streamable HTTP transport on a Netlify Function, authentication (single shared secret vs per-user API keys), read/write safety, file uploads, and connecting clients.
+
 ## General Rules
 
 - Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)

@@ -5,7 +5,7 @@ Thanks for improving the Netlify skills! This guide covers how to make changes a
 ## What to edit
 
 - **Edit `skills/` only** — it's the source of truth for every output format.
-- **Never edit `cursor/rules/` or `codex/`.** They're auto-generated from `skills/` by CI on every push to `main`, so hand edits get overwritten. To preview the generated output locally: `bash scripts/build-cursor-rules.sh` and `bash scripts/build-codex-skills.sh`.
+- **Never edit `cursor/rules/` or `codex/`.** They're auto-generated from `skills/` by CI: on same-repo PRs and on every push to `main`, the workflow rebuilds and commits them, so hand edits get overwritten. (Fork PRs can't be auto-committed — include the regenerated output, or leave it for a maintainer.) To preview the generated output locally: `bash scripts/build-cursor-rules.sh` and `bash scripts/build-codex-skills.sh`.
 - `context/` holds steering guides (e.g. `POWER.md`); `.claude-plugin/`, `.grok-plugin/`, and `.mcp.json` configure plugin distribution.
 
 ## Skill format

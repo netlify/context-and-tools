@@ -67,6 +67,8 @@ case 'email_change':
   break
 ```
 
+If you process the verification token yourself instead of letting `handleAuthCallback()` read the URL hash, call `verifyEmailChange(token)` directly — it applies the change and returns the updated user.
+
 ## Session Hydration
 
 `hydrateSession()` bridges server-set cookies to the browser session. Call it on page load when using server-side login (e.g., login inside a Netlify Function followed by a redirect).

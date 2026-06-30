@@ -1,0 +1,5 @@
+# cursor/ and codex/ are generated from skills/ by scripts/build-*.sh.
+# Mark them generated so GitHub collapses them in diffs and excludes them from
+# language stats. Always edit skills/ — never these directories.
+cursor/** linguist-generated=true
+codex/** linguist-generated=true

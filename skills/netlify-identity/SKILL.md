@@ -107,12 +107,13 @@ import { getUser } from '@netlify/identity'
 import type { Context } from '@netlify/functions'
 
 export default async (req: Request, context: Context) => {
-  // TODO(AX-78): verify getUser() resolves nf_jwt server-side in a function
   const user = await getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
   return Response.json({ id: user.id, email: user.email })
 }
 ```
+
+`getUser()` reads the request's `nf_jwt` cookie automatically — no argument is needed in a function or edge function. Server-side auth (`getUser`, `login`, `admin.*`) requires a **modern v2 function** (`export default`); v1 Lambda-compatible functions (`export { handler }`) are not supported.
 
 ## Core API
 

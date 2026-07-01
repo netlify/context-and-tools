@@ -113,6 +113,8 @@ export default async (req: Request, context: Context) => {
 }
 ```
 
+`getUser()` reads the request's `nf_jwt` cookie automatically — no argument is needed in a function or edge function. Server-side auth (`getUser`, `login`, `admin.*`) requires a **modern v2 function** (`export default`); v1 Lambda-compatible functions (`export { handler }`) are not supported.
+
 ## Core API
 
 Import and use headless functions directly:

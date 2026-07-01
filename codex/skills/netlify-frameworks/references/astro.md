@@ -24,18 +24,19 @@ import { defineConfig } from "astro/config";
 import netlify from "@astrojs/netlify";
 
 export default defineConfig({
-  output: "server",  // or "hybrid" for mixed static/SSR
+  output: "server",  // on-demand (SSR) by default; or "static" (the default) for prerendered
   adapter: netlify(),
 });
 ```
 
 ## Output Modes
 
+Astro 5 removed the `"hybrid"` mode — there are now two output modes, and per-route control replaces it. Both modes need the adapter once any route renders on demand.
+
 | Mode | Behavior |
 |---|---|
-| `"static"` | Fully pre-rendered at build time (no adapter needed) |
-| `"server"` | All pages rendered on request (SSR) |
-| `"hybrid"` | Static by default, opt-in to SSR per page with `export const prerender = false` |
+| `"static"` (default) | Prerendered (hybrid-by-default): pages are static HTML at build time. Opt individual routes into on-demand rendering with `export const prerender = false`. |
+| `"server"` | On-demand (SSR) by default. Opt individual routes into prerendering with `export const prerender = true`. |
 
 ## What the Adapter Does
 

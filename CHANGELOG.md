@@ -4,6 +4,13 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.9.0](https://github.com/netlify/context-and-tools/compare/v0.8.0...v0.9.0) (2026-06-29)
+
+
+### Features
+
+* add netlify-mcp-servers skill ([#44](https://github.com/netlify/context-and-tools/issues/44)) ([054b260](https://github.com/netlify/context-and-tools/commit/054b260350e3e5d12d7d050766246db9f958f1c3))
+
 ## [0.8.0](https://github.com/netlify/context-and-tools/releases/tag/v0.8.0) (2026-06-24)
 
 Agent-optimized Netlify Functions guidance and the remote agent-runner skill.

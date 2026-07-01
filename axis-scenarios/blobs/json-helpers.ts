@@ -8,7 +8,7 @@ export default {
   judge: [
     { check: "Writes the snapshot with `store.setJSON(key, obj)` rather than manually `JSON.stringify`-ing into `store.set`" },
     { check: "Reads it back as parsed JSON via `store.get(key, { type: 'json' })` (or a `getJSON` helper) — NOT a manual `JSON.parse(await store.get(key))`" },
-    { check: "Imports `getStore` from '@netlify/blobs'" },
+    { check: "Imports a store constructor from '@netlify/blobs' — either `getStore` or `getDeployStore` (deploy-scoped is a fine choice for a per-build snapshot)" },
     { check: "Treats this as a single stored JSON asset/snapshot — does NOT model it as a queryable record store or build per-record CRUD over Blobs as if it were a database (for relational/queryable data the right tool is Netlify Database)" },
   ],
   variants: withSkillVariants(),

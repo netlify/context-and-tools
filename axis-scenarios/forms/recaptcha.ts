@@ -4,7 +4,7 @@ import { withSkillVariants } from "../helpers/variants";
 export default {
   name: "Forms: add Netlify-managed reCAPTCHA to a contact form",
   prompt:
-    "Add reCAPTCHA to my Netlify contact form so bots can't spam it. The form collects name, email, and message.",
+    "Create a contact form as an HTML page for my Netlify site — it collects name, email, and message — with Netlify-managed reCAPTCHA so bots can't spam it.",
   judge: [
     {
       check:

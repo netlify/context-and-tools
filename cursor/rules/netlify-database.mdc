@@ -194,6 +194,8 @@ export default defineConfig({
 });
 ```
 
+No `migrations` block is needed: `drizzle-kit generate` (the `@beta` line this skill pins) already defaults to timestamp prefixes, which keep filenames unique when branches generate migrations in parallel. Setting `migrations: { prefix: "timestamp" }` explicitly is harmless but redundant — and forcing a sequential `prefix: "index"` is what causes the parallel-branch collisions, so don't.
+
 ### Package scripts
 
 ```json

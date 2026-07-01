@@ -1,0 +1,87 @@
+name: Build generated outputs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+      - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-generated-outputs.yml"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/build-cursor-rules.sh"
+      - "scripts/build-codex-skills.sh"
+      - ".github/workflows/build-generated-outputs.yml"
+
+permissions:
+  contents: write
+
+# One build at a time per branch, so runs never race to push to the same ref.
+concurrency:
+  group: build-generated-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # push + same-repo PRs: check out the writable branch so we can commit the
+      # regenerated mirrors back to it.
+      - name: Checkout writable branch
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+
+      # Fork PRs: github.head_ref names a branch that doesn't exist in this repo,
+      # so check out the PR merge ref instead (this repo's scripts + the fork's
+      # changes), read-only — the fork step below only verifies, never pushes.
+      - name: Checkout fork PR (read-only)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/checkout@v7
+
+      - name: Build Cursor rules from skills
+        run: bash scripts/build-cursor-rules.sh
+
+      - name: Build Codex skills from skills
+        run: bash scripts/build-codex-skills.sh
+
+      # Same-repo PRs and pushes to main: commit both generated trees in ONE
+      # commit so the mirrors travel with the source change — keeping cursor/
+      # and codex/ in parity with skills/ at every commit (including whatever
+      # commit the release-please PR tags). One job / one push means the cursor
+      # and codex builds can't race each other.
+      #
+      # No [skip ci]: the path filters above already exclude cursor/ and codex/,
+      # so this generated-only commit won't retrigger the build — and dropping
+      # the skip token lets the normal PR checks evaluate the actual head commit
+      # instead of being skipped on it.
+      - name: Commit regenerated outputs
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cursor/rules/ codex/
+          if git diff --cached --quiet; then
+            echo "Generated outputs already up to date"
+          else
+            git commit -m "chore: rebuild generated cursor/codex from skills"
+            git push
+          fi
+
+      # Fork PRs (and other read-only-token PRs) can't push back. Don't try —
+      # rebuild and fail loudly if the mirrors are stale, so the gap is visible.
+      # They're regenerated and committed when the change lands on main.
+      - name: Verify generated outputs are in sync (fork PRs)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          git add cursor/rules/ codex/
+          if git diff --cached --quiet; then
+            echo "Generated cursor/codex are in sync."
+          else
+            echo "::error::cursor/ and codex/ are out of date with skills/. This is a fork PR, so they can't be auto-committed here. Regenerate with 'bash scripts/build-cursor-rules.sh && bash scripts/build-codex-skills.sh' and commit, or a maintainer will — they're also rebuilt automatically when this merges to main."
+            git diff --cached --stat
+            exit 1
+          fi

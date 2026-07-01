@@ -56,20 +56,18 @@ async function handleAcceptInvite(token: string, password: string) {
 
 ## Email Change
 
-When a user verifies an email change, `handleAuthCallback()` returns `{ type: 'email_change', user }`. The user must be logged in when clicking the verification link.
+When a user verifies an email change, `handleAuthCallback()` returns `{ type: 'email_change', user }` with the change already applied — the returned `user` carries the new email. The user must be logged in when clicking the verification link.
+
+Like recovery (and unlike invite acceptance), there is no token to consume and no follow-up call — `handleAuthCallback()` does the work. Handle it in the `handleAuthCallback()` switch (see SKILL.md) and confirm the new address.
 
 ```typescript
-import { verifyEmailChange, AuthError } from '@netlify/identity'
-
-async function handleEmailChangeVerification(token: string) {
-  try {
-    const user = await verifyEmailChange(token)
-    showSuccess(`Email updated to ${user.email}`)
-  } catch (error) {
-    if (error instanceof AuthError) showError(error.message)
-  }
-}
+// In the handleAuthCallback() switch (see SKILL.md):
+case 'email_change':
+  showSuccess(`Email updated to ${result.user?.email}`)
+  break
 ```
+
+If you process the verification token yourself instead of letting `handleAuthCallback()` read the URL hash, call `verifyEmailChange(token)` directly — it applies the change and returns the updated user.
 
 ## Session Hydration
 

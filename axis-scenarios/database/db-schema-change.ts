@@ -1,5 +1,6 @@
 import type { ScenarioInput } from "@netlify/axis";
 import { withSkillVariants } from "../helpers/variants";
+import { copyFixture } from "../helpers/setup";
 
 export default {
   name: "Database: add a column to an existing table",
@@ -14,5 +15,6 @@ export default {
     { check: "Explains that Netlify applies the migration to the preview branch and production automatically on deploy — the user only commits the migration file" },
     { check: "If a local-apply step is mentioned, it uses `netlify database migrations apply` (NOT drizzle-kit migrate) and is scoped to the local development DB only" },
   ],
+  setup: copyFixture("drizzle-db"),
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

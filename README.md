@@ -145,7 +145,7 @@ Follow the existing format: YAML frontmatter with `name` and `description`, mark
 
 ### Cursor rules and Codex skills are generated — do not edit them directly
 
-The `cursor/rules/` and `codex/` directories are auto-generated from `skills/` by GitHub Actions workflows. Always edit the source files in `skills/` — the workflows rebuild on every push to `main` that changes `skills/`. To test locally:
+The `cursor/rules/` and `codex/` directories are auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/`. On same-repo PRs and on every push to `main` that changes `skills/`, the workflow rebuilds the mirrors and commits them alongside your change — you don't need to run the build yourself. (Fork PRs can't be committed to automatically; include the regenerated output in your PR, or a maintainer will regenerate it.) To preview locally:
 
 ```bash
 bash scripts/build-cursor-rules.sh

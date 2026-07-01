@@ -8,7 +8,7 @@ export default {
   judge: [
     { check: "File lives under `netlify/edge-functions/` — NOT `netlify/functions/`" },
     { check: "Exports a `config` object with `path: '/admin/*'` (or array including it)" },
-    { check: "Reads the cookie via `context.cookies.get('session')` or by parsing `req.headers.get('cookie')` — and uses the result to branch" },
+    { check: "Reads the `session` cookie by parsing the request's cookie header (`req.headers.get('cookie')`), or via an equivalent cookie API — and uses the result to branch" },
     { check: "Returns `Response.redirect(new URL('/login', req.url))` (or equivalent) when the session cookie is absent" },
     { check: "Lets authorized requests through, either by calling `context.next()` and returning its result, or by returning `undefined` to pass through unchanged" },
     { check: "Does NOT use `process.env` — uses `Netlify.env.get(...)` if any env var is read" },

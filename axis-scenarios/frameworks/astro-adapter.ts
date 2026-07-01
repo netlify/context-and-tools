@@ -1,5 +1,6 @@
 import type { ScenarioInput } from "@netlify/axis";
 import { withSkillVariants } from "../helpers/variants";
+import { copyFixture } from "../helpers/setup";
 
 export default {
   name: "Frameworks: configure Astro for Netlify SSR",
@@ -14,5 +15,6 @@ export default {
     { check: "The API route exports an HTTP method handler (e.g. `export const GET`) using Astro's API route conventions and returns a Response" },
     { check: "Does NOT include `process.env.X` reads in the API route — uses `Netlify.env.get('X')` or `import.meta.env.X` where appropriate" },
   ],
+  setup: copyFixture("astro-static"),
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

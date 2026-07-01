@@ -69,7 +69,7 @@ Tag responses for selective cache invalidation:
 ```typescript
 return new Response(body, {
   headers: {
-    "Netlify-Cache-ID": "product,listing",
+    "Netlify-Cache-Tag": "product,listing",
     "Netlify-CDN-Cache-Control": "public, s-maxage=86400",
   },
 });
@@ -92,7 +92,7 @@ Purge entire site:
 await purgeCache();
 ```
 
-Responses with `Netlify-Cache-ID` are **excluded from automatic deploy-based invalidation** — they must be purged explicitly.
+Responses with `Netlify-Cache-Tag` are **excluded from automatic deploy-based invalidation** — they must be purged explicitly.
 
 ## Cache Key Variation
 

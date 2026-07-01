@@ -5,12 +5,22 @@ Thanks for improving the Netlify skills! This guide covers how to make changes a
 ## What to edit
 
 - **Edit `skills/` only** — it's the source of truth for every output format.
-- **Never edit `cursor/rules/` or `codex/`.** They're auto-generated from `skills/` by CI on every push to `main`, so hand edits get overwritten. To preview the generated output locally: `bash scripts/build-cursor-rules.sh` and `bash scripts/build-codex-skills.sh`.
+- **Never edit `cursor/rules/` or `codex/`.** They're auto-generated from `skills/` by CI: on same-repo PRs and on every push to `main`, the workflow rebuilds and commits them, so hand edits get overwritten. (Fork PRs can't be auto-committed — include the regenerated output, or leave it for a maintainer.) To preview the generated output locally: `bash scripts/build-cursor-rules.sh` and `bash scripts/build-codex-skills.sh`.
 - `context/` holds steering guides (e.g. `POWER.md`); `.claude-plugin/`, `.grok-plugin/`, and `.mcp.json` configure plugin distribution.
 
 ## Skill format
 
 Each skill is a `skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`) and a markdown body. Keep skills factual and platform-focused — "how does this Netlify feature work?", not workflow or framework opinions. Keep `SKILL.md` under 500 lines and put deeper content in a `references/` subdirectory.
+
+## Testing skills with AXIS
+
+Skill changes can be validated against representative agent scenarios with [AXIS](https://axis.run). From the repo root:
+
+```bash
+npx axis run
+```
+
+AXIS runs **locally only** — it's non-deterministic and intentionally not part of CI. See [`axis-scenarios/README.md`](axis-scenarios/README.md) for how to run it, read reports, and write scenarios.
 
 ## Commit and PR title conventions
 

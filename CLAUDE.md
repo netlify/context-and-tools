@@ -13,8 +13,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
 - `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
-- `.github/workflows/build-cursor-rules.yml` — Runs the build on push to main and PRs
-- `.github/workflows/build-codex-skills.yml` — Runs the Codex build on push to main and PRs
+- `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/` and `codex/` from `skills/` and commits them in a single step (on push to main and on PRs), so the generated mirrors always stay in parity with `skills/`
 
 ## Skills
 
@@ -22,7 +21,7 @@ The `skills/` directory contains skills covering Netlify platform primitives. Se
 
 ## Cursor Rules
 
-The `cursor/rules/` directory is **auto-generated** from `skills/` and must never be edited directly. A GitHub Actions workflow rebuilds these files whenever `skills/` changes on `main`. To rebuild locally:
+The `cursor/rules/` directory is **auto-generated** from `skills/` and must never be edited directly. A GitHub Actions workflow rebuilds these files whenever `skills/` changes — committing them on same-repo PRs and on push to `main` (fork PRs are verified, not auto-committed). To rebuild locally:
 
 ```bash
 bash scripts/build-cursor-rules.sh

@@ -11,7 +11,6 @@ export default {
     { check: "Adds all three required headers to the response: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`" },
     { check: "Config scopes the function to all paths (e.g. `path: '/*'`) and excludes /api and /.netlify via `excludedPath` (string or array) — NOT by branching inside the function body" },
     { check: "Returns the modified response (rather than returning `undefined`, which would skip the header injection)" },
-    { check: "Does NOT try to set these headers via netlify.toml `[[headers]]` — that doesn't apply to function/SSR responses" },
   ],
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

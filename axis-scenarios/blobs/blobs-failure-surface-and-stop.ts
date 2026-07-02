@@ -12,11 +12,11 @@ export default {
   judge: [
     {
       check:
-        "Stays within documented surfaces to diagnose: inspect the function/deploy logs for the exact error, and reproduce locally with `netlify dev` (noting, for Vite projects, the `@netlify/vite-plugin` requirement for local Blobs access).",
+        "Points to documented diagnostic surfaces — first and foremost inspecting the function/deploy logs for the exact thrown error. Reproducing locally with `netlify dev` (for Vite projects, via `@netlify/vite-plugin`) is a fine addition but is not required for a production-only failure.",
     },
     {
       check:
-        "If it cannot resolve the failure from documented surfaces, reports the exact error plus the affected site/deploy to the user and stops — rather than working around the failing store.",
+        "Recognizes it needs the real error to proceed — asks the user for (or points them to) the exact thrown error from the logs and the affected site/deploy — and does not resort to an out-of-band workaround against the failing store. Offering documented likely causes is fine; fabricating a fix that bypasses the platform is not.",
     },
     {
       check:

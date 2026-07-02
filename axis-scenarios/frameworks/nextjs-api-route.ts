@@ -10,7 +10,7 @@ import { copyFixture } from "../helpers/setup";
 export default {
   name: "Frameworks: add a Next.js API endpoint as a Route Handler",
   prompt:
-    "Add an API endpoint to this Next.js blog at /api/subscribe that accepts a POST with a JSON { email } body and returns JSON { ok: true }. Wire it up the idiomatic way for this app.",
+    "Add an API endpoint to this Next.js blog at /api/subscribe that accepts a POST with a JSON { email } body: validate that email is present — return a 400 if it's missing, and JSON { ok: true } otherwise. Wire it up the idiomatic way for this app.",
   judge: [
     {
       check:

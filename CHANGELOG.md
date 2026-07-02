@@ -4,6 +4,29 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.10.0](https://github.com/netlify/context-and-tools/compare/v0.9.0...v0.10.0) (2026-07-02)
+
+
+### Features
+
+* **skills:** surface-and-stop guidance for blobs/deploy + cross-cutting AXIS scenarios ([#74](https://github.com/netlify/context-and-tools/issues/74)) ([20258f3](https://github.com/netlify/context-and-tools/commit/20258f30e2985f3f540d5f3875cc48eeeeb67764))
+
+
+### Bug Fixes
+
+* **axis:** correct scenario judges that contradict their skills ([#65](https://github.com/netlify/context-and-tools/issues/65)) ([37f9465](https://github.com/netlify/context-and-tools/commit/37f94653535516be43b8c64b555ae887c64bb8a4))
+* **axis:** reconcile Drizzle migration timestamp prefix with skill ([#64](https://github.com/netlify/context-and-tools/issues/64)) ([42850fb](https://github.com/netlify/context-and-tools/commit/42850fb9fc323864a2472202121de5a16c629732))
+* **deps:** update dependency @netlify/database to ^1.1.0 ([#76](https://github.com/netlify/context-and-tools/issues/76)) ([b2ac576](https://github.com/netlify/context-and-tools/commit/b2ac576480c3e9a14c3e660c43ba911d1a257dff))
+* **deps:** update dependency @netlify/neon to ^0.1.2 ([#77](https://github.com/netlify/context-and-tools/issues/77)) ([9fdeb6b](https://github.com/netlify/context-and-tools/commit/9fdeb6b8dd2a94f22e049af38c6ef09aff822284))
+* **skills:** clarify Identity getUser server-side and email-change docs ([#66](https://github.com/netlify/context-and-tools/issues/66)) ([9e17494](https://github.com/netlify/context-and-tools/commit/9e17494fa327361a2f232db533fd0ead3648b3c1))
+* **skills:** correct AI Gateway, caching, Next.js, and TanStack doc errors ([#62](https://github.com/netlify/context-and-tools/issues/62)) ([1e6e434](https://github.com/netlify/context-and-tools/commit/1e6e4343365541001722f7e88f72a580ec3a7a7c))
+* **skills:** update Astro skill for Astro 5 output modes ([#63](https://github.com/netlify/context-and-tools/issues/63)) ([255ee17](https://github.com/netlify/context-and-tools/commit/255ee17ebb3e9706e48ac8a722aafb8b08c26631))
+
+
+### Documentation
+
+* **axis:** add internal contributor guide for AXIS ([#68](https://github.com/netlify/context-and-tools/issues/68)) ([8abcd8b](https://github.com/netlify/context-and-tools/commit/8abcd8b6e16225abd406e8cf83060763293485a8))
+
 ## [0.9.0](https://github.com/netlify/context-and-tools/compare/v0.8.0...v0.9.0) (2026-06-29)
 
 

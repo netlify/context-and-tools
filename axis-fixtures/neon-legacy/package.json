@@ -7,6 +7,6 @@
     "@netlify/neon": "^0.1.0"
   },
   "devDependencies": {
-    "@netlify/functions": "^4.0.0"
+    "@netlify/functions": "^4.3.0"
   }
 }

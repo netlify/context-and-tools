@@ -37,8 +37,11 @@ Read `$netlify-caching` for cache headers, stale-while-revalidate, cache tags, a
 **Adding AI capabilities, choosing an AI model, or generating images with AI?**
 Read `$netlify-ai-gateway` for AI Gateway setup, supported models, provider SDKs, and image generation (text-to-image and image-to-image via Gemini).
 
-**Adding user authentication, signups, logins, or access control?**
-Read `$netlify-identity` for Netlify Identity setup, OAuth, role-based access, and protecting routes and functions.
+**Building app-level user auth — signups, logins, roles, protecting routes/functions?**
+Read `$netlify-identity` for Netlify Identity setup, OAuth (use built-in providers — never scaffold raw OAuth), role-based access, and protecting routes and functions.
+
+**Deciding who can reach a site, locking a deploy to your company/team, password protection, SSO, or confused about Identity vs Secure Access?**
+Read `$netlify-access-control` to pick the right layer — app-level Identity, site-visitor Password Protection, the Auth0 extension, or Team/Org SAML SSO — and to understand the two-layer (perimeter + in-app identity) pattern and its double-login tradeoff.
 
 **Deploying a site to Netlify?**
 Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.

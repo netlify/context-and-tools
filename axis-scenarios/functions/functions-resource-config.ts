@@ -37,7 +37,7 @@ export default {
     { check: "Imports Config and/or Context types from @netlify/functions" },
     {
       check:
-        "Sets `memory` in the exported config to approximately 2 GB using a valid form — a number in MB (e.g. 2048) or a string with unit (e.g. '2gb' / '2048mb', case-insensitive) — within the allowed 1024–4096 MB range. Alternatively, sets `vcpu` to approximately 1.0, which maps to ~2 GB on the documented linear scale (0.5 vcpu → 1024 MB, 2.0 vcpu → 4096 MB); a vcpu value far from 1.0 (e.g. 0.5 or 2.0) does NOT satisfy the ~2 GB requirement.",
+        "Sets `memory` in the exported config to approximately 2 GB using a valid form — a number in MB (e.g. 2048) or a string with unit (e.g. '2gb' / '2048mb', case-insensitive) — within the allowed 1024–4096 MB range.",
     },
     {
       check:

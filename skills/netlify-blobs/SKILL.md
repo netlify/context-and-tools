@@ -110,3 +110,9 @@ const { blobs } = await store.list({ prefix: "uploads/" });
 Local dev uses a sandboxed store (separate from production). For Vite-based projects, install `@netlify/vite-plugin` to enable local Blobs access. Otherwise, use `netlify dev`.
 
 **Common error**: "The environment has not been configured to use Netlify Blobs" — install `@netlify/vite-plugin` or run via `netlify dev`.
+
+## When a store operation fails
+
+If a `get`/`set` call throws in a deployed function, don't guess at a fix or route around it — the exact error is in the **function logs**, and it almost always names the cause. Read it first. Common causes: the store isn't reachable from the calling context, a missing or mismatched store `name`, or a read-after-write timing gap (an immediate read of a just-written key — use `consistency: "strong"` when you need read-your-writes).
+
+The store exposes only the documented methods above; there is no lower-level REST endpoint to fall back on. If the logs don't resolve it, report the exact error plus the affected site/deploy to the user and stop. Reaching around a failing store — direct `https://api.netlify.com/...` calls, reading auth tokens off disk, or inventing endpoints — can't work (those aren't supported surfaces) and risks corrupting or losing the very data you're trying to save.

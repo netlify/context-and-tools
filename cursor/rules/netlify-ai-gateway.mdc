@@ -51,10 +51,9 @@ npm install @anthropic-ai/sdk
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  baseURL: Netlify.env.get("ANTHROPIC_BASE_URL"),
-});
-// `ANTHROPIC_API_KEY` is auto-injected — no `apiKey` arg needed.
+const client = new Anthropic();
+// `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` are auto-injected; the SDK
+// reads both from the environment, so no constructor args are needed.
 
 const message = await client.messages.create({
   model: "claude-sonnet-4-5-20250929",

@@ -199,10 +199,10 @@ Common issues and solutions:
 **"No site linked"**
 → Run `npx netlify link` or `npx netlify init`
 
-**"Build failed"**
-→ Check build command and publish directory in netlify.toml or CLI prompts
-→ Verify dependencies are installed
-→ Review build logs for specific errors
+**"Build failed" / "Function bundling failed" / deploy marked failed**
+→ A failed deploy does **not** publish — the site keeps serving the last successful deploy, so it isn't down, and there's nothing to "roll back." The only way to get the new code live is to fix the failure and redeploy.
+→ Get the exact error from the deploy log (the CLI prints a log URL; the dashboard has the full build log), then address the actual cause — the build command or publish directory in `netlify.toml`, a missing dependency, or the function that failed to bundle — and re-run the deploy.
+→ Don't route around a failed build to force the site live: no `netlify api` publish/restore, no direct `https://api.netlify.com/...` calls, no reading auth tokens off disk, and don't ship a previous deploy in place of the failing one. If the log doesn't resolve it, report the exact error + log URL + affected site to the user and stop.
 
 **"Publish directory not found"**
 → Verify build command ran successfully

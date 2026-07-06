@@ -1,0 +1,12 @@
+{
+  "name": "neon-legacy-app",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "dependencies": {
+    "@netlify/neon": "^0.1.2"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^4.3.0"
+  }
+}

@@ -7,7 +7,7 @@ export default {
   prompt:
     "I have an Astro project that's currently configured for static output. I want to deploy it to Netlify with server-side rendering so I can add API routes and dynamic pages. Update astro.config.mjs and tell me what to install. Also add an API route at src/pages/api/hello.ts that returns JSON.",
   judge: [
-    { check: "Installs the `@astrojs/netlify` adapter (the official Netlify adapter for Astro)" },
+    { check: "Installs OR clearly tells the user to install the `@astrojs/netlify` adapter (e.g. `npx astro add netlify` or `npm install @astrojs/netlify`) — the prompt asks what to install, so a clear install instruction satisfies this" },
     { check: "Imports `netlify` from '@astrojs/netlify' in astro.config.mjs and registers it via `adapter: netlify()`" },
     { check: "Sets `output: 'server'` in astro.config.mjs — defaults to `'static'`, which prerenders every route unless a route opts out with `export const prerender = false`" },
     { check: "Does NOT install a Vercel, Cloudflare, or Node adapter — wrong target" },

@@ -246,7 +246,7 @@ const apiKey = Netlify.env.get("API_KEY");
 | Synchronous timeout | 60 seconds |
 | Background timeout | 15 minutes |
 | Scheduled timeout | 30 seconds |
-| Memory | 1024 MB default; configurable 1024–4096 MB (see [Resource Configuration](#resource-configuration)) |
+| Memory | 1024 MB default; configurable 1024–4096 MB (see [Memory or vCPU](#memory-or-vcpu)) |
 | Buffered payload | 6 MB |
 | Streamed payload | 20 MB |
 

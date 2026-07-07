@@ -23,7 +23,7 @@ Configuration file for Netlify builds and deployments.
   # Command to build your site
   command = "npm run build"
 
-  # Directory to publish (relative to repo root)
+  # Directory to publish (relative to base when base is set, otherwise repo root)
   publish = "dist"
 
   # Functions directory
@@ -158,9 +158,9 @@ Deploy different settings per context:
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[[functions]]
-  path = "/api/*"
-  function = "api"
+# Per-function overrides target a function by name or glob
+[functions."my-function"]
+  included_files = ["data/**"]
 ```
 
 ## Build Plugins

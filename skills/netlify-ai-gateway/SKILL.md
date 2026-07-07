@@ -112,7 +112,7 @@ export const config: Config = {
 
 ## Image Generation
 
-Image generation on the gateway is supported through **Gemini image models** (e.g., `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`). OpenAI's image models (`gpt-image-1`, `dall-e-*`) are **not** routed through the gateway.
+Image generation on the gateway is supported through **Gemini image models** (e.g., `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`). OpenAI's image models (`gpt-image-1`, `dall-e-*`) are **not** routed through the gateway.
 
 Both text-to-image and image-to-image use the same `generateContent` method as chat — only the model and response shape differ. The image is returned as base64 `inlineData` on a content part, not as a URL.
 
@@ -124,7 +124,7 @@ import { GoogleGenAI } from "@google/genai";
 const ai = new GoogleGenAI({});
 
 const response = await ai.models.generateContent({
-  model: "gemini-3.1-flash-image-preview",
+  model: "gemini-3.1-flash-image",
   contents: "A watercolor portrait of a corgi wearing a beret",
 });
 
@@ -144,7 +144,7 @@ Pass the source image as an additional content part with `inlineData`:
 const sourceBase64 = sourceBuffer.toString("base64");
 
 const response = await ai.models.generateContent({
-  model: "gemini-3.1-flash-image-preview",
+  model: "gemini-3.1-flash-image",
   contents: [
     { text: "Restyle this photo as a Picasso-era cubist portrait" },
     { inlineData: { mimeType: "image/png", data: sourceBase64 } },
@@ -202,6 +202,6 @@ _Verified 2026-04-30 against the live AI Gateway providers list. The user-facing
 - Reasoning (o-series): `o3`, `o3-mini`, `o4-mini`
 
 ### Google Gemini (chat + image)
-- Chat: `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`, `gemini-flash-latest`, `gemini-flash-lite-latest`
-- Image: `gemini-2.5-flash-image`, `gemini-3-pro-image-preview`, `gemini-3.1-flash-image-preview`
+- Chat: `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`, `gemini-flash-latest`, `gemini-flash-lite-latest`
+- Image: `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`
 

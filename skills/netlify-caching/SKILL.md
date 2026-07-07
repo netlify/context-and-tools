@@ -92,7 +92,27 @@ Purge entire site:
 await purgeCache();
 ```
 
-Responses with `Netlify-Cache-Tag` are **excluded from automatic deploy-based invalidation** — they must be purged explicitly.
+`Netlify-Cache-Tag` is **purge-only**: tagged responses are still cleared by automatic deploy-based invalidation like everything else. The tag only lets you purge them on demand between deploys.
+
+### Surviving deploys with `Netlify-Cache-ID`
+
+To keep a cached response *across* deploys, set a `Netlify-Cache-ID` header. A response carrying it is **excluded from automatic deploy-based invalidation** — it persists across deploys and clears only on explicit purge. The `Netlify-Cache-ID` value also auto-registers as a purge tag, so you purge it by that same id:
+
+```typescript
+return new Response(body, {
+  headers: {
+    "Netlify-Cache-ID": "catalog",
+    "Netlify-CDN-Cache-Control": "public, s-maxage=86400",
+  },
+});
+```
+
+```typescript
+import { purgeCache } from "@netlify/functions";
+
+// Purge by the same id — it doubles as a purge tag.
+await purgeCache({ tags: ["catalog"] });
+```
 
 ## Cache Key Variation
 
@@ -123,10 +143,15 @@ Static assets are cached by default. API responses from Netlify Functions need e
 
 ## Debugging
 
-Check the `Cache-Status` response header:
-- `HIT` — served from cache
-- `MISS` — generated fresh
-- `REVALIDATED` — stale content was revalidated
+Check the `Cache-Status` response header. Netlify emits it in the RFC 9211 format — one entry per named cache layer the request passed through, not a bare `HIT`/`MISS`:
+
+```
+Cache-Status: "Netlify Edge"; fwd=miss, "Netlify Durable"; hit; ttl=3600
+```
+
+- A named layer (`"Netlify Edge"`, `"Netlify Durable"`) with `hit` — served from that cache
+- `fwd=miss` — the entry was not in that layer, so the request was forwarded onward
+- `ttl=…` — remaining freshness (seconds) for a hit
 
 ## Constraints
 

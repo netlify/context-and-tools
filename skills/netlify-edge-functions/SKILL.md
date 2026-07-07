@@ -39,6 +39,35 @@ export const config: Config = {
 
 **Cache headers on an edge response do nothing without `cache: "manual"`.** Setting `Cache-Control` (or any cache header) on the `Response` an edge function returns has no effect unless the function also opts in with `config.cache = "manual"`. It's both or neither: without the flag the response is never cached, no matter what headers you set.
 
+## Declaring edge functions: inline config vs netlify.toml
+
+An edge function runs only if it is bound to a path. Bind it either with an inline `export const config = { path: ... }` in the function file (shown above), or with an `[[edge_functions]]` entry in `netlify.toml` that names the file:
+
+```toml
+[[edge_functions]]
+  path = "/admin/*"
+  function = "auth"        # runs netlify/edge-functions/auth.ts
+```
+
+**A file in `netlify/edge-functions/` with no path binding still deploys, but silently never runs.** There is no build error and no warning — nothing routes a request to it, so it is never invoked. If an edge function "isn't doing anything," first confirm it declares a `path` inline or has a matching `[[edge_functions]]` entry.
+
+### Chaining multiple edge functions on one path
+
+When several edge functions match the same path, they run as a chain in this order:
+
+1. Functions declared in `netlify.toml` run first, **in the order they appear** in the file (top to bottom).
+2. Functions declared inline (via `export const config`) run next, **in alphabetical order by filename**.
+3. Functions configured for caching (`cache: "manual"`) always run after non-caching ones.
+
+To guarantee a specific order (e.g. an auth gate that must run before a personalization rewrite), declare the functions in `netlify.toml` in the order you want — don't depend on inline config, whose order is alphabetical by filename and easy to get wrong. Declaring the same function both inline and in `netlify.toml` merges them into an inline declaration (inline config wins), which forfeits the deterministic `netlify.toml` ordering.
+
+## Edge functions run before redirects
+
+In Netlify's request chain, edge functions execute **before** redirect and rewrite rules (`[[redirects]]`, `_redirects`). Two consequences bite often:
+
+- An edge function is matched against the **original** requested URL, not a redirect/rewrite destination. Scope its `path` to the URL the client actually requests — an edge function declared on the *target* of a rewrite will not fire for requests that only reach that target via the rewrite.
+- If an edge function returns a `Response`, the request chain stops there and redirect rules for that path **never run**. Return `context.next()` (or `undefined`) if you want redirects to still apply.
+
 ## Middleware Pattern
 
 Use `context.next()` to invoke the next handler in the chain and optionally modify the response:
@@ -82,6 +111,23 @@ export default async (req: Request, context: Context) => {
 ```
 
 Local dev with mocked geo: `netlify dev --geo=mock --country=US`
+
+## Cookies
+
+Read and write cookies through the `context.cookies` helper instead of hand-parsing the `Cookie` header or building `Set-Cookie` strings:
+
+```typescript
+export default async (req: Request, context: Context) => {
+  const bucket = context.cookies.get("bucket");            // read from the request
+  context.cookies.set({ name: "bucket", value: "a" });     // set on the response
+  context.cookies.delete("legacy_session");                // tell the client to delete it
+  return context.next();
+};
+```
+
+- `cookies.get(name)` — reads a named cookie from the incoming request.
+- `cookies.set(options)` — sets a cookie on the outgoing response (same option shape as the web `CookieStore.set` standard).
+- `cookies.delete(name)` — instructs the client to delete the cookie.
 
 ## Environment Variables
 

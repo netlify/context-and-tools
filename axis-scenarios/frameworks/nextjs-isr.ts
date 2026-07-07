@@ -13,7 +13,7 @@ export default {
     { check: "Route handler reads the slug via `await request.json()` and validates that it is present before calling revalidatePath" },
     { check: "Does NOT instruct the user to manually wire a Netlify Function in `netlify/functions/` to back the route — the Netlify Next.js runtime handles the route handler automatically" },
     { check: "Does NOT replace the existing `lib/posts.ts` source-of-truth with a different data layer — the request is about caching, not a rewrite" },
-    { check: "Does NOT use `process.env` in any added code — uses `Netlify.env.get(...)` or framework-equivalent (`process.env.NEXT_PUBLIC_*` is acceptable only for explicitly-public client values; passes vacuously if no env vars are introduced)" },
+    { check: "Does NOT hardcode any secret in added code — reads it from an env var (`process.env` is valid and idiomatic in a Next.js Route Handler); passes vacuously if no env vars are introduced" },
   ],
   setup: copyFixture("nextjs-blog"),
   variants: withSkillVariants(),

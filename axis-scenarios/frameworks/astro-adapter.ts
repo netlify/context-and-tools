@@ -13,7 +13,7 @@ export default {
     { check: "Does NOT install a Vercel, Cloudflare, or Node adapter — wrong target" },
     { check: "Does NOT write a raw Netlify Function under `netlify/functions/` for the API route — Astro's adapter generates the function at build time from `src/pages/api/`" },
     { check: "The API route exports an HTTP method handler (e.g. `export const GET`) using Astro's API route conventions and returns a Response" },
-    { check: "Does NOT include `process.env.X` reads in the API route — uses `Netlify.env.get('X')` or `import.meta.env.X` where appropriate" },
+    { check: "Does NOT hardcode any secret in the API route — reads it from an env var (`process.env.X`, `Netlify.env.get('X')`, or `import.meta.env.X` are all valid in an Astro route handler); passes vacuously if no env vars are used" },
   ],
   setup: copyFixture("astro-static"),
   variants: withSkillVariants(),

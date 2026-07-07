@@ -8,7 +8,7 @@ export default {
   judge: [
     { check: "Resolves the authenticated user server-side by calling `getUser()` from '@netlify/identity' (which reads the request's `nf_jwt` cookie). Does NOT parse the Authorization header or decode the JWT by hand." },
     { check: "Returns 401 (or 403) when there is no signed-in user (`getUser()` returns null)" },
-    { check: "Checks for the 'admin' role on the user object's server-controlled roles — either `user.app_metadata.roles` or the SDK's normalized `user.roles` view, NOT `user.user_metadata.roles` (which is user-editable and unsafe to authorize against)" },
+    { check: "Checks for the 'admin' role on the user object's server-controlled `user.app_metadata.roles`, NOT `user.user_metadata.roles` (which is user-editable and unsafe to authorize against)" },
     { check: "Returns 403 when the user is authenticated but missing the `admin` role" },
     { check: "Does NOT trust a `role` value coming from the request body, query string, or a header — server-derived from the user's session only" },
     { check: "Uses the modern Netlify function signature (default-export `(req, context)` returning a Response) and exposes the route at `/api/admin/stats` — either via `config.path` on the function or a `[[redirects]]` rule to that path" },

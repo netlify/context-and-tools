@@ -30,7 +30,7 @@ export default {
     },
     {
       check:
-        "Does NOT use `process.env` for any added secret — passes vacuously if no env vars are introduced; `process.env.NEXT_PUBLIC_*` is acceptable only for explicitly-public client values.",
+        "Does NOT hardcode any secret — reads it from an env var (`process.env` is valid and idiomatic in a Next.js Route Handler); passes vacuously if no env vars are introduced.",
     },
   ],
   setup: copyFixture("nextjs-blog"),

@@ -154,6 +154,8 @@ export const config: Config = {
 
 Shortcuts: `@yearly`, `@monthly`, `@weekly`, `@daily`, `@hourly`. Scheduled functions have a **30-second timeout** and only run on published deploys.
 
+**Testing and triggering.** A scheduled function does **not** fire on its cron schedule under `netlify dev` — the local dev server never runs the schedule, so waiting for the clock will appear to do nothing. Test it by invoking it directly: `netlify functions:invoke <name>` calls the function once, on demand. In production a scheduled function also has **no public HTTP URL** — it is not reachable at `/.netlify/functions/{name}` and cannot be triggered by an external HTTP request; it runs only on its schedule. If you also need to trigger the same work over HTTP (a manual "run now" or a webhook), expose that logic through a separate ordinary HTTP function and share the implementation rather than trying to POST to the scheduled function.
+
 ## Streaming Responses
 
 Return a `ReadableStream` body for streamed responses (up to 20 MB):
@@ -231,6 +233,8 @@ If multiple functions subscribe to the same event, the first to call `event.deny
 | `context.requestId` | Unique request ID |
 | `context.waitUntil(promise)` | Extend execution after response is sent |
 
+**`context.geo` and `context.ip` are mocked under `netlify dev`.** Locally these return placeholder values, not your real location or client IP, so a value that looks "stuck" on a default country does not mean your geo code is broken — real geolocation is populated only for deployed functions. To exercise geo branching locally, start dev with the geo flags: `netlify dev --geo=mock --country=DE` forces mock data (`--geo=mock`) and sets the mock country (`--country`). Don't conclude `context.geo` is broken because local values never change.
+
 ## Environment Variables
 
 Use `Netlify.env` (not `process.env`) inside functions:
@@ -238,6 +242,25 @@ Use `Netlify.env` (not `process.env`) inside functions:
 ```typescript
 const apiKey = Netlify.env.get("API_KEY");
 ```
+
+**Environment variables have a small total size budget.** Functions run on AWS Lambda, which caps the *combined* size of all environment variables at roughly 4 KB. A single large value — a service-account JSON credential, a PEM private key, a big config blob — can blow past that on its own and break the deploy or the function at runtime. Do not store large payloads in environment variables; keep only small secrets and config (API keys, connection strings) there and move anything large into a bundled file, Netlify Blobs, or a fetch at runtime. There is no Netlify setting that raises this cap.
+
+## Reading Files at Runtime
+
+Only a function's own code and the modules it `import`s are bundled and deployed. A file the function opens from disk at runtime — `fs.readFile`/`readFileSync` on a template, a JSON data file, a WASM binary, a fixture — is **not** part of the bundle unless you declare it. This is a classic "works locally, ENOENT in production" trap: under `netlify dev` the function reads the file straight from your working tree, but the deployed function only contains what was bundled.
+
+Declare runtime-read files with `included_files` in `netlify.toml` so they ship with the function:
+
+```toml
+[functions]
+  included_files = ["netlify/functions/templates/**"]
+
+# or scope it to one function:
+[functions."render-email"]
+  included_files = ["netlify/functions/templates/welcome.html"]
+```
+
+When the data is static, prefer importing it as a module (`import data from "./data.json"`) so bundling is automatic; reach for `included_files` for files you must read from the filesystem at runtime.
 
 ## Resource Limits
 

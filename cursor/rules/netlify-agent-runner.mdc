@@ -11,13 +11,15 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 
 - The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`), or you can specify `--project <name>` to target any Netlify site
 - The Netlify CLI must be installed and authenticated
+- Agent runs **consume plan credits**. If the account has no available credits — or the agent/AI usage limit has been reached — `netlify agents:create` is **blocked** and the run won't start. That's an account/plan-state issue to surface to the user, not something to work around.
 
 ## How Agent Tasks Run
 
 Read this before creating a task — agent tasks behave differently from running an agent locally, and the differences are easy to miss.
 
 - **Remote, not local.** Tasks run on Netlify infrastructure, not on your machine. They operate on the site's **connected repository**, not your local working tree. The remote agent only sees what has been pushed to the remote — it cannot see uncommitted or unpushed changes.
-- **Branch-based.** By default a task runs against the production branch (`main` or `master`). To target a different branch, use `-b <branch>` and make sure that branch has been **pushed to the remote first**, or the agent will be working from code that doesn't exist remotely.
+- **Branch-based.** By default a task runs against the production branch (`main` or `master`). To choose a different *base* branch for the agent to start from, use `-b <branch>` and make sure that branch has been **pushed to the remote first**, or the agent will be working from code that doesn't exist remotely. `-b` sets the base (starting) branch — not where the results are written (see the next bullet).
+- **Output lands on a new branch — not in place.** The agent does **not** commit its changes onto the base branch you selected. It pushes its work to a **new branch** with its own **Deploy Preview**, so your existing branch (or `main`) is never overwritten. Review the task's results on that new branch / Deploy Preview — don't expect the base branch to change directly.
 - **Asynchronous.** `netlify agents:create` returns as soon as the task is queued — it does **not** block until the work is finished. When the command returns, the task is still running remotely.
 - **No webhooks or callbacks.** Nothing notifies you when a task changes state or completes. To find out what's happening, you have to **poll** with `netlify agents:show <task-id>` or `netlify agents:list`.
 - **Statuses are terminal or not.** A task moves through `new` → `running` → one of `done`, `error`, or `cancelled`. Keep polling until the status is one of those last three before you act on the results.
@@ -61,6 +63,8 @@ netlify agents:create "Add a footer" --json
 | `--json` | Output result as JSON |
 
 ## Managing Agent Tasks
+
+All `netlify agents:*` commands are **project-scoped** — they operate on a single project (the one your directory is linked to, or the one named with `--project <name>`), not on your whole team. `netlify agents:list` shows the tasks for that one project only; there is no team-wide command that lists tasks across all your sites. To see a different site's tasks, run from its linked directory or pass `--project <name>` for it.
 
 ### List tasks
 

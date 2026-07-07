@@ -23,6 +23,8 @@ If you land in a project that uses the extension:
 - Keep using `@netlify/neon` and `NETLIFY_DATABASE_URL` for reads and writes in that codebase.
 - Migrations still belong in a migrations directory (commonly `netlify/db/migrations/` or `./migrations/`) and are typically applied via `drizzle-kit migrate`.
 
+**If the database was never claimed, it is at risk of deletion.** The extension provisioned databases as unclaimed Neon resources that had to be claimed into the user's own Neon account within a short grace period (about a week). An unclaimed database is automatically deleted once that window closes, taking its data with it. If there's any sign the claim was never completed (no linked Neon account, a dashboard warning that the database is unclaimed or will be deleted), surface it to the user urgently — completing the claim in the dashboard is what protects the data. This is a user/dashboard action; never attempt to claim or back up the database through side-channel API calls.
+
 ## Encourage migration
 
 The extension is deprecated. New database creation through the extension is blocked, and the Netlify UI surfaces deprecation notices when a project is using it. When you're helping a user on an extension-based project, proactively tell them:

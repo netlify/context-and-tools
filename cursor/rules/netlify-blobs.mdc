@@ -92,12 +92,39 @@ const { blobs } = await store.list();
 const { blobs } = await store.list({ prefix: "uploads/" });
 ```
 
+`store.list()` **auto-paginates**: a plain `await store.list()` transparently fetches every page and returns the complete `blobs` array — you do NOT hand-roll page cursors or offsets. For a very large store, pass `{ paginate: true }` to get an async iterator and stream results a page at a time instead of buffering every key in memory:
+
+```typescript
+for await (const page of store.list({ paginate: true })) {
+  for (const { key } of page.blobs) {
+    // handle each key
+  }
+}
+```
+
+Pass `{ directories: true }` to group keys by the `/` delimiter (folder-style): the result's `blobs` holds keys at the current level and `directories` holds the common prefixes, which you drill into with `prefix`. Keys are a flat namespace — `/` is only a naming convention that `prefix` and `directories` let you navigate.
+
 ## Store Types
 
 - **Site-scoped** (`getStore()`): Persist across all deploys. Use for most cases.
 - **Deploy-scoped** (`getDeployStore()`): Tied to a specific deploy lifecycle.
 
 **A site-scoped store is shared across ALL deploy contexts.** Production, deploy previews, and branch deploys all read and write the *same* `getStore()` store — unlike Netlify Database, which forks a separate branch per preview, Blobs does not isolate previews. Code running on a deploy preview reads, overwrites, and deletes the same production data. Don't run destructive tests or seed throwaway data against a `getStore()` store from a preview — it hits production. When you need per-context isolation, use `getDeployStore()`, or partition by deploy context with a context-specific store `name` or key prefix.
+
+## Consistency and concurrency
+
+Blobs are **eventually consistent by default**: an immediate read right after a write may return the previous value or `null`. Opt into **strong** consistency when you need read-your-writes. You can set it once on the store, or request it per read:
+
+```typescript
+const store = getStore({ name: "my-store", consistency: "strong" });
+
+// or just for a single read that must see the latest write:
+const fresh = await store.get("key", { consistency: "strong" });
+```
+
+Strong reads are **slower** than eventual reads, so don't make everything strong "to be safe" — reserve it for the reads that genuinely need the latest write (typically a read right after a write in the same request). For read-heavy access to data that rarely changes, the default eventual consistency is faster and is the right choice.
+
+Blobs has **no concurrency control**: there is no locking and there are no transactions, and concurrent writes to the same key are **last-write-wins** — one silently overwrites the other. Do NOT build counters, balances, or any read-modify-write logic over a single blob key and expect it to be correct under concurrent traffic (two requests can both read the old value and both write back, losing an update). When you need atomic or transactional updates, use Netlify Database (see `netlify-database/SKILL.md`), which provides real transactions — not Blobs.
 
 ## Limits
 
@@ -115,6 +142,25 @@ Object metadata is capped at **2 KB per object** — it's for small descriptors 
 Local dev uses a sandboxed store (separate from production). For Vite-based projects, install `@netlify/vite-plugin` to enable local Blobs access. Otherwise, use `netlify dev`.
 
 **Common error**: "The environment has not been configured to use Netlify Blobs" — install `@netlify/vite-plugin` or run via `netlify dev`.
+
+## Inspecting blobs from the CLI
+
+The Netlify CLI can read and write blobs directly — useful for debugging, seeding, or a one-off fix without writing and deploying a function:
+
+```bash
+netlify blobs:list <store-name>
+netlify blobs:get <store-name> <key>
+netlify blobs:set <store-name> <key> <value>
+netlify blobs:delete <store-name> <key>
+```
+
+These act on the linked site's store, so link the project first (`netlify link`). Reach for these documented subcommands for manual inspection or repair rather than the raw API.
+
+## Uploading blobs at build time
+
+You don't have to write blobs from runtime code — you can seed a store during the build by writing files into a special directory. Files placed in `.netlify/blobs/deploy/` during the build are uploaded to a **deploy-scoped** store and are then readable at runtime via `getDeployStore()`. The path under that directory becomes the blob key (so `.netlify/blobs/deploy/products/1.json` is stored under the key `products/1.json`). This avoids a runtime function looping over `store.set` on a cold start.
+
+To attach metadata to a build-time blob, add a JSON sidecar whose name is the blob's filename prefixed with `$` and suffixed with `.json` — metadata for `logo.png` goes in `$logo.png.json`. Read these blobs back with `getDeployStore()`, not `getStore()`: they live in the deploy-scoped store and are replaced when the deploy is replaced.
 
 ## When a store operation fails
 

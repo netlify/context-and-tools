@@ -10,6 +10,8 @@ alwaysApply: false
 
 Next.js on Netlify uses the `@netlify/plugin-nextjs` runtime, which is installed automatically. No manual adapter installation is required — Netlify detects Next.js and configures the build automatically.
 
+The current Next.js Runtime (v5) supports **Next.js 13.5 and later**. A project on an older Next.js version cannot use it — upgrade Next.js to at least 13.5 before deploying.
+
 ```toml
 # netlify.toml
 [build]

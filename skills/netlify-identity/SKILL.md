@@ -80,6 +80,10 @@ Asking these *after* coding causes rework — both the auth UI shape and the das
 
 If a deploy fails, an Identity callback 404s, an OAuth flow doesn't return, or `/.netlify/identity/*` is unreachable — report the failure to the user with the deploy log URL, the exact error, and the site URL, then stop. Do not curl the Netlify API to "fix" the Identity instance, do not invent recovery commands, do not bypass the dashboard. Identity instance state has no public API to repair; the recovery is to hand the user the dashboard URL, the setting to check, and the observed failure.
 
+## Never hardcode secrets
+
+Never hardcode secrets. Identity URLs, GoTrue endpoints, admin tokens, and OAuth `client_id`/`secret` values do not belong in client or server code — read the admin token at runtime with `Netlify.env.get("VAR")`, and configure OAuth credentials in the Netlify dashboard, not the frontend. Store anything sensitive as a Netlify environment variable (mark it secret).
+
 ## Setup
 
 ```bash

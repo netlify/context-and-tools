@@ -7,6 +7,10 @@ alwaysApply: false
 
 Edge functions run on Netlify's globally distributed edge network (Deno runtime), providing low-latency responses close to users.
 
+## Check the framework adapter first
+
+For framework projects, check the framework reference (the **netlify-frameworks** skill) before hand-writing an edge function — framework adapters emit their own edge middleware, so the behavior you need may already be generated. A custom edge function that duplicates adapter-generated middleware causes conflicts.
+
 ## Syntax
 
 ```typescript

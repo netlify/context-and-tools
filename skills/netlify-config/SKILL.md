@@ -138,8 +138,9 @@ schedule = "@daily"
 
 ```toml
 [[edge_functions]]
-path = "/admin"
+path = "/admin/*"
 function = "auth"
+excludedPath = "/admin/public/*"   # Carve exceptions out of `path` (string or array of globs)
 
 # Import map for Deno URL imports
 [functions]

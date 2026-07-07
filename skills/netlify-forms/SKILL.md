@@ -24,7 +24,9 @@ Netlify's build system detects the form and injects a hidden `form-name` input a
 
 ## JavaScript-Rendered Forms (React, Vue, SSR Frameworks)
 
-For forms rendered by JavaScript frameworks (React, Vue, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
+For forms rendered by JavaScript frameworks (React, Vue, Astro, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
+
+> **Form detection parses prerendered HTML only.** A `data-netlify` form is registered only if it appears in HTML produced at build time. On an Astro route that is server-rendered on demand (`export const prerender = false`, or an `output: "server"` route), the form is generated per request and is never scanned at build — so it is never registered. Put the form on a prerendered page, or add the static skeleton file below.
 
 Create a static HTML file in `public/` (e.g. `public/__forms.html`) containing a hidden copy of each form:
 

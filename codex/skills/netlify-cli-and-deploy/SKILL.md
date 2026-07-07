@@ -48,7 +48,7 @@ Site ID is stored in `.netlify/state.json`. Add `.netlify` to `.gitignore`.
 Set up with `netlify init`. Automatic deploys trigger on push/PR:
 - Push to production branch → production deploy
 - Open PR → deploy preview with unique URL
-- Push to other branches → branch deploy
+- Push to other branches → branch deploy **only if branch deploys are enabled** — they are off by default; turn them on (per branch or for all branches) in the site's build & deploy settings
 
 Build runs on Netlify's servers. Configure build settings in `netlify.toml`.
 

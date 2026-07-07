@@ -18,11 +18,11 @@ export default {
     },
     {
       check:
-        "Explains there is nothing to 'roll back' -- the failed deploy never went live, so restoring or republishing a previous deploy is neither needed nor applicable.",
+        "Conveys that the previous deploy is still serving and does not need to be restored or republished — since the failed deploy never went live there is no downtime to recover from (exact 'nothing to roll back' wording not required).",
     },
     {
       check:
-        "Says the way to get the new code live is to fix the build/deploy failure and redeploy (e.g. re-run `netlify deploy`), not to restore an older deploy.",
+        "Points the user to the real fix — resolve the build/deploy failure so the new code can ship (redeploying once fixed) — rather than restoring an older deploy as the solution.",
     },
     {
       check:

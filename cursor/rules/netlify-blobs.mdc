@@ -97,13 +97,18 @@ const { blobs } = await store.list({ prefix: "uploads/" });
 - **Site-scoped** (`getStore()`): Persist across all deploys. Use for most cases.
 - **Deploy-scoped** (`getDeployStore()`): Tied to a specific deploy lifecycle.
 
+**A site-scoped store is shared across ALL deploy contexts.** Production, deploy previews, and branch deploys all read and write the *same* `getStore()` store — unlike Netlify Database, which forks a separate branch per preview, Blobs does not isolate previews. Code running on a deploy preview reads, overwrites, and deletes the same production data. Don't run destructive tests or seed throwaway data against a `getStore()` store from a preview — it hits production. When you need per-context isolation, use `getDeployStore()`, or partition by deploy context with a context-specific store `name` or key prefix.
+
 ## Limits
 
 | Limit | Value |
 |---|---|
 | Max object size | 5 GB |
+| Metadata per object | 2 KB |
 | Store name max length | 64 bytes |
 | Key max length | 600 bytes |
+
+Object metadata is capped at **2 KB per object** — it's for small descriptors (content type, size, timestamps, a status flag), not a place to stash large JSON. Anything bigger belongs in the blob value itself, not in `metadata`.
 
 ## Local Development
 

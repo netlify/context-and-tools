@@ -324,12 +324,16 @@ Once a migration has been applied to any database, never modify it — roll forw
 
 `NETLIFY_DB_URL` is intentionally different from the legacy extension's `NETLIFY_DATABASE_URL`. The two coexist so a project mid-migration doesn't break. Don't rename between them.
 
+**Create the database client once, at module scope — never per request.** Put `const db = getDatabase()` (or the Drizzle `export const db = drizzle({ schema })`) at the top level of the module and import that shared instance where you need it. Calling `getDatabase()` or constructing a new client *inside* a handler opens a fresh Postgres connection on every request; under load that exhausts the connection limit (the limit scales with compute size, but per-invocation clients blow through any of them) and requests start failing with "too many connections" errors. Instantiate once, reuse across invocations.
+
 ## Preview branching
 
 Each deploy preview runs against its own database branch forked from production data. Schema and data changes in a preview do not affect production until the branch is merged and published. This means:
 
 - Migrations run against the preview branch first — failures fail the preview, not production.
 - Ad-hoc edits in a preview (via the Netlify UI data browser or a direct client) do **not** propagate to production. Always express production changes as migrations.
+
+**A preview branch is a live copy of production data — including any PII.** Preview branches are forked from production, so real user records (names, emails, whatever production holds) exist in the preview database. Deploy preview URLs are **public-by-link** unless you enable access protection — anyone with the preview link can read that production-derived data through the app. Before sharing a preview link outside your team, enable Password Protection / SSO on the deploy (see `netlify-access-control/SKILL.md`), or seed the preview with non-production data. Never assume a preview is private just because it isn't the production URL.
 
 ## Production data changes — write a DML migration
 

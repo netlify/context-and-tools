@@ -175,6 +175,12 @@ The real upstream API keys live on Netlify's side. The per-provider `*_API_KEY` 
 
 With `@netlify/vite-plugin` or `netlify dev`, gateway environment variables are injected automatically into the local process — but only after the site has had at least one production deploy. A brand-new local-only project will see "API key missing" or "model not found" errors until you deploy.
 
+## Usage metering and where the gateway runs
+
+**Gateway usage is credit-metered.** Calls draw down your Netlify AI credit/inference allowance; when that limit is reached the gateway **pauses** and returns errors until the allowance resets or is raised. There's no separate provider bill to fall back on — an unbounded loop of gateway calls burns the allowance and then starts failing, so budget for it and don't retry indefinitely.
+
+**Gateway credentials are runtime-only.** Netlify injects the base URL and placeholder key only into runtime compute — deployed functions, edge functions, and server-rendered routes at request time. They are **not** present during the build: AI calls made at build time, in prerender/SSG, or in a build plugin get no gateway credentials and fail. Do AI work at request time (in a function or server route) and cache the result if you need it to look precomputed (e.g. to Netlify Blobs) — don't call the gateway from build scripts or static-generation hooks.
+
 ## Errors & Troubleshooting
 
 - **Unsupported model:** the gateway returns an HTTP error. Check the "Available Models" list below — the gateway exposes a curated subset, not every model the provider offers.

@@ -27,6 +27,10 @@ Every Netlify site has a built-in `/.netlify/images` endpoint for on-the-fly ima
 
 When `fm` is omitted, Netlify auto-negotiates the best format based on browser support (preferring `webp`, then `avif`).
 
+### `fm=blurhash` returns a string, not an image
+
+`fm=blurhash` is special: the response body is a short BlurHash **text string**, not image bytes. Pointing an `<img src>` (or CSS `background-image`) straight at a `/.netlify/images?...&fm=blurhash` URL does not work — the browser receives text and has nothing to render. Use it as a placeholder workflow instead: obtain the blurhash string ahead of time (server-side, in a data loader, via a `fetch`, or at build time), decode it with a BlurHash decoder library into a rendered placeholder (a canvas or a data-URI), and show that while the real image loads. The real, displayable image is a **separate** `/.netlify/images` request **without** `fm=blurhash`.
+
 ## Remote Image Allowlisting
 
 External images must be explicitly allowed in `netlify.toml`:
@@ -37,6 +41,8 @@ remote_images = ["https://example\\.com/.*", "https://cdn\\.images\\.com/.*"]
 ```
 
 Values are regex patterns.
+
+A remote source URL that does **not** match any `remote_images` pattern is rejected with a **404** — Netlify does not fetch or proxy it. This is a strict allowlist, not a fallback: there is no automatic proxying of arbitrary external hosts. Add the host (as an escaped regex) to `remote_images` *before* referencing it through `/.netlify/images`, or every transform request for that source will 404. (Local images on the same site never need allowlisting.)
 
 When referencing an allow-listed remote image, **percent-encode the source URL** before placing it in the `url` parameter:
 
@@ -70,6 +76,10 @@ from = "/img/hero/:key"
 to = "/.netlify/images?url=/uploads/:key&w=1200&h=675&fit=cover"
 status = 200
 ```
+
+## Local Development
+
+`/.netlify/images` is a Netlify platform endpoint — it does **not** exist in a framework's own dev server. Running `vite`, `next dev`, `astro dev`, etc. directly will **404** on `/.netlify/images`, and `[images]` allowlisting and your image redirects won't apply either. Run `netlify dev` for local work: it emulates the Image CDN endpoint, remote-image allowlisting, and redirect rules, so image URLs resolve locally the same way they do in production. A 404 on `/.netlify/images` locally almost always means a framework dev server is being run directly instead of `netlify dev` — the URL itself is fine.
 
 ## Caching
 

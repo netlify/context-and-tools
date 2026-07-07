@@ -354,6 +354,10 @@ When a migration you generated needs to change, what you do depends on whether i
 
 `netlify dev` runs the project against a local Postgres-compatible database — no remote connection, no risk of touching production. Use `netlify database migrations apply` to apply pending migrations locally, `netlify database connect` to query, and `netlify database reset` to wipe and replay. See `references/local-dev.md`.
 
+## Operational footguns
+
+See `references/operational-footguns.md`: module-scope client reuse, scale-to-zero cold starts, preview-data (PII) exposure, and legacy-extension deletion.
+
 ## Common mistakes
 
 1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.

@@ -7,6 +7,8 @@ description: Guide for using Netlify Forms for HTML form handling. Use when addi
 
 Netlify Forms collects HTML form submissions without server-side code. Form detection must be enabled in the Netlify UI (Forms section).
 
+> **Enabling detection only affects future deploys.** Netlify scans for forms at deploy time, so turning on (or re-enabling) form detection does **not** rescan your current live deploy. After enabling detection you must trigger a new deploy/build before an already-published form is registered and starts collecting submissions.
+
 ## Basic Setup
 
 Add `data-netlify="true"` and a unique `name` to the form:
@@ -60,6 +62,8 @@ Your component must also include a hidden `form-name` input:
 ```
 
 ## AJAX Submissions
+
+> **Netlify Forms does not accept JSON.** The submission body must be `application/x-www-form-urlencoded` (encode the fields with `URLSearchParams`) or `multipart/form-data` (a raw `FormData` object, for file uploads). A `fetch` that sends `JSON.stringify(...)` with `Content-Type: application/json` is silently **not** recorded as a submission — always send URL-encoded key/value pairs (or `FormData`), never JSON.
 
 ### Vanilla JavaScript
 
@@ -129,6 +133,10 @@ Netlify uses Akismet automatically. Add a honeypot field for extra protection:
 
 For reCAPTCHA, add `data-netlify-recaptcha="true"` to the form and include `<div data-netlify-recaptcha="true"></div>` where the widget should appear.
 
+By default Netlify provisions and verifies the reCAPTCHA for you — do **not** add a site key/secret or load Google's reCAPTCHA script yourself. To use **your own** reCAPTCHA v2 keys, keep the same `data-netlify-recaptcha="true"` markup and set the credentials as Netlify environment variables: `SITE_RECAPTCHA_KEY` (the site key, scoped to Builds and Runtime) and `SITE_RECAPTCHA_SECRET` (the secret, scoped to Runtime). Netlify picks these up automatically — the secret stays server-side as an env var (never hardcoded in client code), and you still don't render the widget with Google's own script or build a custom Function to verify the token.
+
+> **Spam submissions are silent.** Akismet-flagged submissions are moved to a separate **Spam** list in the Forms UI — they do **not** appear in the verified submissions list and do **not** trigger email/Slack notifications. Submissions caught by a honeypot field or a failed reCAPTCHA challenge are discarded entirely and never appear in either list. So a "missing" legitimate submission is usually a false-positive spam classification, not a delivery bug: check the Spam list (or the Submissions API with `?state=spam`) and mark it verified — do not build a custom Function to "recover" it or disable spam filtering as a first resort.
+
 ## File Uploads
 
 ```html
@@ -172,6 +180,10 @@ Key endpoints:
 | Get submissions | GET | `/api/v1/forms/{form_id}/submissions` |
 | Get spam | GET | `/api/v1/forms/{form_id}/submissions?state=spam` |
 | Delete submission | DELETE | `/api/v1/submissions/{id}` |
+
+### Pagination
+
+The Netlify API paginates any response over 100 items (100 per page by default). Pass `?page=` (1-based) and optionally `?per_page=` (max 100), and follow the `Link` response header — it carries the `rel="next"` and `rel="last"` page URLs. To sync **every** submission, page through until there is no `rel="next"` link (or a page returns fewer than `per_page` items). A single request does **not** return all submissions once a form has more than 100 — code that reads only the first response silently drops the rest.
 
 ## Use only documented surfaces
 

@@ -461,3 +461,4 @@ Rules are evaluated top-to-bottom. The `nf_jwt` cookie is read by the CDN to eva
 ## References
 
 - [Advanced patterns](references/advanced-patterns.md) — password recovery, invite acceptance, email change, session hydration, SSR integration
+- [Authorization and sessions](references/authorization-and-sessions.md) — where role gating is actually enforced (server-side vs client-side / SPA navigation), admin operations being Functions-runtime-only, and why a role change doesn't apply until the JWT refreshes

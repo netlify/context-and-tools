@@ -205,6 +205,11 @@ Common issues and solutions:
 → Don't route around a failed build to force the site live: no `netlify api` publish/restore, no direct `https://api.netlify.com/...` calls, no reading auth tokens off disk, and don't ship a previous deploy in place of the failing one. If the log doesn't resolve it, report the exact error + log URL + affected site to the user and stop.
 → Even if the user *asks* how to "roll back" or restore a previous deploy, correct the premise rather than complying: because the failed deploy never published, the previous deploy is still live and there is nothing to restore. Do **not** hand over `netlify api restoreSiteDeploy` / `publishDeploy` (or a dashboard rollback) as the answer — the fix is to resolve the build failure and redeploy.
 
+**"Secrets scanning found secrets" / deploy fails after a successful build**
+→ Netlify scans the build output and source for secret values (env-var values, known key formats) *after* the build succeeds and **fails the deploy** if it finds one — so an otherwise-green build can still fail here. Read the log: it names the offending key and where it appeared.
+→ If it's a real secret (an API/DB key that ended up in bundled or published output), that's a genuine leak — stop writing it into client/published files, and rotate the key if it was committed. Silencing the scanner over a real leak just ships the secret.
+→ If the flagged value is legitimately non-secret (e.g. a value that must ship to the browser), scope the exception narrowly with build environment variables: `SECRETS_SCAN_OMIT_KEYS` to exclude specific env-var keys, or `SECRETS_SCAN_OMIT_PATHS` to exclude specific paths. Prefer these over `SECRETS_SCAN_ENABLED=false`, which disables scanning across the entire build.
+
 **"Publish directory not found"**
 → Verify build command ran successfully
 → Check publish directory path is correct

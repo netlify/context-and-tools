@@ -40,7 +40,7 @@ export function verifyUploadToken(token: string) {
 ## Guardrails on the PUT endpoint
 
 - **Reject mismatched `Content-Type` or oversize bodies** against what `prepare_upload` declared — don't let the actual upload exceed the cap the signature was issued for.
-- **Enforce single-use** by tracking the upload's status (e.g. `pending → uploaded → finalized`) so the same signed URL can't be replayed.
+- **Enforce single-use** by tracking the upload's status (e.g. `pending → uploaded → finalized`) so the same signed URL can't be replayed. Keep that status in a **durable store** (Netlify Blobs or your database), never a module-level in-memory `Set`/`Map` — function instances don't share memory, so an in-memory guard silently lets replays through on another instance.
 - **Validate before storing**, then write to Blobs with the content-type as metadata so you can serve it back correctly later.
 
 ## Returning files to the agent

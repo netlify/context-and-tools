@@ -23,6 +23,8 @@ netlify status      # Check auth + linked site status
 
 For CI, set `NETLIFY_AUTH_TOKEN` environment variable instead.
 
+**CI also needs a site to target.** `NETLIFY_AUTH_TOKEN` only authenticates you — it does **not** select which site a deploy publishes to. In CI there is no linked `.netlify/state.json`, so also set `NETLIFY_SITE_ID` (the site's API/Project ID, shown as **Project ID** in the site's configuration) as an environment variable so `netlify deploy` knows where to publish. Without it, a CI deploy has no site to target and fails or tries to prompt. Locally this is handled by `netlify link`, which writes the site ID into `.netlify/state.json`; CI has no such file.
+
 ## Linking a Site
 
 Check if already linked with `netlify status`. If not:
@@ -52,6 +54,10 @@ Set up with `netlify init`. Automatic deploys trigger on push/PR:
 
 Build runs on Netlify's servers. Configure build settings in `netlify.toml`.
 
+**`netlify.toml` overrides the UI.** File-based configuration in `netlify.toml` takes precedence over the equivalent build settings configured in the Netlify UI. When the same option is set in both places, the committed `netlify.toml` wins — editing that setting in the dashboard has no effect until you change the file and redeploy. This surprises people who tweak the build command, publish directory, or base directory in the UI and watch the old committed value keep applying on every deploy.
+
+**Monorepo config discovery order.** In a monorepo, Netlify searches for the `netlify.toml` in this order and uses the **first** one it finds: (1) the package directory, then (2) the base directory, then (3) the repository root. Put a site-specific `netlify.toml` in the package directory (the subdirectory that contains that site) so it takes precedence over any root-level config. A base directory set in a root-level `netlify.toml` also overrides the base directory configured in the UI.
+
 ### Manual / Local Deploys (No Git Required)
 
 Build locally, then upload:
@@ -63,6 +69,12 @@ netlify deploy --dir=dist  # Specify output directory
 ```
 
 This works without Git — useful for prototypes, local-only projects, or CI pipelines.
+
+**A manual `--prod` deploy is replaced by the next Git push.** If the same site also has Git continuous deployment connected, the next push to the production branch triggers a new build that auto-publishes and **replaces** your manually shipped `--prod` deploy — the hand-shipped build silently disappears from production. To keep a specific deploy live, **lock the published deploy** ("Stop auto publishing") from the site's Deploys list in the UI: while locked, new pushes still build but do not auto-publish until you unlock or manually publish. Mixing manual `--prod` deploys with Git CD on the same production branch is otherwise a race the next commit wins.
+
+### Deploy URLs are public by link
+
+Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection); you can protect all deploys or only non-production deploys.
 
 ## Local Development
 

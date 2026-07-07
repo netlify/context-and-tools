@@ -67,7 +67,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 ## Forms (HTML Pattern)
 
-Astro renders HTML server-side, so Netlify can detect forms directly:
+> **Form detection only scans prerendered HTML.** Netlify registers a form by parsing the static HTML produced at **deploy time**. A `data-netlify` form that exists only in an **on-demand (SSR) route** — a page with `export const prerender = false`, or any route under `output: "server"` that hasn't opted back into prerendering — is never in the build output, so Netlify never registers it and its submissions 404. Put the detectable form on a **prerendered** page (in `output: "server"`, add `export const prerender = true` to that route), or include a static hidden detection form on a prerendered page and submit via AJAX.
+
+For a **prerendered** Astro page, the form HTML is in the build output, so Netlify detects it directly:
 
 ```astro
 ---

@@ -124,7 +124,7 @@ Two constraints to be aware of before adding `config.region`:
 - A function runs in exactly one region. Don't try to deploy the same function to multiple regions — if the user wants geo-routing, route between distinct functions with an edge function instead.
 - For framework adapter–generated functions (Next.js, Astro, Nuxt, etc.) the region must be set site-wide in the Netlify UI, not via `config.region` in code. The generated files can't carry per-function config.
 
-See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
+Region values are IATA airport codes — for example `cmh` (Columbus/Ohio, the default), `dub` (Dublin), and `fra` (Frankfurt). See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
 
 ## Memory or vCPU
 
@@ -135,7 +135,7 @@ Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them w
 - The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
 - The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
 
-`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
+`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Set `memory` as a number of megabytes (e.g. `memory: 2048`) or as a string with a unit (e.g. `'2gb'` or `'2048mb'`, case-insensitive), within the 1024–4096 MB range. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
 
 ## Scheduled Functions
 
@@ -153,8 +153,6 @@ export const config: Config = {
 ```
 
 Shortcuts: `@yearly`, `@monthly`, `@weekly`, `@daily`, `@hourly`. Scheduled functions have a **30-second timeout** and only run on published deploys.
-
-**Testing and triggering.** A scheduled function does **not** fire on its cron schedule under `netlify dev` — the local dev server never runs the schedule, so waiting for the clock will appear to do nothing. Test it by invoking it directly: `netlify functions:invoke <name>` calls the function once, on demand. In production a scheduled function also has **no public HTTP URL** — it is not reachable at `/.netlify/functions/{name}` and cannot be triggered by an external HTTP request; it runs only on its schedule. If you also need to trigger the same work over HTTP (a manual "run now" or a webhook), expose that logic through a separate ordinary HTTP function and share the implementation rather than trying to POST to the scheduled function.
 
 ## Streaming Responses
 
@@ -233,34 +231,15 @@ If multiple functions subscribe to the same event, the first to call `event.deny
 | `context.requestId` | Unique request ID |
 | `context.waitUntil(promise)` | Extend execution after response is sent |
 
-**`context.geo` and `context.ip` are mocked under `netlify dev`.** Locally these return placeholder values, not your real location or client IP, so a value that looks "stuck" on a default country does not mean your geo code is broken — real geolocation is populated only for deployed functions. To exercise geo branching locally, start dev with the geo flags: `netlify dev --geo=mock --country=DE` forces mock data (`--geo=mock`) and sets the mock country (`--country`). Don't conclude `context.geo` is broken because local values never change.
-
 ## Environment Variables
 
-Use `Netlify.env` (not `process.env`) inside functions:
+Prefer `Netlify.env.get` inside functions:
 
 ```typescript
 const apiKey = Netlify.env.get("API_KEY");
 ```
 
-**Environment variables have a small total size budget.** Functions run on AWS Lambda, which caps the *combined* size of all environment variables at roughly 4 KB. A single large value — a service-account JSON credential, a PEM private key, a big config blob — can blow past that on its own and break the deploy or the function at runtime. Do not store large payloads in environment variables; keep only small secrets and config (API keys, connection strings) there and move anything large into a bundled file, Netlify Blobs, or a fetch at runtime. There is no Netlify setting that raises this cap.
-
-## Reading Files at Runtime
-
-Only a function's own code and the modules it `import`s are bundled and deployed. A file the function opens from disk at runtime — `fs.readFile`/`readFileSync` on a template, a JSON data file, a WASM binary, a fixture — is **not** part of the bundle unless you declare it. This is a classic "works locally, ENOENT in production" trap: under `netlify dev` the function reads the file straight from your working tree, but the deployed function only contains what was bundled.
-
-Declare runtime-read files with `included_files` in `netlify.toml` so they ship with the function:
-
-```toml
-[functions]
-  included_files = ["netlify/functions/templates/**"]
-
-# or scope it to one function:
-[functions."render-email"]
-  included_files = ["netlify/functions/templates/welcome.html"]
-```
-
-When the data is static, prefer importing it as a module (`import data from "./data.json"`) so bundling is automatic; reach for `included_files` for files you must read from the filesystem at runtime.
+`process.env` is also valid inside Functions and reads the same variables — prefer `Netlify.env.get` for cross-runtime and edge portability (a function you later move to an Edge Function keeps working, since Edge Functions expose **only** `Netlify.env.get`, not `process.env`).
 
 ## Resource Limits
 
@@ -269,7 +248,7 @@ When the data is static, prefer importing it as a module (`import data from "./d
 | Synchronous timeout | 60 seconds |
 | Background timeout | 15 minutes |
 | Scheduled timeout | 30 seconds |
-| Memory | 1024 MB default; configurable 1024–4096 MB (see [Resource Configuration](#resource-configuration)) |
+| Memory | 1024 MB default; configurable 1024–4096 MB (see [Memory or vCPU](#memory-or-vcpu)) |
 | Buffered payload | 6 MB |
 | Streamed payload | 20 MB |
 

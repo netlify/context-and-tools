@@ -8,7 +8,7 @@ export default {
   judge: [
     { check: "Uses the `@google/genai` package — image generation on the gateway is Gemini-only" },
     { check: "Does NOT use `@google/generative-ai` (older deprecated package) and does NOT attempt OpenAI image models like dall-e or gpt-image" },
-    { check: "Uses a Gemini image model (e.g. 'gemini-2.5-flash-image' or 'gemini-3-pro-image-preview')" },
+    { check: "Uses a Gemini image model (e.g. 'gemini-2.5-flash-image' or 'gemini-3-pro-image')" },
     { check: "Does NOT pass a custom apiKey or baseURL to the GoogleGenAI client — the gateway auto-configures it" },
     { check: "Does NOT read or set `GEMINI_API_KEY` / `GOOGLE_API_KEY` — those disable the gateway" },
     { check: "Extracts the image bytes from `response.candidates[0].content.parts[*].inlineData` (base64 string) rather than expecting a URL" },

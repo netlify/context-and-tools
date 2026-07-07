@@ -50,7 +50,7 @@ Site ID is stored in `.netlify/state.json`. Add `.netlify` to `.gitignore`.
 Set up with `netlify init`. Automatic deploys trigger on push/PR:
 - Push to production branch → production deploy
 - Open PR → deploy preview with unique URL
-- Push to other branches → branch deploy
+- Push to other branches → branch deploy **only if branch deploys are enabled** — they are off by default; turn them on (per branch or for all branches) in the site's build & deploy settings
 
 Build runs on Netlify's servers. Configure build settings in `netlify.toml`.
 
@@ -148,6 +148,10 @@ netlify env:set DEBUG "true" --context branch:feature-x
 - **Client-side (Astro)**: Only `PUBLIC_`-prefixed vars via `import.meta.env.PUBLIC_VAR`
 
 **Never use `VITE_` or `PUBLIC_` prefix for secrets** — these are exposed to the browser.
+
+## When a command fails, surface and stop
+
+When a `netlify` command, a deploy, or `netlify dev` fails, **report the failure to the user** with the exact error, the deploy log URL (the CLI prints one), and the affected site/branch — and stop. Do not invent recovery commands or escalate to lower-level tools: do not curl `https://api.netlify.com/...`, do not run `netlify api <method>` as a recovery hatch, and do not read auth tokens off disk to force the operation through. If the documented happy path is broken, that's a platform-state problem the user needs to see.
 
 ## Useful Commands
 

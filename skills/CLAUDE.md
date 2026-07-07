@@ -54,7 +54,7 @@ Read `netlify-mcp-servers/SKILL.md` for the MCP SDK + Streamable HTTP transport 
 
 ## General Rules
 
-- Use `Netlify.env.get("VAR")` for environment variables in functions (not `process.env`)
+- Prefer `Netlify.env.get("VAR")` for environment variables in functions for cross-runtime and edge portability; `process.env` is also valid inside Functions. Edge Functions expose **only** `Netlify.env.get`, not `process.env`.
 - Never hardcode secrets — use Netlify environment variables
 - Add `.netlify` to `.gitignore`
 - For framework-specific patterns, check the framework reference before writing custom Netlify Functions — the adapter may handle it

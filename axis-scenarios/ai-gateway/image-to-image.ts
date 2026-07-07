@@ -16,7 +16,7 @@ export default {
     },
     {
       check:
-        "Pins a Gemini IMAGE model (e.g. `gemini-2.5-flash-image`, `gemini-3.1-flash-image-preview`, or `gemini-3-pro-image-preview`).",
+        "Pins a Gemini IMAGE model (e.g. `gemini-2.5-flash-image`, `gemini-3.1-flash-image`, or `gemini-3-pro-image`).",
     },
     {
       check:

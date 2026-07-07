@@ -124,7 +124,7 @@ Two constraints to be aware of before adding `config.region`:
 - A function runs in exactly one region. Don't try to deploy the same function to multiple regions — if the user wants geo-routing, route between distinct functions with an edge function instead.
 - For framework adapter–generated functions (Next.js, Astro, Nuxt, etc.) the region must be set site-wide in the Netlify UI, not via `config.region` in code. The generated files can't carry per-function config.
 
-See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
+Region values are IATA airport codes — for example `cmh` (Columbus/Ohio, the default), `dub` (Dublin), and `fra` (Frankfurt). See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
 
 ## Memory or vCPU
 
@@ -135,7 +135,7 @@ Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them w
 - The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
 - The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
 
-`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
+`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Set `memory` as a number of megabytes (e.g. `memory: 2048`) or as a string with a unit (e.g. `'2gb'` or `'2048mb'`, case-insensitive), within the 1024–4096 MB range. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
 
 ## Scheduled Functions
 
@@ -237,11 +237,13 @@ If multiple functions subscribe to the same event, the first to call `event.deny
 
 ## Environment Variables
 
-Use `Netlify.env` (not `process.env`) inside functions:
+Prefer `Netlify.env.get` inside functions:
 
 ```typescript
 const apiKey = Netlify.env.get("API_KEY");
 ```
+
+`process.env` is also valid inside Functions and reads the same variables — prefer `Netlify.env.get` for cross-runtime and edge portability (a function you later move to an Edge Function keeps working, since Edge Functions expose **only** `Netlify.env.get`, not `process.env`).
 
 **Environment variables have a small total size budget.** Functions run on AWS Lambda, which caps the *combined* size of all environment variables at roughly 4 KB. A single large value — a service-account JSON credential, a PEM private key, a big config blob — can blow past that on its own and break the deploy or the function at runtime. Do not store large payloads in environment variables; keep only small secrets and config (API keys, connection strings) there and move anything large into a bundled file, Netlify Blobs, or a fetch at runtime. There is no Netlify setting that raises this cap.
 
@@ -269,7 +271,7 @@ When the data is static, prefer importing it as a module (`import data from "./d
 | Synchronous timeout | 60 seconds |
 | Background timeout | 15 minutes |
 | Scheduled timeout | 30 seconds |
-| Memory | 1024 MB default; configurable 1024–4096 MB (see [Resource Configuration](#resource-configuration)) |
+| Memory | 1024 MB default; configurable 1024–4096 MB (see [Memory or vCPU](#memory-or-vcpu)) |
 | Buffered payload | 6 MB |
 | Streamed payload | 20 MB |
 

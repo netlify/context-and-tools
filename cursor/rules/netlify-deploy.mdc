@@ -227,6 +227,7 @@ For secrets and configuration:
 - Run `netlify open` to view site in Netlify dashboard
 - Run `netlify logs` to view function logs (if using Netlify Functions)
 - Use `netlify dev` for local development with Netlify Functions
+- Add `.netlify` to `.gitignore` — linking a site or `netlify init` writes site state to `.netlify/state.json`, which shouldn't be committed
 
 ## Reference
 

@@ -104,20 +104,47 @@ await purgeCache({
 });
 ```
 
-Responses with `Netlify-Cache-Tag` are **excluded from automatic deploy-based invalidation** — they must be purged explicitly.
+`Netlify-Cache-Tag` is **purge-only**: tagged responses are still cleared by automatic deploy-based invalidation like everything else. The tag only lets you purge them on demand between deploys.
+
+### Surviving deploys with `Netlify-Cache-ID`
+
+To keep a cached response *across* deploys, set a `Netlify-Cache-ID` header. A response carrying it is **excluded from automatic deploy-based invalidation** — it persists across deploys and clears only on explicit purge. The `Netlify-Cache-ID` value also auto-registers as a purge tag, so you purge it by that same id:
+
+```typescript
+return new Response(body, {
+  headers: {
+    "Netlify-Cache-ID": "catalog",
+    "Netlify-CDN-Cache-Control": "public, s-maxage=86400",
+  },
+});
+```
+
+```typescript
+import { purgeCache } from "@netlify/functions";
+
+// Purge by the same id — it doubles as a purge tag.
+await purgeCache({ tags: ["catalog"] });
+```
 
 ## Cache Key Variation
 
-Customize what creates separate cache entries:
+`Netlify-Vary` controls what creates separate cache entries. Each directive names a dimension — `query`, `header`, `cookie`, `country`, or `language` — followed by an enumerated, pipe-separated list of the values to key on:
 
 ```typescript
 return new Response(body, {
   headers: {
     "Netlify-Vary": "cookie=ab_test|is_logged_in",
-    // Other options: query=param1|param2, header=X-Custom, country=us|de, language=en|fr
   },
 });
 ```
+
+- `query=param1|param2` — key on the named query parameters
+- `header=X-Custom` — key on the named request header
+- `cookie=ab_test|is_logged_in` — key on the named cookies
+- `country=us|de` — serve a distinct cached entry to visitors from the listed countries (two-letter, lowercase ISO country codes)
+- `language=en|fr` — key on the listed `Accept-Language` values
+
+Combine dimensions by separating directives with commas — e.g. `Netlify-Vary: query=theme, cookie=plan` keys the cache on both the `theme` query parameter and the `plan` cookie. Always enumerate the specific values; keying on an entire dimension (for example a bare `Vary: Cookie`) fragments the cache into a separate entry per unique visitor.
 
 ## Framework-Specific Caching
 
@@ -141,10 +168,15 @@ Static assets are cached by default. API responses from Netlify Functions need e
 
 ## Debugging
 
-Check the `Cache-Status` response header:
-- `HIT` — served from cache
-- `MISS` — generated fresh
-- `REVALIDATED` — stale content was revalidated
+Check the `Cache-Status` response header. Netlify emits it in the RFC 9211 format — one entry per named cache layer the request passed through, not a bare `HIT`/`MISS`:
+
+```
+Cache-Status: "Netlify Edge"; fwd=miss, "Netlify Durable"; hit; ttl=3600
+```
+
+- A named layer (`"Netlify Edge"`, `"Netlify Durable"`) with `hit` — served from that cache
+- `fwd=miss` — the entry was not in that layer, so the request was forwarded onward
+- `ttl=…` — remaining freshness (seconds) for a hit
 
 ## Constraints
 

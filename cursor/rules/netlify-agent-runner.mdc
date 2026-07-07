@@ -13,6 +13,16 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 - The Netlify CLI must be installed and authenticated
 - Agent runs **consume plan credits**. If the account has no available credits — or the agent/AI usage limit has been reached — `netlify agents:create` is **blocked** and the run won't start. That's an account/plan-state issue to surface to the user, not something to work around.
 
+## Use only documented CLI surfaces
+
+Interact with agent tasks only through the documented `netlify agents:*` commands (plus `netlify --help` and the public CLI reference). Do **not** go around the CLI:
+
+- **Do not curl `https://api.netlify.com/...`** to fetch, create, or stop a task — the endpoint shapes are not part of the public contract.
+- **Do not run `netlify api <method>`** as a recovery hatch when a documented command fails.
+- **Do not read auth tokens** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) to authenticate side-channel calls.
+
+If a documented command fails, report the exact error and context to the user and stop — don't invent an undocumented way to reach the task.
+
 ## How Agent Tasks Run
 
 Read this before creating a task — agent tasks behave differently from running an agent locally, and the differences are easy to miss.

@@ -26,7 +26,9 @@ Netlify's build system detects the form and injects a hidden `form-name` input a
 
 ## JavaScript-Rendered Forms (React, Vue, SSR Frameworks)
 
-For forms rendered by JavaScript frameworks (React, Vue, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
+For forms rendered by JavaScript frameworks (React, Vue, Astro, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
+
+> **Form detection parses prerendered HTML only.** A `data-netlify` form is registered only if it appears in HTML produced at build time. On an Astro route that is server-rendered on demand (`export const prerender = false`, or an `output: "server"` route), the form is generated per request and is never scanned at build — so it is never registered. Put the form on a prerendered page, or add the static skeleton file below.
 
 Create a static HTML file in `public/` (e.g. `public/__forms.html`) containing a hidden copy of each form:
 
@@ -182,3 +184,12 @@ Key endpoints:
 ### Pagination
 
 The Netlify API paginates any response over 100 items (100 per page by default). Pass `?page=` (1-based) and optionally `?per_page=` (max 100), and follow the `Link` response header — it carries the `rel="next"` and `rel="last"` page URLs. To sync **every** submission, page through until there is no `rel="next"` link (or a page returns fewer than `per_page` items). A single request does **not** return all submissions once a form has more than 100 — code that reads only the first response silently drops the rest.
+
+## Use only documented surfaces
+
+To manage forms or read submissions programmatically, use the documented `netlify` CLI or the Submissions API above with an explicit personal access token supplied via an environment variable. Do **not** go around the documented surface:
+
+- **Do not curl `https://api.netlify.com/...`** with an invented endpoint shape, and do **not** run `netlify api <method>` as a recovery hatch when a documented path fails.
+- **Do not read the token** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) — it comes from the configured env var.
+
+If a documented path fails, report the exact error and context to the user and stop.

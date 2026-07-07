@@ -21,7 +21,7 @@ Check these files to determine the framework:
 | `next.config.*` | Next.js |
 | `nuxt.config.*` | Nuxt |
 | `vite.config.*` + `react-router` | Vite + React (SPA or Remix) |
-| `app.config.*` + `@tanstack/react-start` | TanStack Start |
+| `vite.config.*` + `@tanstack/react-start` | TanStack Start |
 | `svelte.config.*` | SvelteKit |
 
 ## Framework Reference Guides

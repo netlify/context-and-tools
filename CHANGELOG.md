@@ -4,6 +4,13 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.11.0](https://github.com/netlify/context-and-tools/compare/v0.10.0...v0.11.0) (2026-07-06)
+
+
+### Features
+
+* **skills:** clarify Netlify Identity vs access control, harden OAuth guidance ([#58](https://github.com/netlify/context-and-tools/issues/58)) ([fce2a2f](https://github.com/netlify/context-and-tools/commit/fce2a2fd13fa32a9d6a9b603634c2c26cd95f2e5))
+
 ## [0.10.0](https://github.com/netlify/context-and-tools/compare/v0.9.0...v0.10.0) (2026-07-02)
 
 

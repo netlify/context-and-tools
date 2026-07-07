@@ -4,6 +4,24 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.12.0](https://github.com/netlify/context-and-tools/compare/v0.11.0...v0.12.0) (2026-07-07)
+
+
+### Features
+
+* **skills:** full footgun hardening across all domains — skill guidance + scenarios (AX-106) ([#84](https://github.com/netlify/context-and-tools/issues/84)) ([9522896](https://github.com/netlify/context-and-tools/commit/9522896a5812b516ce34e785da071969fc474834))
+
+
+### Bug Fixes
+
+* **axis:** reconcile over-tested judge checks with skill facts (AX-104) ([#82](https://github.com/netlify/context-and-tools/issues/82)) ([b2de7c1](https://github.com/netlify/context-and-tools/commit/b2de7c126ebf9ed80519256e423f00f0e4472ec0))
+* **skills:** correct factual errors in caching, ai-gateway, deploy, forms, cli, functions, and frameworks skills ([#81](https://github.com/netlify/context-and-tools/issues/81)) ([8f49f34](https://github.com/netlify/context-and-tools/commit/8f49f347107af7e447ebc1dcac6cbd2039d925ad))
+
+
+### Documentation
+
+* **skills:** duplicate cross-cutting rules into domain skills that lack them ([#83](https://github.com/netlify/context-and-tools/issues/83)) ([681f4d8](https://github.com/netlify/context-and-tools/commit/681f4d81d81ecdee008b9adbd157fab8fd62ea79))
+
 ## [0.11.0](https://github.com/netlify/context-and-tools/compare/v0.10.0...v0.11.0) (2026-07-06)
 
 

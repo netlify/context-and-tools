@@ -170,3 +170,12 @@ Key endpoints:
 | Get submissions | GET | `/api/v1/forms/{form_id}/submissions` |
 | Get spam | GET | `/api/v1/forms/{form_id}/submissions?state=spam` |
 | Delete submission | DELETE | `/api/v1/submissions/{id}` |
+
+## Use only documented surfaces
+
+To manage forms or read submissions programmatically, use the documented `netlify` CLI or the Submissions API above with an explicit personal access token supplied via an environment variable. Do **not** go around the documented surface:
+
+- **Do not curl `https://api.netlify.com/...`** with an invented endpoint shape, and do **not** run `netlify api <method>` as a recovery hatch when a documented path fails.
+- **Do not read the token** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) — it comes from the configured env var.
+
+If a documented path fails, report the exact error and context to the user and stop.

@@ -21,7 +21,7 @@ The AI Gateway acts as a proxy — you use standard provider SDKs but point them
 2. Deploy to production at least once — the gateway does not activate until then
 3. Install the provider SDK you want to use
 
-Don't set your own `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`. Doing so disables Netlify's auto-injection and routes calls directly to the provider, bypassing the gateway.
+Don't set your own `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `GOOGLE_API_KEY` (the `@google/genai` SDK reads either `GEMINI_API_KEY` or `GOOGLE_API_KEY`). Doing so disables Netlify's auto-injection and routes calls directly to the provider, bypassing the gateway.
 
 ## Using OpenAI SDK
 
@@ -74,7 +74,9 @@ npm install @google/genai
 import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({});
-// `GEMINI_API_KEY` and `GOOGLE_GEMINI_BASE_URL` are auto-injected.
+// `GEMINI_API_KEY` and `GOOGLE_GEMINI_BASE_URL` are auto-injected. The SDK also
+// honors `GOOGLE_API_KEY`; leave both Gemini keys unset so the gateway's
+// injection isn't shadowed.
 
 const response = await ai.models.generateContent({
   model: "gemini-2.5-flash",

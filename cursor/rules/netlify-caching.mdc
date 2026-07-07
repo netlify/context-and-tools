@@ -96,16 +96,23 @@ Responses with `Netlify-Cache-Tag` are **excluded from automatic deploy-based in
 
 ## Cache Key Variation
 
-Customize what creates separate cache entries:
+`Netlify-Vary` controls what creates separate cache entries. Each directive names a dimension — `query`, `header`, `cookie`, `country`, or `language` — followed by an enumerated, pipe-separated list of the values to key on:
 
 ```typescript
 return new Response(body, {
   headers: {
     "Netlify-Vary": "cookie=ab_test|is_logged_in",
-    // Other options: query=param1|param2, header=X-Custom, country=us|de, language=en|fr
   },
 });
 ```
+
+- `query=param1|param2` — key on the named query parameters
+- `header=X-Custom` — key on the named request header
+- `cookie=ab_test|is_logged_in` — key on the named cookies
+- `country=us|de` — serve a distinct cached entry to visitors from the listed countries (two-letter, lowercase ISO country codes)
+- `language=en|fr` — key on the listed `Accept-Language` values
+
+Combine dimensions by separating directives with commas — e.g. `Netlify-Vary: query=theme, cookie=plan` keys the cache on both the `theme` query parameter and the `plan` cookie. Always enumerate the specific values; keying on an entire dimension (for example a bare `Vary: Cookie`) fragments the cache into a separate entry per unique visitor.
 
 ## Framework-Specific Caching
 

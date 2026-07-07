@@ -35,6 +35,10 @@ export const config: Config = {
 };
 ```
 
+**Scope `path` narrowly — `path: "/*"` intercepts every request, including static assets.** A `/*` match runs the edge function on every CSS, JS, image, and font request, not just your HTML pages — adding latency to each asset and billing an edge invocation for it. Match only the routes you need (e.g. `path: "/"`, `path: "/app/*"`), or keep a broad path but exclude static assets with `excludedPath` (e.g. `excludedPath: ["/*.css", "/*.js", "/*.png", "/*.woff2"]`).
+
+**Cache headers on an edge response do nothing without `cache: "manual"`.** Setting `Cache-Control` (or any cache header) on the `Response` an edge function returns has no effect unless the function also opts in with `config.cache = "manual"`. It's both or neither: without the flag the response is never cached, no matter what headers you set.
+
 ## Middleware Pattern
 
 Use `context.next()` to invoke the next handler in the chain and optionally modify the response:

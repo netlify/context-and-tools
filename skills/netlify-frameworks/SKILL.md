@@ -1,6 +1,6 @@
 ---
 name: netlify-frameworks
-description: Guide for deploying web frameworks on Netlify. Use when setting up a framework project (Vite/React, Astro, TanStack Start, Next.js, Nuxt, SvelteKit, Remix) for Netlify deployment, configuring adapters or plugins, or troubleshooting framework-specific Netlify integration. Covers what Netlify needs from each framework and how adapters handle server-side rendering.
+description: Guide for deploying web frameworks on Netlify. Use when setting up a framework project (Vite/React, Astro, TanStack Start, Next.js, Nuxt, SvelteKit, Remix) for Netlify deployment, configuring adapters or plugins, running a framework project locally with Netlify's platform features, or troubleshooting framework-specific Netlify integration. Covers what Netlify needs from each framework, how adapters handle server-side rendering, and the general local development options (`netlify dev` versus the Netlify Vite plugin family).
 ---
 
 # Frameworks on Netlify
@@ -34,6 +34,40 @@ Each framework has specific adapter/plugin requirements and local dev patterns:
 - **Next.js**: See [references/nextjs.md](references/nextjs.md)
 - **Nuxt**: See [references/nuxt.md](references/nuxt.md)
 - **SvelteKit**: See [references/sveltekit.md](references/sveltekit.md)
+
+## Local Development
+
+Running a framework project locally with Netlify's platform features (environment variables, Functions, Edge Functions) generally comes from one of two places:
+
+### `netlify dev`
+
+```bash
+netlify dev
+```
+
+Wraps the framework's own dev server and adds:
+- Environment variable injection
+- Functions and Edge Functions
+- Redirects and headers processing
+
+Works with any framework — run `netlify dev` in place of the framework's native dev command (e.g. instead of `npm run dev`).
+
+### Netlify Vite plugin family (Vite-based frameworks)
+
+For frameworks built on Vite, a Netlify Vite plugin exposes platform primitives (Functions, Blobs, DB, environment variables) directly inside the framework's own dev server, so no `netlify dev` wrapper is needed — run the framework's normal dev command (e.g. `npm run dev`) once the plugin is registered in `vite.config.ts`.
+
+- Vite + React: `@netlify/vite-plugin` — see [references/vite.md](references/vite.md)
+- TanStack Start: `@netlify/vite-plugin-tanstack-start` — see [references/tanstack.md](references/tanstack.md)
+
+Not every Vite-based framework has a dedicated plugin yet — check the framework's reference guide for its current local dev story rather than assuming one exists.
+
+### Running a single command with the Netlify environment loaded
+
+```bash
+netlify dev:exec <cmd>
+```
+
+Loads the Netlify environment (env vars, etc.) for a single command without starting a dev server — useful for scripts, tests, or one-off tasks that need Netlify-managed environment variables.
 
 ## General Patterns
 

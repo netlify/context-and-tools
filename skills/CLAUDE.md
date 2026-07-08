@@ -28,8 +28,8 @@ Read `netlify-config/SKILL.md` for the complete configuration reference, includi
 **Deploying, managing env vars, or running local dev?**
 Read `netlify-cli-and-deploy/SKILL.md` for CLI commands, Git vs manual deploys, and environment variable management.
 
-**Setting up a framework (Vite, Astro, TanStack, Next.js)?**
-Read `netlify-frameworks/SKILL.md` for adapter/plugin setup. Framework-specific details are in `netlify-frameworks/references/`.
+**Setting up a framework (Vite, Astro, TanStack, Next.js), or running a framework project locally with Netlify features (`netlify dev`, the Netlify Vite plugin)?**
+Read `netlify-frameworks/SKILL.md` for adapter/plugin setup and general local development options. Framework-specific details are in `netlify-frameworks/references/`.
 
 **Controlling CDN caching behavior?**
 Read `netlify-caching/SKILL.md` for cache headers, stale-while-revalidate, cache tags, and purge.

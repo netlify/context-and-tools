@@ -46,7 +46,7 @@ netlify init --manual  # Without Git CI/CD
 
 Run `netlify link` directly rather than pre-checking link status. If the command reports the project isn't linked to any site (or the site can't be found), that failure is the signal to link or create one with `netlify link` / `netlify init`.
 
-Add `.netlify` to `.gitignore` — linking a site or `netlify init` writes site state to `.netlify/state.json`, which shouldn't be committed.
+**Always add `.netlify` to `.gitignore`** — every linking path (`netlify link`, `netlify init`, `netlify init --manual`) writes site state to `.netlify/state.json`, which shouldn't be committed. Mention this whenever you link or create a site.
 
 ## Deploying
 
@@ -113,6 +113,20 @@ Common issues and what to do:
 → Verify the build command ran successfully and produced output.
 → Check the publish directory path is correct — and remember it's resolved relative to any configured `base` directory (see above).
 
+## Logs
+
+The simplest command is the right default: bare `netlify logs` shows recent logs from both the `functions` and `edge-functions` sources, covering roughly the last 10 minutes. Add flags only to scope or extend it:
+
+```bash
+netlify logs                                       # recent functions + edge-functions logs (~last 10m)
+netlify logs --follow                              # stream live
+netlify logs --source functions --function my-fn   # one function's logs
+netlify logs --source deploy --source functions    # include deploy logs (sources combine)
+netlify logs --since 24h                           # longer historical window
+```
+
+`--source` accepts `functions`, `edge-functions`, and `deploy`. This is the documented CLI logs surface — reach for it before the dashboard, and see [CLI commands](references/cli-commands.md) for more.
+
 ## Useful Commands
 
 | Command | Description |
@@ -123,7 +137,7 @@ Common issues and what to do:
 | `netlify deploy --dir=<dir>` | Deploy a specific directory |
 | `netlify clone org/repo` | Clone, link, and set up in one step |
 | `netlify open` | Open the site in the Netlify dashboard |
-| `netlify logs` | View recent function and edge function logs |
+| `netlify logs` | Recent function + edge-function logs (see Logs above) |
 
 ## Related skills
 

@@ -22,14 +22,14 @@ Read `$netlify-image-cdn` for the image transformation endpoint and clean URL pa
 **Adding HTML forms?**
 Read `$netlify-forms` for form detection, AJAX submissions, spam filtering, and file uploads.
 
-**Configuring netlify.toml (redirects, headers, build settings)?**
-Read `$netlify-config` for the complete configuration reference.
+**Configuring netlify.toml (redirects, headers, build settings) or managing environment variables?**
+Read `$netlify-config` for the complete configuration reference, including CLI environment variable management (`env:set`, `env:get`, `env:list`, context scoping).
 
 **Deploying, managing env vars, or running local dev?**
 Read `$netlify-cli-and-deploy` for CLI commands, Git vs manual deploys, and environment variable management.
 
-**Setting up a framework (Vite, Astro, TanStack, Next.js)?**
-Read `$netlify-frameworks` for adapter/plugin setup. Framework-specific details are in `$netlify-frameworks`.
+**Setting up a framework (Vite, Astro, TanStack, Next.js), or running a framework project locally with Netlify features (`netlify dev`, the Netlify Vite plugin)?**
+Read `$netlify-frameworks` for adapter/plugin setup and general local development options. Framework-specific details are in `$netlify-frameworks`.
 
 **Controlling CDN caching behavior?**
 Read `$netlify-caching` for cache headers, stale-while-revalidate, cache tags, and purge.

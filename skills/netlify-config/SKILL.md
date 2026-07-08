@@ -152,6 +152,8 @@ netlify env:import .env
 netlify env:unset API_KEY
 ```
 
+**Never put secrets in client-prefixed variables** (`VITE_`, `PUBLIC_`, `NEXT_PUBLIC_`, `NUXT_PUBLIC_`) — these are inlined into the client bundle and exposed to the browser. `--secret` only hides a value from logs and the UI; it does not protect a client-prefixed variable.
+
 ### Context Scoping
 
 Variables set via the CLI can also be scoped to deploy contexts:

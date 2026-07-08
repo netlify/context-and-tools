@@ -5,7 +5,7 @@ description: Reference for netlify.toml configuration and site environment varia
 
 # Netlify Configuration (netlify.toml)
 
-Place `netlify.toml` at the repository root (or at the base directory for monorepos).
+Place `netlify.toml` at the repository root. In a monorepo, Netlify searches for the config and uses the **first** one it finds: the package directory (the subdirectory containing the site), then the base directory, then the repository root — so put a site-specific `netlify.toml` in the package directory to take precedence over root-level config (see the **netlify-deploy** skill's monorepo notes).
 
 **`netlify.toml` takes precedence over the Netlify UI.** When the same property (build command, publish directory, an environment variable, a redirect, a header) is configured in both places, the value in `netlify.toml` wins and silently overrides the corresponding Netlify UI setting — the dashboard field still shows its old value but is inert. Once a `netlify.toml` is present, treat it as the source of truth and change settings there, not in the UI.
 

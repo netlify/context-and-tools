@@ -101,7 +101,7 @@ Each framework exposes environment variables to client-side code differently:
 | Next.js | `NEXT_PUBLIC_` | `process.env.NEXT_PUBLIC_VAR` |
 | Nuxt | `NUXT_PUBLIC_` | `useRuntimeConfig().public.var` |
 
-Server-side code in all frameworks can access variables via `process.env.VAR` or `Netlify.env.get("VAR")`.
+In server-side code, prefer `Netlify.env.get("VAR")` to read environment variables. `process.env.VAR` also works inside Netlify Functions, but Edge Functions expose only `Netlify.env.get` — the portable form keeps server code working in both.
 
 **Never use a client prefix (`VITE_`, `PUBLIC_`, `NEXT_PUBLIC_`, `NUXT_PUBLIC_`) for secrets.** Client-prefixed variables are inlined into the client bundle and exposed to the browser.
 

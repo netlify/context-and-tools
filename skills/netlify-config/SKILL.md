@@ -1,6 +1,6 @@
 ---
 name: netlify-config
-description: Reference for netlify.toml configuration. Use when configuring build settings, redirects, rewrites, headers, deploy contexts, environment variables, or any site-level configuration. Covers the complete netlify.toml syntax including redirects with splats/conditions, headers, deploy contexts, functions config, and edge functions config.
+description: Reference for netlify.toml configuration and site environment variables. Use when configuring build settings, redirects, rewrites, headers, deploy contexts, or any site-level configuration — and when managing environment variables or secrets with the Netlify CLI, including scoping values to specific deploy contexts. Covers the complete netlify.toml syntax including redirects with splats/conditions, headers, deploy contexts, functions config, and edge functions config.
 ---
 
 # Netlify Configuration (netlify.toml)
@@ -126,9 +126,49 @@ API_URL = "https://api.prod.com"
 API_URL = "https://api.staging.com"
 ```
 
-**Do not put secrets in netlify.toml** (it's committed to source control). Use the Netlify UI or CLI for sensitive values. See the **netlify-cli-and-deploy** skill for CLI environment variable management.
+**Do not put secrets in netlify.toml** (it's committed to source control). Use the Netlify UI or CLI for sensitive values — see CLI Management below.
 
 **Variables declared in `netlify.toml` are build-scoped only.** Values under `[build.environment]` or `[context.*.environment]` are available to the build (and snippet injection) but are **not** injected into the Functions or Edge Functions runtime — reading them with `Netlify.env.get("VAR")` or `process.env.VAR` inside a function returns `undefined`. To make a variable available at function runtime, set it in the Netlify UI or with `netlify env:set` (those are available to both builds and runtime), not in `netlify.toml`.
+
+### CLI Management
+
+```bash
+# Set
+netlify env:set API_KEY "value"
+netlify env:set API_KEY "value" --secret              # Hidden from logs
+netlify env:set API_KEY "value" --context production   # Context-specific
+
+# Get
+netlify env:get API_KEY
+
+# List
+netlify env:list
+netlify env:list --plain > .env   # Local snapshot only — keep .env gitignored, never commit it
+
+# Import from file
+netlify env:import .env
+
+# Delete
+netlify env:unset API_KEY
+```
+
+**Never put secrets in client-prefixed variables** (`VITE_`, `PUBLIC_`, `NEXT_PUBLIC_`, `NUXT_PUBLIC_`) — these are inlined into the client bundle and exposed to the browser. `--secret` only hides a value from logs and the UI; it does not protect a client-prefixed variable.
+
+### Context Scoping
+
+Variables set via the CLI can also be scoped to deploy contexts:
+
+```bash
+netlify env:set API_URL "https://api.prod.com" --context production
+netlify env:set API_URL "https://api.staging.com" --context deploy-preview
+netlify env:set DEBUG "true" --context branch:feature-x
+```
+
+This is the CLI equivalent of the `[context.*.environment]` tables above, but the resulting variables are available at both build and runtime (unlike `netlify.toml`-declared ones).
+
+When reading these variables in server code, prefer `Netlify.env.get("VAR")`. `process.env.VAR` also works inside Functions, but Edge Functions expose only `Netlify.env.get` — the portable form keeps the same code working in both runtimes.
+
+For the client-side rules (`VITE_`/`PUBLIC_` prefixes and framework specifics), see the **netlify-cli-and-deploy** skill.
 
 ## Functions Configuration
 

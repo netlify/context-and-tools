@@ -204,4 +204,4 @@ Full client matrix and the OAuth / Custom Connector deep-dive: [connecting clien
 - [authentication](references/authentication.md) — single-secret vs per-user API keys (Identity) in depth.
 - [connecting clients](references/connecting-clients.md) — full client matrix, OAuth, and Custom Connectors.
 - [file uploads](references/file-uploads.md) — letting an agent upload images/files via presigned URLs to Netlify Blobs.
-- **netlify-functions** — function syntax, routing, limits. **netlify-identity** — Identity setup. **netlify-database** / **netlify-blobs** — where to store keys and files. **netlify-cli-and-deploy** — deploys and env vars.
+- **netlify-functions** — function syntax, routing, limits. **netlify-identity** — Identity setup. **netlify-database** / **netlify-blobs** — where to store keys and files. **netlify-deploy** — deploys. **netlify-config** — env vars.

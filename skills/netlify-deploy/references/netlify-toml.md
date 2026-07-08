@@ -1,6 +1,6 @@
 # netlify.toml — Build Configuration for Deploys
 
-`netlify.toml` at the repository root (or at the base directory in a monorepo) controls how Netlify builds and deploys the site. This reference covers the **deploy-relevant** build settings. For the complete `netlify.toml` syntax — redirects, headers, deploy contexts, functions and edge-functions config, plugins, and the Image CDN block — see the **netlify-config** skill, which is the source of truth for configuration.
+`netlify.toml` at the repository root controls how Netlify builds and deploys the site (in monorepos, the first config found wins — see the discovery order under "Monorepo with a Base Directory" below). This reference covers the **deploy-relevant** build settings. For the complete `netlify.toml` syntax — redirects, headers, deploy contexts, functions and edge-functions config, plugins, and the Image CDN block — see the **netlify-config** skill, which is the source of truth for configuration.
 
 ## Build Settings
 

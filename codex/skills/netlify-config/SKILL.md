@@ -143,7 +143,7 @@ netlify env:get API_KEY
 
 # List
 netlify env:list
-netlify env:list --plain > .env                        # Export to file
+netlify env:list --plain > .env   # Local snapshot only — keep .env gitignored, never commit it
 
 # Import from file
 netlify env:import .env

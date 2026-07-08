@@ -45,4 +45,4 @@ Client-exposed values use the `PUBLIC_` prefix and are imported from `$env/stati
 npm run dev    # vite dev
 ```
 
-For Netlify platform primitives during local dev, use `netlify dev`.
+For Netlify platform primitives during local dev, either run `netlify dev` or register `@netlify/vite-plugin` in `vite.config.ts` (see the Local Development section of the parent SKILL.md). Both are valid options.

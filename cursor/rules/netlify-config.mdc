@@ -166,7 +166,9 @@ netlify env:set DEBUG "true" --context branch:feature-x
 
 This is the CLI equivalent of the `[context.*.environment]` tables above, but the resulting variables are available at both build and runtime (unlike `netlify.toml`-declared ones).
 
-For accessing these variables in code (`Netlify.env.get` vs `process.env`, the `VITE_`/`PUBLIC_` client-side prefixes), see the **netlify-cli-and-deploy** skill.
+When reading these variables in server code, prefer `Netlify.env.get("VAR")`. `process.env.VAR` also works inside Functions, but Edge Functions expose only `Netlify.env.get` — the portable form keeps the same code working in both runtimes.
+
+For the client-side rules (`VITE_`/`PUBLIC_` prefixes and framework specifics), see the **netlify-cli-and-deploy** skill.
 
 ## Functions Configuration
 

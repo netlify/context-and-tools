@@ -25,7 +25,7 @@ Read `netlify-forms/SKILL.md` for form detection, AJAX submissions, spam filteri
 **Configuring netlify.toml (redirects, headers, build settings) or managing environment variables?**
 Read `netlify-config/SKILL.md` for the complete configuration reference, including CLI environment variable management (`env:set`, `env:get`, `env:list`, context scoping).
 
-**Deploying or running local dev?**
+**Deploying from the CLI?**
 Read `netlify-cli-and-deploy/SKILL.md` for CLI commands and Git vs manual deploys.
 
 **Setting up a framework (Vite, Astro, TanStack, Next.js), or running a framework project locally with Netlify features (`netlify dev`, the Netlify Vite plugin)?**

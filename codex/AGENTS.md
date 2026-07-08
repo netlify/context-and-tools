@@ -25,8 +25,8 @@ Read `$netlify-forms` for form detection, AJAX submissions, spam filtering, and 
 **Configuring netlify.toml (redirects, headers, build settings) or managing environment variables?**
 Read `$netlify-config` for the complete configuration reference, including CLI environment variable management (`env:set`, `env:get`, `env:list`, context scoping).
 
-**Deploying, managing env vars, or running local dev?**
-Read `$netlify-cli-and-deploy` for CLI commands, Git vs manual deploys, and environment variable management.
+**Deploying or running local dev?**
+Read `$netlify-cli-and-deploy` for CLI commands and Git vs manual deploys.
 
 **Setting up a framework (Vite, Astro, TanStack, Next.js)?**
 Read `$netlify-frameworks` for adapter/plugin setup. Framework-specific details are in `$netlify-frameworks`.

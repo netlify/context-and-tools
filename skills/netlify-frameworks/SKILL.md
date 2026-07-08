@@ -56,10 +56,10 @@ Works with any framework — run `netlify dev` in place of the framework's nativ
 
 For frameworks built on Vite, a Netlify Vite plugin exposes platform primitives (Functions, Blobs, DB, environment variables) directly inside the framework's own dev server, so no `netlify dev` wrapper is needed — run the framework's normal dev command (e.g. `npm run dev`) once the plugin is registered in `vite.config.ts`.
 
-- Vite + React: `@netlify/vite-plugin` — see [references/vite.md](references/vite.md)
+- Vite-based projects (React SPA, SvelteKit, Remix): `@netlify/vite-plugin` — see [references/vite.md](references/vite.md)
 - TanStack Start: `@netlify/vite-plugin-tanstack-start` — see [references/tanstack.md](references/tanstack.md)
 
-Not every Vite-based framework has a dedicated plugin yet — check the framework's reference guide for its current local dev story rather than assuming one exists.
+The per-framework reference guides may also document other local dev options (e.g. `netlify dev`) — check the guide for your framework for setup specifics.
 
 ### Running a single command with the Netlify environment loaded
 
@@ -102,6 +102,8 @@ Each framework exposes environment variables to client-side code differently:
 | Nuxt | `NUXT_PUBLIC_` | `useRuntimeConfig().public.var` |
 
 Server-side code in all frameworks can access variables via `process.env.VAR` or `Netlify.env.get("VAR")`.
+
+**Never use a client prefix (`VITE_`, `PUBLIC_`, `NEXT_PUBLIC_`, `NUXT_PUBLIC_`) for secrets.** Client-prefixed variables are inlined into the client bundle and exposed to the browser.
 
 ### Environment Variable Changes Require a Redeploy
 

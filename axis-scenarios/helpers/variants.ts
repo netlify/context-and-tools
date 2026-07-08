@@ -11,7 +11,6 @@ export const ALL_NTL_SKILLS = [
   "./skills/netlify-ai-gateway",
   "./skills/netlify-blobs",
   "./skills/netlify-caching",
-  "./skills/netlify-cli-and-deploy",
   "./skills/netlify-config",
   "./skills/netlify-database",
   "./skills/netlify-deploy",

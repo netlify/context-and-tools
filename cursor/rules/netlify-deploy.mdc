@@ -1,203 +1,102 @@
 ---
-description: Deploy web projects to Netlify using the Netlify CLI (`npx netlify`). Use when the user asks to deploy, host, publish, or link a site/repo on Netlify, including preview and production deploys.
+description: Deploy, host, and publish web projects on Netlify with the Netlify CLI. Use when the user wants to deploy a site or repository to Netlify, link a local project to a Netlify site, ship a production or preview/draft deploy, set up Git-based continuous deployment, run a manual or local deploy, configure CI deploys, or troubleshoot a failed or misconfigured deploy.
 alwaysApply: false
 ---
 
-# Netlify Deployment Skill
+# Netlify Deployment
 
-Deploy web projects to Netlify using the Netlify CLI with intelligent detection of project configuration and deployment context.
+Install the CLI, link a project to a Netlify site, and deploy it — either through Git-based continuous deployment (the primary path) or a manual CLI upload (for prototypes and CI). Environment-variable management lives in the **netlify-config** skill; local development lives in the **netlify-frameworks** skill.
 
-## Overview
-
-This skill automates Netlify deployments by:
-- Verifying Netlify CLI authentication
-- Detecting project configuration and framework
-- Linking to existing sites or creating new ones
-- Deploying to production or preview environments
-
-## Prerequisites
-
-- **Netlify CLI**: Installed via npx (no global install required)
-- **Authentication**: Netlify account with active login session
-- **Project**: Valid web project in current directory
-- **Network access**: Deployment requires outbound network calls. If sandboxing blocks these, the agent may need to request elevated permissions or prompt the user.
-- **Timeouts**: Deployments can take a few minutes. Use appropriate timeout values for CLI commands.
-
-## Authentication Pattern
-
-The skill uses the **pre-authenticated Netlify CLI** approach:
-
-1. Check authentication status with `npx netlify status`
-2. If not authenticated, guide user through `npx netlify login`
-3. Fail gracefully if authentication cannot be established
-
-Authentication uses either:
-- **Browser-based OAuth** (primary): `netlify login` opens browser for authentication
-- **API Key** (alternative): Set `NETLIFY_AUTH_TOKEN` environment variable
-
-## Workflow
-
-### 1. Verify Netlify CLI Authentication
-
-Check if the user is logged into Netlify:
+## Installation
 
 ```bash
-npx netlify status
+npm install -g netlify-cli    # Global (for local dev)
+npm install netlify-cli -D    # Local (for CI)
 ```
 
-**Expected output patterns**:
-- ✅ Authenticated: Shows logged-in user email and site link status
-- ❌ Not authenticated: "Not logged into any site" or authentication error
+Requires Node.js 18.14.0+. You can also invoke the CLI without installing it using `npx netlify <command>`.
 
-**If not authenticated**, guide the user:
+## Authentication
 
 ```bash
-npx netlify login
+netlify login       # Opens browser for OAuth
 ```
 
-This opens a browser window for OAuth authentication. Wait for user to complete login, then verify with `netlify status` again.
+For CI, set the `NETLIFY_AUTH_TOKEN` environment variable instead of logging in interactively. Generate a token from **User settings → Applications → Personal access tokens** in the Netlify UI.
 
-**Alternative: API Key authentication**
+**CI also needs a site to target.** `NETLIFY_AUTH_TOKEN` only authenticates you — it does **not** select which site a deploy publishes to. In CI there is no linked `.netlify/state.json`, so also set `NETLIFY_SITE_ID` (the site's API/Project ID, shown as **Project ID** in the site's configuration) as an environment variable so `netlify deploy` knows where to publish. Without it, a CI deploy has no site to target and fails or tries to prompt. Locally this is handled by `netlify link`, which writes the site ID into `.netlify/state.json`; CI has no such file.
 
-If browser authentication isn't available, users can set:
+Don't pre-check auth as a separate step. Run the real operation (`netlify deploy`, `netlify link`) directly; only if it fails with an authentication error do you surface `netlify login` (or setting `NETLIFY_AUTH_TOKEN`) as the fix.
+
+## Linking a Site
+
+Linking connects the local directory to a Netlify site and writes the site ID into `.netlify/state.json`.
 
 ```bash
-export NETLIFY_AUTH_TOKEN=your_token_here
+# Interactive — pick an existing site
+netlify link
+
+# By Git remote (if the project has one)
+netlify link --git-remote-url https://github.com/org/repo
+
+# Create a new site
+netlify init           # With Git CI/CD setup
+netlify init --manual  # Without Git CI/CD
 ```
 
-Tokens can be generated at: https://app.netlify.com/user/applications#personal-access-tokens
+Run `netlify link` directly rather than pre-checking link status. If the command reports the project isn't linked to any site (or the site can't be found), that failure is the signal to link or create one with `netlify link` / `netlify init`.
 
-### 2. Detect Site Link Status
+Add `.netlify` to `.gitignore` — linking a site or `netlify init` writes site state to `.netlify/state.json`, which shouldn't be committed.
 
-From `netlify status` output, determine:
-- **Linked**: Site already connected to Netlify (shows site name/URL)
-- **Not linked**: Need to link or create site
+## Deploying
 
-### 3. Link to Existing Site or Create New
+### Git-Based Deploys (Continuous Deployment) — primary path
 
-**If already linked** → Skip to step 4
+The standard way to deploy on Netlify is to connect the site to a Git repository (set up with `netlify init`, or in the UI). Netlify then builds and deploys automatically on every push:
 
-**If not linked**, attempt to link by Git remote:
+- **Push to the production branch → production deploy.**
+- **Open a pull request → deploy preview** with its own unique URL.
+- **Push to other branches → branch deploy**, but **only if branch deploys are enabled** — they are off by default. Turn them on (per branch or for all branches) in the site's build & deploy settings.
+
+The build runs on Netlify's servers, not your machine. Configure build settings (command, publish directory, base directory) in `netlify.toml` — see the **netlify-config** skill for the full configuration reference.
+
+**`netlify.toml` overrides the UI.** File-based configuration in `netlify.toml` takes precedence over the equivalent build settings configured in the Netlify UI. When the same option is set in both places, the committed `netlify.toml` wins — editing that setting in the dashboard has no effect until you change the file and redeploy. This surprises people who tweak the build command, publish directory, or base directory in the UI and watch the old committed value keep applying on every deploy.
+
+**Monorepo config discovery order.** In a monorepo, Netlify searches for the `netlify.toml` in this order and uses the **first** one it finds: (1) the package directory, then (2) the base directory, then (3) the repository root. Put a site-specific `netlify.toml` in the package directory (the subdirectory that contains that site) so it takes precedence over any root-level config. A base directory set in a root-level `netlify.toml` also overrides the base directory configured in the UI.
+
+**The publish directory is resolved relative to the base directory.** When a `base` directory is configured, the publish directory is interpreted relative to that base, **not** the repository root. A top-level `publish = "dist"` combined with `base = "apps/web"` publishes `apps/web/dist`, not `dist` at the repo root. Set `publish` relative to the base so the built output is found.
+
+### Manual / Local Deploys (No Git Required) — secondary path
+
+Build the site, then upload the output directly with the CLI. This bypasses Netlify's build servers and is the right tool for prototypes, local-only projects with no Git remote, or a CI pipeline that builds elsewhere and uploads the artifact.
 
 ```bash
-# Check if project is Git-based
-git remote show origin
-
-# If Git-based, extract remote URL
-# Format: https://github.com/username/repo or git@github.com:username/repo.git
-
-# Try to link by Git remote
-npx netlify link --git-remote-url <REMOTE_URL>
+netlify deploy             # Draft deploy (preview URL)
+netlify deploy --prod      # Production deploy
+netlify deploy --dir=dist  # Specify the directory to upload
 ```
 
-**If link fails** (site doesn't exist on Netlify):
+For sites with Git continuous deployment connected, prefer pushing to Git — a manual upload is the exception, not the default.
 
-```bash
-# Create new site interactively
-npx netlify init
-```
+**A manual `--prod` deploy is replaced by the next Git push.** If the same site also has Git continuous deployment connected, the next push to the production branch triggers a new build that auto-publishes and **replaces** your manually shipped `--prod` deploy — the hand-shipped build silently disappears from production. To keep a specific deploy live, **lock the published deploy** ("Stop auto publishing") from the site's Deploys list in the UI: while locked, new pushes still build but do not auto-publish until you unlock or manually publish. Mixing manual `--prod` deploys with Git CD on the same production branch is otherwise a race the next commit wins.
 
-This guides user through:
-1. Choosing team/account
-2. Setting site name
-3. Configuring build settings
-4. Creating netlify.toml if needed
+### Deploy URLs are public by link
 
-### 4. Verify Dependencies
+Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection); you can protect all deploys or only non-production deploys. See the **netlify-access-control** skill for the full picture.
 
-Before deploying, ensure project dependencies are installed:
+## When a command fails, surface and stop
 
-```bash
-# For npm projects
-npm install
-
-# For other package managers, detect and use appropriate command
-# yarn install, pnpm install, etc.
-```
-
-### 5. Deploy to Netlify
-
-Choose deployment type based on context:
-
-**Preview/Draft Deploy** (default for existing sites):
-
-```bash
-npx netlify deploy
-```
-
-This creates a deploy preview with a unique URL for testing.
-
-**Production Deploy** (for new sites or explicit production deployments):
-
-```bash
-npx netlify deploy --prod
-```
-
-This deploys to the live production URL.
-
-**Deployment process**:
-1. CLI detects build settings (from netlify.toml or prompts user)
-2. Builds the project locally
-3. Uploads built assets to Netlify
-4. Returns deployment URL
-
-### 6. Report Results
-
-After deployment, report to user:
-- **Deploy URL**: Unique URL for this deployment
-- **Site URL**: Production URL (if production deploy)
-- **Deploy logs**: Link to Netlify dashboard for logs
-- **Next steps**: Suggest `netlify open` to view site or dashboard
-
-## Handling netlify.toml
-
-If a `netlify.toml` file exists, the CLI uses it automatically. If not, the CLI will prompt for:
-- **Build command**: e.g., `npm run build`, `next build`
-- **Publish directory**: e.g., `dist`, `build`, `.next`
-
-Common framework defaults:
-- **Next.js**: build command `npm run build`, publish `.next`
-- **React (Vite)**: build command `npm run build`, publish `dist`
-- **Static HTML**: no build command, publish current directory
-
-The skill should detect framework from `package.json` if possible and suggest appropriate settings.
-
-## Example Full Workflow
-
-```bash
-# 1. Check authentication
-npx netlify status
-
-# If not authenticated:
-npx netlify login
-
-# 2. Link site (if needed)
-# Try Git-based linking first
-git remote show origin
-npx netlify link --git-remote-url https://github.com/user/repo
-
-# If no site exists, create new one:
-npx netlify init
-
-# 3. Install dependencies
-npm install
-
-# 4. Deploy (preview for testing)
-npx netlify deploy
-
-# 5. Deploy to production (when ready)
-npx netlify deploy --prod
-```
+When a `netlify` command or a deploy fails, **report the failure to the user** with the exact error, the deploy log URL (the CLI prints one), and the affected site/branch — and stop. Do not invent recovery commands or escalate to lower-level tools: do not curl `https://api.netlify.com/...`, do not run `netlify api <method>` as a recovery hatch, and do not read auth tokens off disk to force the operation through. If the documented happy path is broken, that's a platform-state problem the user needs to see.
 
 ## Error Handling
 
-Common issues and solutions:
+Common issues and what to do:
 
 **"Not logged in"**
-→ Run `npx netlify login`
+→ Run `netlify login` (or set `NETLIFY_AUTH_TOKEN` in CI).
 
 **"No site linked"**
-→ Run `npx netlify link` or `npx netlify init`
+→ Run `netlify link` (existing site) or `netlify init` (new site).
 
 **"Build failed" / "Function bundling failed" / deploy marked failed**
 → A failed deploy does **not** publish — the site keeps serving the last successful deploy, so it isn't down, and there's nothing to "roll back." The only way to get the new code live is to fix the failure and redeploy.
@@ -211,29 +110,26 @@ Common issues and solutions:
 → If the flagged value is legitimately non-secret (e.g. a value that must ship to the browser), scope the exception narrowly with build environment variables: `SECRETS_SCAN_OMIT_KEYS` to exclude specific env-var keys, or `SECRETS_SCAN_OMIT_PATHS` to exclude specific paths. Prefer these over `SECRETS_SCAN_ENABLED=false`, which disables scanning across the entire build.
 
 **"Publish directory not found"**
-→ Verify build command ran successfully
-→ Check publish directory path is correct
+→ Verify the build command ran successfully and produced output.
+→ Check the publish directory path is correct — and remember it's resolved relative to any configured `base` directory (see above).
 
-## Environment Variables
+## Useful Commands
 
-For secrets and configuration:
+| Command | Description |
+|---|---|
+| `netlify build` | Run the build locally (mimics the Netlify build environment) |
+| `netlify deploy` | Draft deploy (preview URL) |
+| `netlify deploy --prod` | Production deploy |
+| `netlify deploy --dir=<dir>` | Deploy a specific directory |
+| `netlify clone org/repo` | Clone, link, and set up in one step |
+| `netlify open` | Open the site in the Netlify dashboard |
+| `netlify logs` | View recent function and edge function logs |
 
-1. Never commit secrets to Git
-2. Set in Netlify dashboard: Site Settings → Environment Variables
-3. Access in builds via `process.env.VARIABLE_NAME`
+## Related skills
 
-## Tips
-
-- Use `netlify deploy` (no `--prod`) first to test before production
-- Run `netlify open` to view site in Netlify dashboard
-- Run `netlify logs` to view function logs (if using Netlify Functions)
-- Use `netlify dev` for local development with Netlify Functions
-- Add `.netlify` to `.gitignore` — linking a site or `netlify init` writes site state to `.netlify/state.json`, which shouldn't be committed
-
-## Reference
-
-- Netlify CLI Docs: https://docs.netlify.com/cli/get-started/
-- netlify.toml Reference: https://docs.netlify.com/build/configure-builds/file-based-configuration/
+- **netlify-config** — `netlify.toml` (build settings, redirects, headers, deploy contexts) and environment-variable management (`env:set`, `env:get`, `env:list`, context scoping).
+- **netlify-frameworks** — framework adapter/plugin setup and local development (`netlify dev`, the Netlify Vite plugin).
+- **netlify-access-control** — restricting who can reach a site or its deploys.
 
 ## References
 

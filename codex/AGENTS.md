@@ -25,9 +25,6 @@ Read `$netlify-forms` for form detection, AJAX submissions, spam filtering, and 
 **Configuring netlify.toml (redirects, headers, build settings) or managing environment variables?**
 Read `$netlify-config` for the complete configuration reference, including CLI environment variable management (`env:set`, `env:get`, `env:list`, context scoping).
 
-**Deploying from the CLI?**
-Read `$netlify-cli-and-deploy` for CLI commands and Git vs manual deploys.
-
 **Setting up a framework (Vite, Astro, TanStack, Next.js), or running a framework project locally with Netlify features (`netlify dev`, the Netlify Vite plugin)?**
 Read `$netlify-frameworks` for adapter/plugin setup and general local development options. Framework-specific details are in `$netlify-frameworks`.
 
@@ -43,8 +40,8 @@ Read `$netlify-identity` for Netlify Identity setup, OAuth (use built-in provide
 **Deciding who can reach a site, locking a deploy to your company/team, password protection, SSO, or confused about Identity vs Secure Access?**
 Read `$netlify-access-control` to pick the right layer — app-level Identity, site-visitor Password Protection, the Auth0 extension, or Team/Org SAML SSO — and to understand the two-layer (perimeter + in-app identity) pattern and its double-login tradeoff.
 
-**Deploying a site to Netlify?**
-Read `$netlify-deploy` for the full deployment workflow — authentication, site linking, preview and production deploys.
+**Deploying a site to Netlify — installing/authenticating the CLI, linking a project, Git-based or manual deploys, CI deploys, or troubleshooting a failed deploy?**
+Read `$netlify-deploy` — the single deploy skill covering CLI install/auth, site linking, Git-based continuous deployment (the primary path), manual/local and CI deploys, and deploy troubleshooting. (Environment variables live in `netlify-config`; local dev lives in `netlify-frameworks`.)
 
 **Want to run AI agents (Claude, Codex, Gemini) remotely on your site?**
 Read `$netlify-agent-runner` for creating, listing, and managing remote agent tasks.

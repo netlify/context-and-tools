@@ -12,13 +12,12 @@ Public Netlify skills for AI coding agents. Each skill is a focused, factual ref
 | [netlify-database](skills/netlify-database/SKILL.md) | Managed Postgres (Neon) with Drizzle ORM and migrations |
 | [netlify-image-cdn](skills/netlify-image-cdn/SKILL.md) | Image transformation and optimization via CDN |
 | [netlify-forms](skills/netlify-forms/SKILL.md) | HTML form handling, AJAX submissions, spam filtering |
-| [netlify-config](skills/netlify-config/SKILL.md) | `netlify.toml` — redirects, headers, build settings, deploy contexts |
-| [netlify-cli-and-deploy](skills/netlify-cli-and-deploy/SKILL.md) | CLI commands, Git vs manual deploys, environment variables |
+| [netlify-config](skills/netlify-config/SKILL.md) | `netlify.toml` — redirects, headers, build settings, deploy contexts, environment variables |
 | [netlify-frameworks](skills/netlify-frameworks/SKILL.md) | Framework adapters for Vite, Astro, TanStack, and Next.js |
 | [netlify-caching](skills/netlify-caching/SKILL.md) | CDN cache control, cache tags, purge, stale-while-revalidate |
 | [netlify-ai-gateway](skills/netlify-ai-gateway/SKILL.md) | AI Gateway proxy for OpenAI, Anthropic, and Google SDKs |
 | [netlify-identity](skills/netlify-identity/SKILL.md) | User authentication — signups, logins, OAuth, role-based access control |
-| [netlify-deploy](skills/netlify-deploy/SKILL.md) | Deployment workflow — auth, site linking, preview/production deploys |
+| [netlify-deploy](skills/netlify-deploy/SKILL.md) | CLI install/auth, site linking, Git-based and manual deploys, CI deploys, deploy troubleshooting |
 
 ### References
 

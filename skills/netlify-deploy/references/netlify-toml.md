@@ -1,256 +1,63 @@
-# netlify.toml Configuration Reference
+# netlify.toml — Build Configuration for Deploys
 
-Configuration file for Netlify builds and deployments.
-
-## Basic Structure
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "dist"
-```
+`netlify.toml` at the repository root controls how Netlify builds and deploys the site (in monorepos, the first config found wins — see the discovery order under "Monorepo with a Base Directory" below). This reference covers the **deploy-relevant** build settings. For the complete `netlify.toml` syntax — redirects, headers, deploy contexts, functions and edge-functions config, plugins, and the Image CDN block — see the **netlify-config** skill, which is the source of truth for configuration.
 
 ## Build Settings
 
-### Common Configuration
-
 ```toml
 [build]
-  # Command to build your site
+  # Command to build the site
   command = "npm run build"
 
-  # Directory to publish (relative to base when base is set, otherwise repo root)
+  # Directory to publish, relative to `base` when set, otherwise the repo root
   publish = "dist"
 
-  # Functions directory
-  functions = "netlify/functions"
-
-  # Base directory (if not repo root)
+  # Base directory the build runs from (default: repo root)
   base = "packages/frontend"
 
-  # Ignore builds for specific conditions
+  # Functions directory (default: netlify/functions)
+  functions = "netlify/functions"
+
+  # Skip a build when nothing relevant changed
   ignore = "git diff --quiet HEAD^ HEAD package.json"
 ```
 
-## Environment Variables
+**`publish` is resolved relative to `base`.** With `base = "packages/frontend"` and `publish = "dist"`, Netlify publishes `packages/frontend/dist` — not `dist` at the repo root. Set `publish` relative to the base directory or the deploy will fail with "publish directory not found."
 
-```toml
-[build.environment]
-  NODE_VERSION = "18"
-  NPM_FLAGS = "--prefix=/dev/null"
+**`netlify.toml` overrides the Netlify UI.** When a build setting is in both, the committed file wins; the UI field becomes inert until you change the file and redeploy.
 
-[context.production.environment]
-  NODE_ENV = "production"
-```
-
-## Framework Detection
-
-Netlify auto-detects frameworks, but you can override:
-
-### Next.js
-
-```toml
-[build]
-  command = "npm run build"
-  publish = ".next"
-```
-
-### React (Vite)
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "dist"
-```
-
-### Vue
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "dist"
-```
-
-### Astro
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "dist"
-```
-
-### SvelteKit
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "build"
-```
-
-## Redirects and Rewrites
-
-```toml
-[[redirects]]
-  from = "/old-path"
-  to = "/new-path"
-  status = 301
-
-[[redirects]]
-  from = "/api/*"
-  to = "https://api.example.com/:splat"
-  status = 200
-
-# SPA fallback (for client-side routing)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
-
-## Headers
-
-```toml
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    Content-Security-Policy = "default-src 'self'"
-
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-```
-
-## Context-Specific Configuration
-
-Deploy different settings per context:
-
-```toml
-# Production
-[context.production]
-  command = "npm run build:prod"
-  [context.production.environment]
-    NODE_ENV = "production"
-
-# Deploy previews
-[context.deploy-preview]
-  command = "npm run build:preview"
-
-# Branch deploys
-[context.branch-deploy]
-  command = "npm run build:staging"
-
-# Specific branch
-[context.staging]
-  command = "npm run build:staging"
-```
-
-## Functions Configuration
-
-```toml
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-# Per-function overrides target a function by name or glob
-[functions."my-function"]
-  included_files = ["data/**"]
-```
-
-## Build Plugins
-
-```toml
-[[plugins]]
-  package = "@netlify/plugin-lighthouse"
-
-  [plugins.inputs]
-    output_path = "reports/lighthouse.html"
-
-[[plugins]]
-  package = "netlify-plugin-submit-sitemap"
-
-  [plugins.inputs]
-    baseUrl = "https://example.com"
-    sitemapPath = "/sitemap.xml"
-```
-
-## Edge Functions
-
-```toml
-[[edge_functions]]
-  function = "geolocation"
-  path = "/api/location"
-```
-
-## Processing
-
-```toml
-[build.processing]
-  skip_processing = false
-
-[build.processing.css]
-  bundle = true
-  minify = true
-
-[build.processing.js]
-  bundle = true
-  minify = true
-
-[build.processing.html]
-  pretty_urls = true
-
-[build.processing.images]
-  compress = true
-```
-
-## Common Patterns
-
-### Single Page Application (SPA)
-
-```toml
-[build]
-  command = "npm run build"
-  publish = "dist"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-```
-
-### Monorepo with Base Directory
+## Monorepo with a Base Directory
 
 ```toml
 [build]
   base = "packages/web"
   command = "npm run build"
-  publish = "dist"
+  publish = "dist"    # publishes packages/web/dist
 ```
 
-### Multiple Redirects with Country-Based Routing
+In a monorepo, Netlify uses the first `netlify.toml` it finds: the package directory, then the base directory, then the repo root.
+
+## Build-Time Environment and Context Overrides
+
+Build-scoped environment variables and per-context build overrides can live in `netlify.toml`:
 
 ```toml
-[[redirects]]
-  from = "/"
-  to = "/uk"
-  status = 302
-  conditions = {Country = ["GB"]}
+[build.environment]
+  NODE_VERSION = "20"
 
-[[redirects]]
-  from = "/"
-  to = "/us"
-  status = 302
-  conditions = {Country = ["US"]}
+[context.production]
+  command = "npm run build:prod"
+
+[context.deploy-preview]
+  command = "npm run build:preview"
 ```
 
-## Validation
+Values under `[build.environment]` and `[context.*.environment]` are **build-scoped only** — they are not injected into the Functions/Edge runtime. For runtime variables, set them with `netlify env:set` or in the UI. Never put secrets in `netlify.toml` (it's committed). See the **netlify-config** skill for the full environment-variable and deploy-context reference.
 
-Validate your netlify.toml:
+## Validating
 
 ```bash
-npx netlify build --dry
+netlify build --dry   # Show resolved build settings without building
 ```
 
 ## Resources

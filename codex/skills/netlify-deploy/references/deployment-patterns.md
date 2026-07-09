@@ -1,300 +1,105 @@
 # Netlify Deployment Patterns
 
-Common deployment scenarios and best practices for the Netlify skill.
+Common deployment scenarios for Netlify. The primary path is **Git-based continuous deployment** (Netlify builds and deploys on every push); manual CLI uploads are the exception for prototypes, Git-less projects, and CI artifact uploads.
 
-## Deployment Decision Tree
+Don't gate deploys behind a `netlify status` pre-check. Run the real command; if it fails with an auth or link error, that failure tells you what to fix.
 
-```
-Is user authenticated?
-├─ No → Run `netlify login`
-└─ Yes → Is site linked?
-    ├─ No → Is it a Git repo?
-    │   ├─ Yes → Try `netlify link --git-remote-url`
-    │   │   ├─ Success → Continue to deploy
-    │   │   └─ Fail → Run `netlify init`
-    │   └─ No → Run `netlify init`
-    └─ Yes → Is this first deploy or existing site?
-        ├─ First deploy/new site → `netlify deploy --prod`
-        └─ Existing site → `netlify deploy` (preview)
-```
+## Pattern 1: Git-Based Continuous Deployment (primary)
 
-## Scenario 1: First-Time Deployment (New Project)
+**Context**: A project in a Git repository that should deploy automatically.
 
-**Context**: User has a project that has never been deployed to Netlify.
-
-**Steps**:
-1. Check authentication: `npx netlify status`
-2. If not authenticated: `npx netlify login`
-3. Initialize new site: `npx netlify init`
-   - This guides user through setup
-   - Creates netlify.toml if needed
-4. Install dependencies: `npm install`
-5. Deploy to production: `npx netlify deploy --prod`
-
-**Example**:
+**Setup once**:
 ```bash
-npx netlify status
-# Not linked to a site
-
-npx netlify login
-# Opens browser for authentication
-
-npx netlify init
-# Walks through site creation
-
-npm install
-npx netlify deploy --prod
+netlify init   # Creates/links a site and connects Git CI/CD
 ```
 
-## Scenario 2: Linking Existing Git Repository to Existing Site
+After that, Netlify builds on its own servers on every push:
+- Push to the production branch → production deploy.
+- Open a pull request → deploy preview with a unique URL.
+- Push to another branch → branch deploy, **only if** branch deploys are enabled (off by default; enable in the site's build & deploy settings).
 
-**Context**: User has a site already on Netlify and wants to link their local repo.
+Configure the build command, publish directory, and base directory in `netlify.toml` (see the **netlify-config** skill). No local build or upload step is needed — the build happens on Netlify.
 
-**Steps**:
-1. Check authentication: `npx netlify status`
-2. Get Git remote: `git remote show origin`
-3. Extract URL (e.g., `https://github.com/user/repo.git`)
-4. Link by remote: `npx netlify link --git-remote-url <URL>`
-5. If found, linked. If not, run `netlify init`
+## Pattern 2: Linking an Existing Repo to an Existing Site
 
-**Example**:
-```bash
-git remote show origin
-# * remote origin
-#   Fetch URL: https://github.com/user/my-app.git
-
-npx netlify link --git-remote-url https://github.com/user/my-app.git
-# Site linked successfully
-```
-
-## Scenario 3: Preview Deployment (Testing Changes)
-
-**Context**: User wants to test changes before pushing to production.
-
-**Steps**:
-1. Ensure site is linked: `npx netlify status`
-2. Make code changes
-3. Deploy preview: `npx netlify deploy`
-4. Review preview URL
-5. If approved, deploy to prod: `npx netlify deploy --prod`
-
-**Example**:
-```bash
-# Make changes to code
-
-npx netlify deploy
-# Draft deploy URL: https://507f1f77bcf86cd799439011-my-app.netlify.app
-
-# Test the preview, then:
-npx netlify deploy --prod
-```
-
-## Scenario 4: Framework-Specific Deployments
-
-### Next.js
+**Context**: A site already exists on Netlify and you want the local repo linked to it.
 
 ```bash
-# Next.js typically uses .next as output
-npx netlify deploy --prod
+# Link by Git remote
+netlify link --git-remote-url https://github.com/user/my-app.git
 
-# netlify.toml should have:
-# [build]
-#   command = "npm run build"
-#   publish = ".next"
+# Or link interactively (pick from a list)
+netlify link
 ```
 
-### React (Vite)
+If the site can't be found, create one with `netlify init`.
+
+## Pattern 3: Manual / Local Deploy (secondary)
+
+**Context**: A prototype, a project with no Git remote, or a CI pipeline that builds elsewhere and uploads the artifact.
 
 ```bash
-# Vite outputs to dist by default
-npm run build
-npx netlify deploy --dir=dist --prod
+# Draft deploy (preview URL) to test the upload
+netlify deploy --dir=dist
 
-# netlify.toml:
-# [build]
-#   command = "npm run build"
-#   publish = "dist"
+# Production deploy
+netlify deploy --dir=dist --prod
 ```
 
-### Static HTML
+`--dir` names the already-built output directory to upload. Omit it to let the CLI resolve the publish directory from `netlify.toml`. If the site also has Git CD connected, remember a manual `--prod` deploy is replaced by the next push to the production branch unless you lock the deploy in the UI.
 
-```bash
-# No build step needed
-npx netlify deploy --dir=. --prod
-```
+## Pattern 4: Preview Before Production
 
-## Scenario 5: Monorepo Deployment
+**Context**: You want to check a build before it goes live.
 
-**Context**: Project is in a subdirectory of a monorepo.
+With Git CD, open a pull request — Netlify creates a deploy preview automatically. For a manual upload, `netlify deploy` (without `--prod`) produces a draft deploy with its own URL; deploy `--prod` once it looks right.
 
-**Steps**:
-1. Navigate to project subdirectory: `cd packages/frontend`
-2. Or set base in netlify.toml:
-   ```toml
-   [build]
-     base = "packages/frontend"
-     command = "npm run build"
-     publish = "dist"
-   ```
-3. Deploy normally: `npx netlify deploy --prod`
+## Pattern 5: Monorepo Deployment
 
-## Scenario 6: Environment Variables
+**Context**: The site lives in a subdirectory of a larger repo.
 
-**Context**: Project needs secrets or environment-specific config.
-
-**Steps**:
-1. Never commit secrets to Git
-2. Set in Netlify dashboard or CLI:
-   ```bash
-   npx netlify env:set API_KEY "secret_value"
-   npx netlify env:set NODE_ENV "production"
-   ```
-3. Access in code: `process.env.API_KEY`
-4. Deploy: `npx netlify deploy --prod`
-
-## Scenario 7: Custom Domain Setup
-
-**Context**: User wants to use a custom domain.
-
-**Steps**:
-1. Deploy site first: `npx netlify deploy --prod`
-2. Add domain via dashboard or CLI:
-   ```bash
-   npx netlify open:admin
-   # Navigate to Domain settings
-   ```
-3. Update DNS records as instructed by Netlify
-4. Wait for DNS propagation (can take up to 48 hours)
-
-## Best Practices
-
-### 1. Always Preview First
-
-```bash
-# Deploy preview
-npx netlify deploy
-
-# Test thoroughly
-# Then deploy to production
-npx netlify deploy --prod
-```
-
-### 2. Use netlify.toml for Consistency
-
-Create a `netlify.toml` file in your repo root:
+Set a base directory so Netlify runs the build from the right place:
 
 ```toml
 [build]
+  base = "packages/frontend"
   command = "npm run build"
   publish = "dist"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
 ```
 
-This ensures consistent builds across all deployments.
+The publish directory is resolved **relative to `base`** — the config above publishes `packages/frontend/dist`. In a monorepo, Netlify uses the first `netlify.toml` it finds in the package directory, then the base directory, then the repo root. See the **netlify-config** skill for the full monorepo configuration reference.
 
-### 3. Framework Detection
+## Environment Variables
 
-Let Netlify auto-detect when possible. Only specify build settings if:
-- Netlify can't detect your framework
-- You need custom build commands
-- Your project has a non-standard structure
+Set environment variables with `netlify env:set` or in the Netlify UI, and access them in code with `Netlify.env.get("VAR")` (functions/edge) or the framework's client prefix for browser-exposed values. Full guidance — CLI management, context scoping, and how to read variables in code — lives in the **netlify-config** and **netlify-frameworks** skills. Never commit secrets to Git.
 
-### 4. Dependency Installation
+## Custom Domains
 
-Always ensure dependencies are installed before deploying:
+Custom domains are configured in the Netlify UI (Domain settings), not through a deploy command. Deploy the site first, then add the domain and follow Netlify's DNS instructions.
 
-```bash
-npm install  # or yarn install, pnpm install
-npx netlify deploy
-```
-
-### 5. Build Locally First
-
-Test builds locally before deploying:
-
-```bash
-npm run build
-# Check that build output exists
-
-npx netlify deploy --dir=dist
-```
-
-### 6. Use Deploy Messages
-
-Add context to deployments:
-
-```bash
-npx netlify deploy --prod --message="Fix login bug"
-```
-
-## Error Recovery Patterns
+## Troubleshooting
 
 ### "Publish directory not found"
 
-**Cause**: Build command didn't create expected output directory.
+The build didn't produce the expected output directory, or the path is wrong.
+- Confirm the build succeeded and check the actual output directory name.
+- Fix the `publish` path in `netlify.toml`, remembering it's relative to any `base` directory.
 
-**Fix**:
-1. Run build locally: `npm run build`
-2. Check output directory name
-3. Update netlify.toml or CLI prompts with correct path
+### "Build failed" / exit code 1
 
-### "Command failed with exit code 1"
-
-**Cause**: Build command failed.
-
-**Fix**:
-1. Check build logs for specific error
-2. Run build locally to reproduce: `npm run build`
-3. Fix the build error
-4. Deploy again
+The build command failed.
+- Read the deploy log (the CLI prints a log URL) for the specific error.
+- Fix the underlying cause and redeploy. A failed deploy never publishes, so the previous deploy is still live — there's nothing to roll back.
 
 ### "Not logged in"
 
-**Cause**: Authentication token expired or missing.
-
-**Fix**:
-```bash
-npx netlify logout
-npx netlify login
-```
+Run `netlify login` (or set `NETLIFY_AUTH_TOKEN` in CI).
 
 ### "No site linked"
 
-**Cause**: Project not connected to a Netlify site.
+Run `netlify link` (existing site) or `netlify init` (new site). In CI, set `NETLIFY_SITE_ID`.
 
-**Fix**:
-```bash
-# Try linking to existing site
-npx netlify link
-
-# Or create new site
-npx netlify init
-```
-
-## Performance Tips
-
-1. **Enable processing** in netlify.toml for auto-optimization:
-   ```toml
-   [build.processing.css]
-     bundle = true
-     minify = true
-   ```
-
-2. **Use caching headers** for static assets:
-   ```toml
-   [[headers]]
-     for = "/assets/*"
-     [headers.values]
-       Cache-Control = "public, max-age=31536000, immutable"
-   ```
-
-3. **Optimize images** before deploying or use Netlify Image CDN
-
-4. **Use Netlify Functions** for serverless backend (avoid external API calls when possible)
+When a failure isn't resolved by the deploy log, report the exact error, the log URL, and the affected site to the user and stop — don't route around it with `netlify api` or direct API calls.
 
 ## Resources
 

@@ -2,3 +2,5 @@ tmp/
 .DS_Store
 node_modules/
 .axis/
+# Transient docs checkout used by the Context Pipeline receiver workflow.
+.docs-src/

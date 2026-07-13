@@ -1,0 +1,127 @@
+name: Receive agent-context
+
+# Stage 2 of the Context Pipeline (AX-97), receiving side.
+#
+# When netlify/docs regenerates agent-context, it notifies us. This job pulls
+# docs at that commit, imports each grouping's already-generated, already-AXIS-
+# tested skill into skills/, and opens a draft PR. The PR runs our existing
+# gates (validate-skills + build-generated-outputs for cursor/codex parity);
+# a human reviews and merges. No model call and no content rewrite here.
+#
+# Inert until adopted. netlify/docs is private and a GITHUB_TOKEN-authored PR
+# does not trigger downstream workflow runs, so two secrets are required:
+#   DOCS_READ_TOKEN        read access to netlify/docs
+#   CTX_PIPELINE_PR_TOKEN  PAT/app token used to push the branch and open the
+#                          PR, so validate-skills + build-generated-outputs
+#                          actually run on it (a PR opened by the default
+#                          GITHUB_TOKEN would not trigger them)
+# One token with both scopes may back both secrets. Automatic triggers also
+# require the CTX_PIPELINE repo variable = 'true'; manual runs never do.
+
+on:
+  repository_dispatch:
+    types: [agent-context-updated]
+  workflow_dispatch:
+    inputs:
+      docs_ref:
+        description: "netlify/docs ref (branch or SHA) to pull; defaults to main"
+        required: false
+        default: main
+  schedule:
+    # Weekday safety-net poll in case a dispatch is missed (no-op when unchanged).
+    - cron: "23 8 * * 1-5"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ctx-pipeline-receive
+  cancel-in-progress: false
+
+jobs:
+  receive:
+    # Manual runs are always allowed; automatic triggers wait for adoption.
+    if: github.event_name == 'workflow_dispatch' || vars.CTX_PIPELINE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preflight — required secrets
+        env:
+          DOCS_READ_TOKEN: ${{ secrets.DOCS_READ_TOKEN }}
+          CTX_PIPELINE_PR_TOKEN: ${{ secrets.CTX_PIPELINE_PR_TOKEN }}
+        run: |
+          missing=""
+          [ -z "$DOCS_READ_TOKEN" ] && missing="$missing DOCS_READ_TOKEN"
+          [ -z "$CTX_PIPELINE_PR_TOKEN" ] && missing="$missing CTX_PIPELINE_PR_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Context Pipeline receiver is not configured. Missing secret(s):$missing"
+            exit 1
+          fi
+
+      - name: Resolve docs ref
+        id: ref
+        run: |
+          case "${{ github.event_name }}" in
+            repository_dispatch) echo "ref=${{ github.event.client_payload.docs_commit }}" >> "$GITHUB_OUTPUT" ;;
+            workflow_dispatch)   echo "ref=${{ github.event.inputs.docs_ref }}" >> "$GITHUB_OUTPUT" ;;
+            *)                   echo "ref=main" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # Checked out with the PAT so the branch push below is authored by it and
+      # the resulting PR triggers validate-skills + build-generated-outputs.
+      - name: Checkout context-and-tools
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          token: ${{ secrets.CTX_PIPELINE_PR_TOKEN }}
+
+      - name: Checkout netlify/docs at ref
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: netlify/docs
+          ref: ${{ steps.ref.outputs.ref }}
+          token: ${{ secrets.DOCS_READ_TOKEN }}
+          path: .docs-src
+          persist-credentials: false
+
+      - name: Resolve docs commit
+        id: docs
+        run: echo "sha=$(git -C .docs-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Import changed skills
+        id: import
+        run: node scripts/ctx-receive.mjs --docs .docs-src --docs-commit "${{ steps.docs.outputs.sha }}"
+
+      - name: Open pull request
+        if: steps.import.outputs.changed_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.CTX_PIPELINE_PR_TOKEN }}
+        run: |
+          sha="${{ steps.docs.outputs.sha }}"
+          short="${sha:0:12}"
+          branch="ctx-pipeline/agent-context-${short}"
+
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Branch $branch already exists — a PR is presumably open. Nothing to do."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add skills/ .ctx-gen/state.json
+          git commit -m "chore(context): import agent-context updates (${{ steps.import.outputs.changed }})"
+          git push -u origin "$branch"
+
+          {
+            echo "Automated Stage-2 import from \`netlify/docs\` @ \`${sha}\`."
+            echo
+            echo "Groupings updated: **${{ steps.import.outputs.changed }}**"
+            echo
+            echo "These skills are generated and AXIS-tested upstream, then imported here byte-for-byte — no content changes on this side. \`validate-skills\` and \`build-generated-outputs\` (cursor/codex parity) run on this PR. Review the diff and merge; rollback = revert."
+            echo
+            echo "Ref: AX-97."
+          } > "$RUNNER_TEMP/pr-body.md"
+
+          gh pr create --draft --base main --head "$branch" \
+            --title "chore(context): sync skills from docs ${short}" \
+            --body-file "$RUNNER_TEMP/pr-body.md"

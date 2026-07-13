@@ -1,0 +1,14 @@
+{
+  "source": {
+    "repo": "netlify/docs",
+    "agentContextDir": "agent-context",
+    "defaultRef": "main"
+  },
+  "importerVersion": 1,
+  "groupings": [
+    {
+      "grouping": "functions",
+      "skill": "netlify-functions"
+    }
+  ]
+}

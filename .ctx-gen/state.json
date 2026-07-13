@@ -1,1 +1,17 @@
-{}
+{
+  "functions": {
+    "sourceHash": "dcd795008b33c61d2adb82fa14e9ba0e083ed9b6eb9945c537c81455ec3a1715",
+    "docsCommit": "d4389ce8d8efb6e19902c376f059ce3922aebcf9",
+    "importerVersion": 1,
+    "affects": [
+      "api",
+      "authoring",
+      "compat",
+      "configuration",
+      "constraints",
+      "examples",
+      "overview",
+      "workflows"
+    ]
+  }
+}

@@ -52,6 +52,8 @@ Wraps the framework's own dev server and adds:
 
 Works with any framework — run `netlify dev` in place of the framework's native dev command (e.g. instead of `npm run dev`).
 
+Custom dev-server wiring — a non-standard `command`, a `port`/`targetPort`, or the `framework` key — goes in `netlify.toml`'s `[dev]` block; see the **netlify-config** skill for the full syntax. One easy-to-miss rule: if you set both a custom `command` and a `targetPort`, `framework` must be `"#custom"`, otherwise Netlify Dev runs its own detector and silently ignores your command.
+
 ### Netlify Vite plugin family (Vite-based frameworks)
 
 For frameworks built on Vite, a Netlify Vite plugin exposes platform primitives (Functions, Blobs, DB, environment variables) directly inside the framework's own dev server, so no `netlify dev` wrapper is needed — run the framework's normal dev command (e.g. `npm run dev`) once the plugin is registered in `vite.config.ts`.

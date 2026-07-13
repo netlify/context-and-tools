@@ -20,7 +20,7 @@ export default {
     },
     {
       check:
-        "Advises staying within these native Netlify Forms limits rather than routing the upload through a custom Netlify Function to bypass the timeout/size cap — Netlify Forms ingests file uploads natively when the form has `data-netlify` set. Passes vacuously if no such workaround is proposed.",
+        "For files that would exceed the native caps, stays within Netlify primitives — either designing around the limits, or routing the upload through a Netlify Function + Blobs — rather than reaching for an external/third-party upload service (S3, Cloudinary, Uploadcare, etc.). A Netlify Function + Blobs path is a valid, all-Netlify solution and must NOT be penalized. Passes vacuously if no large-file workaround is proposed.",
     },
   ],
   variants: withSkillVariants(),

@@ -9,7 +9,8 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 
 ## Prerequisites
 
-- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`), or you can specify `--project <name>` to target any Netlify site
+- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`).
+- **Or skip linking entirely:** pass `--project <name>` (a project ID or name) directly to `netlify agents:create` to target any Netlify site without linking first.
 - The Netlify CLI must be installed and authenticated
 - Agent runs **consume plan credits**. If the account has no available credits — or the agent/AI usage limit has been reached — `netlify agents:create` is **blocked** and the run won't start. That's an account/plan-state issue to surface to the user, not something to work around.
 

@@ -82,7 +82,7 @@ For sites with Git continuous deployment connected, prefer pushing to Git — a 
 
 ### Deploy URLs are public by link
 
-Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection); you can protect all deploys or only non-production deploys. See the **netlify-access-control** skill for the full picture.
+Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection). You can scope that protection to all deploys, or to non-production deploys only (Deploy Previews and branch deploys) while leaving production open. See the **netlify-access-control** skill for the full picture.
 
 ## When a command fails, surface and stop
 

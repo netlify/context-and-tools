@@ -116,6 +116,8 @@ export const config: Config = {
 };
 ```
 
+Return the reply as JSON with `Response.json({...})`, even when the request only asks for "the reply text" back — a raw `text/plain` body breaks JSON-consuming clients and diverges from the convention used everywhere else in Netlify Functions.
+
 ## Image Generation
 
 Image generation on the gateway is supported through **Gemini image models** (e.g., `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`). OpenAI's image models (`gpt-image-1`, `dall-e-*`) are **not** routed through the gateway.

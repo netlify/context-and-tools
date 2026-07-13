@@ -4,6 +4,19 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.12.1](https://github.com/netlify/context-and-tools/compare/v0.12.0...v0.12.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **skills:** consolidate deploy skills into a single netlify-deploy (AX-108) ([#89](https://github.com/netlify/context-and-tools/issues/89)) ([129b350](https://github.com/netlify/context-and-tools/commit/129b35035b1c68922e4a17a4052cbd579adbfd6b))
+
+
+### Documentation
+
+* **skills:** rehome env-var CLI management into netlify-config (AX-108) ([#87](https://github.com/netlify/context-and-tools/issues/87)) ([2ec71b6](https://github.com/netlify/context-and-tools/commit/2ec71b640ba20e10c39a8326385d3d1241261d8d))
+* **skills:** rehome local dev guidance into netlify-frameworks (AX-108) ([#88](https://github.com/netlify/context-and-tools/issues/88)) ([e63c778](https://github.com/netlify/context-and-tools/commit/e63c7787ebc16a3d6680fa4ce8611d2aacb6bb4d))
+
 ## [0.12.0](https://github.com/netlify/context-and-tools/compare/v0.11.0...v0.12.0) (2026-07-07)
 
 

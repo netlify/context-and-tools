@@ -331,11 +331,17 @@ Each deploy preview runs against its own database branch forked from production 
 - Migrations run against the preview branch first — failures fail the preview, not production.
 - Ad-hoc edits in a preview (via the Netlify UI data browser or a direct client) do **not** propagate to production. Always express production changes as migrations.
 
-## Production data changes — write a DML migration
+## Changing existing data — resolve the production-vs-preview fork first
 
-When a user asks for data changes that should land in production (seed data, backfills, one-off cleanups, CSV imports), **do not connect to the production database and run queries**. Generate a DML migration in `netlify/database/migrations/` (SQL `INSERT`/`UPDATE`/`DELETE`, or a Drizzle-generated equivalent). Tell the user you created a data migration and that merging to production will apply it. Let them verify in the preview branch first.
+A request to change data that already exists — "rename this category", "update that record", "fix the broken row for user X" — is **ambiguous by default about where it should land**: in production, or only in the current preview branch. Resolve that fork *before* you change anything. If the prompt didn't already say, ask the user whether the change is meant for production or is a preview-only edit — a terse imperative like "update that record" tells you *what* they want, not that production should change. When you're making the change on someone's behalf, default to **not** mutating production unless they've explicitly asked for it.
 
-If the request is ambiguous ("update this record"), confirm that the user wants a production migration rather than a preview-only edit. See `references/migrations.md`.
+Once you know it's production-bound, express it as a **DML migration** — never a direct write:
+
+- **Don't connect to the production database and run the `UPDATE`/`INSERT`/`DELETE`** (and don't run it ad-hoc in a preview either). Generate a DML migration in `netlify/database/migrations/` — raw SQL or a Drizzle-generated equivalent — and commit it. The deploy applies it, exactly like a schema migration.
+- Tell the user, in plain language, that you created a data migration and that merging the branch is what applies it to production.
+- **Have them verify the result in the deploy preview first** — the preview runs against a forked copy of production data, so the change can be confirmed before it ever reaches production.
+
+This covers seed data, backfills, one-off cleanups, CSV imports, and single-row fixes alike. Full detail (including expand-and-contract for breaking changes) is in `references/migrations.md`.
 
 ## Netlify CLI commands for Netlify Database
 

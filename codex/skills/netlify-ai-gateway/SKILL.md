@@ -9,11 +9,15 @@ description: Reference for Netlify AI Gateway — the managed proxy that routes 
 
 > **First-deploy requirement:** The AI Gateway only activates after a site has had at least one production deploy. Local dev (`netlify dev`, `@netlify/vite-plugin`) will NOT have gateway access on a brand-new project until you deploy to production once.
 
+> **Usage is credit-metered:** Gateway calls draw down your Netlify AI credit/inference allowance and start returning errors once it's exhausted — there's no separate provider bill behind it. Budget for this explicitly in any bulk or fan-out design (generating content for hundreds of rows/pages, retry loops), and don't retry unbounded.
+
 Netlify AI Gateway provides access to AI models from multiple providers without managing API keys directly. It is available on all Netlify sites.
 
 ## How It Works
 
 The AI Gateway acts as a proxy — you use standard provider SDKs but point them at Netlify's gateway URL. Netlify auto-injects both the base URL and a placeholder API key for each provider, then authenticates upstream on your behalf.
+
+Always make the call through the provider's official SDK, constructed bare (`new OpenAI()`, `new Anthropic()`, `new GoogleGenAI()`) — the SDK reads the auto-injected base URL and key from the environment. **Don't hand-roll the gateway call with a raw `fetch()` and a manually-read `process.env.OPENAI_API_KEY`** (or a hardcoded key/URL): the injected key is only a placeholder, and rolling your own request bypasses the supported path the gateway expects.
 
 ## Setup
 
@@ -171,7 +175,9 @@ All of these are injected automatically by Netlify when AI is enabled. Setting y
 | `NETLIFY_AI_GATEWAY_BASE_URL` | (universal) | Provider-agnostic gateway endpoint |
 | `NETLIFY_AI_GATEWAY_KEY` | (universal) | Provider-agnostic gateway key |
 
-The real upstream API keys live on Netlify's side. The per-provider `*_API_KEY` vars are placeholders so the SDKs construct successfully; the gateway authenticates server-side.
+The real upstream API keys live on Netlify's side. The per-provider `*_API_KEY` vars are placeholders so the SDKs construct successfully; the gateway authenticates server-side. You don't read these yourself — the SDK picks them up.
+
+When your own code needs some *other* environment value (a config flag, a model name you've parameterized), read it with `Netlify.env.get("VAR")` rather than `process.env` — it works consistently across functions, edge functions, and server routes, and edge functions expose **only** `Netlify.env.get`.
 
 ## Local Development
 

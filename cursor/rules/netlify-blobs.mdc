@@ -116,6 +116,8 @@ Pass `{ directories: true }` to group keys by the `/` delimiter (folder-style): 
 Blobs are **eventually consistent by default**: an immediate read right after a write may return the previous value or `null`. Opt into **strong** consistency when you need read-your-writes. You can set it once on the store, or request it per read:
 
 ```typescript
+import { getStore } from "@netlify/blobs";
+
 const store = getStore({ name: "my-store", consistency: "strong" });
 
 // or just for a single read that must see the latest write:

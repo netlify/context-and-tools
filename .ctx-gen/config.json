@@ -1,8 +1,7 @@
 {
   "source": {
     "repo": "netlify/docs",
-    "agentContextDir": "agent-context",
-    "gatedRef": "ctx-gated"
+    "agentContextDir": "agent-context"
   },
   "importerVersion": 1,
   "groupings": [

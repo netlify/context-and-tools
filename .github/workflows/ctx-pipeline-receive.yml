@@ -9,12 +9,10 @@ name: Receive agent-context
 # for cursor/codex parity); a human reviews and merges. No model call and no
 # content rewrite here.
 #
-# Gate integrity: docs only dispatches after its AXIS gate passes, so a
-# dispatched commit is gated by construction. The scheduled safety-net poll
-# must preserve that guarantee, so it pulls the moving `gatedRef` tag — which
-# docs advances only on a passing gate — instead of docs main HEAD, which can
-# hold a commit whose gate failed (docs merges the change but withholds the
-# dispatch). See .ctx-gen/README.md.
+# docs only dispatches after its AXIS gate passes, so an imported commit is
+# gated by construction. There is no scheduled catch-up poll: a missed dispatch
+# self-heals on the next one (we import the full current skill, not deltas), or
+# a manual run recovers it.
 #
 # Inert until adopted. netlify/docs is private and a GITHUB_TOKEN-authored PR
 # does not trigger downstream workflow runs, so two secrets are required:
@@ -23,8 +21,8 @@ name: Receive agent-context
 #                          PR, so validate-skills + build-generated-outputs
 #                          actually run on it (a PR opened by the default
 #                          GITHUB_TOKEN would not trigger them)
-# One token with both scopes may back both secrets. Automatic triggers also
-# require the CTX_PIPELINE repo variable = 'true'; manual runs never do.
+# One token with both scopes may back both secrets. The dispatch trigger also
+# requires the CTX_PIPELINE repo variable = 'true'; manual runs never do.
 
 on:
   repository_dispatch:
@@ -35,10 +33,6 @@ on:
         description: "netlify/docs ref (branch or SHA) to pull; defaults to main"
         required: false
         default: main
-  schedule:
-    # Weekday safety-net poll in case a dispatch is missed. Pulls the gated tag
-    # (see header), so it can only import gate-passing context.
-    - cron: "23 8 * * 1-5"
 
 permissions:
   contents: write
@@ -51,7 +45,7 @@ concurrency:
 
 jobs:
   receive:
-    # Manual runs are always allowed; automatic triggers wait for adoption.
+    # Manual runs are always allowed; the dispatch trigger waits for adoption.
     if: github.event_name == 'workflow_dispatch' || vars.CTX_PIPELINE == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -68,25 +62,22 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve docs ref
+        id: ref
+        run: |
+          case "${{ github.event_name }}" in
+            repository_dispatch) ref="${{ github.event.client_payload.docs_commit }}" ;;
+            *)                   ref="${{ github.event.inputs.docs_ref }}" ;;
+          esac
+          echo "Resolved docs ref: $ref (event: ${{ github.event_name }})"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       # Checked out with the PAT so the branch push below is authored by it and
       # the resulting PR triggers validate-skills + build-generated-outputs.
-      # Also gives the next step access to .ctx-gen/config.json.
       - name: Checkout context-and-tools
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           token: ${{ secrets.CTX_PIPELINE_PR_TOKEN }}
-
-      - name: Resolve docs ref
-        id: ref
-        run: |
-          gated_ref="$(node -p "require('./.ctx-gen/config.json').source.gatedRef || 'main'")"
-          case "${{ github.event_name }}" in
-            repository_dispatch) ref="${{ github.event.client_payload.docs_commit }}" ;;
-            workflow_dispatch)   ref="${{ github.event.inputs.docs_ref }}" ;;
-            *)                   ref="$gated_ref" ;;
-          esac
-          echo "Resolved docs ref: $ref (event: ${{ github.event_name }})"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout netlify/docs at ref
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10

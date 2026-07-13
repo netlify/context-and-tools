@@ -17,8 +17,7 @@ AXIS scenarios.)
 
 - **`config.json`** — which docs groupings we consume and the local skill each
   maps to (`functions` → `netlify-functions`), plus `importerVersion` (bump to
-  force a re-import when the import logic itself changes) and `source.gatedRef`
-  (the tag the scheduled poll pulls — see "Gate integrity" below).
+  force a re-import when the import logic itself changes).
 - **`state.json`** — the delta cache. Per grouping we record the
   `manifest.generation.source_hash` we last imported. Unchanged hash → skip, so
   repeated notifications for the same docs commit are no-ops.
@@ -30,22 +29,16 @@ AXIS scenarios.)
   and `build-generated-outputs` (cursor/codex parity) gates; a human reviews
   and merges. Rollback = revert.
 
-## Triggers & gate integrity
+## Triggers
 
-The receiver runs on docs' `agent-context-updated` dispatch, a manual
-`workflow_dispatch`, or a weekday safety-net poll.
+The receiver runs on docs' `agent-context-updated` dispatch or a manual
+`workflow_dispatch`. docs only dispatches **after its AXIS quality gate
+passes**, so an imported commit is gated by construction.
 
-docs only dispatches **after its AXIS quality gate passes**, so a dispatched
-commit is gated by construction. The safety-net poll has to keep that
-guarantee. It must *not* pull docs `main` HEAD, which can hold a commit whose
-gate failed (docs merges the docs change but withholds the dispatch). Instead
-it pulls the moving **`source.gatedRef`** tag, which docs advances only on a
-passing gate — so both paths import gate-passing context only.
-
-> **Docs-side dependency:** this requires docs' merge workflow to move the
-> `ctx-gated` tag to each gate-passing commit. Until that lands, keep the
-> scheduled trigger disarmed (leave the `CTX_PIPELINE` repo variable unset);
-> confirm the exact tag name with the docs side.
+There is no scheduled catch-up poll: a missed dispatch self-heals on the next
+one (each run imports the full current skill, not a delta) or is recovered with
+a manual run. The dispatch trigger is armed by the `CTX_PIPELINE` repo variable;
+manual runs never need it.
 
 ## One rolling PR
 

@@ -142,6 +142,7 @@ Make the permission request a concrete proposal, not a menu:
 - **The exact command**, filled in — e.g. `netlify agents:create -p "<the real prompt>" -a codex` — not a `<placeholder>` and not a pick-one list of agents.
 - **One agent, already chosen** — commit to a single `-a` value and say why you picked it ("codex for a second opinion on the auth logic"), rather than offering claude/codex/gemini as interchangeable options.
 - **Why**, plus **what happens after "yes"**: the run is asynchronous — `agents:create` returns as soon as the task is queued, there's no callback, and you'll poll `netlify agents:show <task-id>` for the outcome.
+- **Even if a prerequisite is missing** (not authenticated, not linked to a site, not a git repo yet), still show the exact command and chosen agent you'll run *once it's resolved* — surface the blocker **and** the concrete proposal, rather than collapsing to only describing the blocker.
 
 Never run these commands without the user's approval.
 

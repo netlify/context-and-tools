@@ -8,7 +8,7 @@ export default {
   judge: [
     {
       check:
-        "Recognizes that site-access controls and app identity are separate layers: basic password protection admits any visitor who has the shared password, team-login protection limits site access to Netlify team members, and neither, by itself, gives app code a logged-in end user or issues an `nf_jwt`",
+        "Recognizes that site-access controls (Secure Access / Password Protection / team- or SSO-login) are a separate PERIMETER layer from app identity — the perimeter gates who can load the site but does not, by itself, give app code a logged-in end user or issue an `nf_jwt`. Enumerating the basic-password vs team-login variants is illustrative, not required for this SAML/Google prompt.",
     },
     {
       check:
@@ -16,7 +16,7 @@ export default {
     },
     {
       check:
-        "Clarifies the Google ambiguity: Google as a Team/Org SAML IdP signs in Netlify team members (no `nf_jwt`, no Identity user record), which is different from Google as a Netlify Identity OAuth provider (signs in app end users and issues `nf_jwt`)",
+        "Clarifies the Google ambiguity: Google configured at the site-access / SSO layer signs in Netlify team members (dashboard/team access — no `nf_jwt`, no Identity user record), which is different from Google as a Netlify Identity OAuth provider (signs in app end users and issues `nf_jwt`). Exact terminology like 'Team/Org SAML IdP' is not required as long as the two layers are correctly distinguished.",
     },
     {
       check:

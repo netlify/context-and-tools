@@ -13,15 +13,15 @@ export default {
   judge: [
     {
       check:
-        "Steers away from building a full per-tool scope / RBAC / permission-tier system up front, recommending the simplest all-or-nothing model first: a valid key can call every tool, acting as the user it belongs to",
+        "Leads with (or clearly recommends) the simplest all-or-nothing model as the starting point — a valid key can call every tool, acting as the user it belongs to — rather than presenting a full per-tool scope / RBAC system as the default to ship now. It is fine to ALSO show how scopes could be structured (the user asked), as long as the simple baseline is offered first as the recommended starting point.",
     },
     {
       check:
-        "Says to add per-key scopes only when there's a genuine need (e.g. a read-only key) and to keep it simple until a real requirement actually appears",
+        "Frames per-key scopes / RBAC as something to add when a concrete need actually appears (e.g. a read-only key) rather than as a mandatory upfront layer — i.e. conveys 'grow into this when you need it,' not 'build it all now.' Explaining how to structure scopes for that eventual need is acceptable as long as it's framed as deferred.",
     },
     {
       check:
-        "Does not scaffold an elaborate role hierarchy / permission-tier system for a requirement the user hasn't actually established",
+        "Does not push an elaborate role hierarchy / permission-tier system as necessary for this app right now — showing how one could be structured in response to the request is fine, but it must be framed as optional/deferred, not as required upfront complexity the user should build before shipping.",
     },
     {
       check:

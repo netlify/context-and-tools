@@ -139,6 +139,8 @@ Generate the token with `openssl rand -hex 32` and store it as a secret env var.
 
 **Per-user API keys** (multi-user). Netlify Identity gates a web UI where each user mints their own keys; you store only a **hash** of each key (never the plaintext) tied to that user, resolve the key to a user on every request, and flow that user into your tool handlers so tools act as the right person. Full pattern — schema, generation, hashing, revocation, resolving the user — in [authentication](references/authentication.md).
 
+**Resist upfront over-scoping.** Even when asked for a full RBAC layer — per-tool scopes, permission tiers, role hierarchies — start with the simplest model: all-or-nothing, where a valid key can call every tool as the user it belongs to. Add per-key scopes only once a concrete need actually appears (e.g. a read-only key); don't scaffold a role hierarchy for a requirement that hasn't shown up yet.
+
 ## Safety and permissions
 
 Tools are a public API handed to an autonomous agent. Be deliberate:
@@ -168,7 +170,7 @@ Over the limit the platform returns HTTP `429` by default (or set `action: "rewr
 
 ## File uploads
 
-When a tool needs the agent to supply a file (an image to post, a doc to attach), don't push the bytes through the tool call as base64 — it bloats the model's context and runs into payload limits. Instead hand the agent a short-lived, single-use **presigned URL** to `PUT` the raw bytes to, store them in **Netlify Blobs**, and reference the file by a stable key from your other tools. Sign the URL with an **HMAC** (over the upload id, content-type, size, and expiry) keyed by a secret env var and verify it in constant time — the signature *is* the authorization, so the `PUT` carries no bearer token. On the upload endpoint, enforce the declared content-type and size and reject replays. Full three-step flow (`prepare_upload` → `PUT` → `finalize_upload`) with code: [file uploads](references/file-uploads.md).
+When a tool needs the agent to supply a file (an image to post, a doc to attach), don't push the bytes through the tool call as base64 — it bloats the model's context and runs into payload limits. Instead hand the agent a short-lived, single-use **presigned URL** to `PUT` the raw bytes to, store them in **Netlify Blobs**, and reference the file by a stable key from your other tools. Sign the URL with an **HMAC-SHA256** over the upload id, content-type, size, and expiry, keyed by a **secret env var**, and **verify it in constant time** — the signature *is* the authorization, so the `PUT` carries no bearer token. On the upload endpoint, enforce the declared content-type and size and reject replays. Full three-step flow (`prepare_upload` → `PUT` → `finalize_upload`) with code: [file uploads](references/file-uploads.md).
 
 ## State doesn't survive between requests
 

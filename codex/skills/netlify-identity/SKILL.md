@@ -82,7 +82,7 @@ If a deploy fails, an Identity callback 404s, an OAuth flow doesn't return, or `
 
 ## Never hardcode secrets
 
-Never hardcode secrets. Identity URLs, GoTrue endpoints, admin tokens, and OAuth `client_id`/`secret` values do not belong in client or server code — read the admin token at runtime with `Netlify.env.get("VAR")`, and configure OAuth credentials in the Netlify dashboard, not the frontend. Store anything sensitive as a Netlify environment variable (mark it secret).
+Never hardcode secrets. Identity URLs, GoTrue endpoints, and OAuth `client_id`/`secret` values do not belong in client or server code — configure OAuth credentials in the Netlify dashboard, not the frontend, and store anything sensitive as a Netlify environment variable (mark it secret). The Identity **admin token** is not one of these: you don't set or read it — the Netlify Functions runtime injects it automatically for `admin.*` calls made inside a Function (see [Authorization and sessions](references/authorization-and-sessions.md)). Never hardcode an admin token or expose admin operations to the browser.
 
 ## Setup
 

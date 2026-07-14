@@ -179,7 +179,7 @@ All of these are injected automatically by Netlify when AI is enabled. Setting y
 
 The real upstream API keys live on Netlify's side. The per-provider `*_API_KEY` vars are placeholders so the SDKs construct successfully; the gateway authenticates server-side. You don't read these yourself — the SDK picks them up.
 
-When your own code needs some *other* environment value (a config flag, a model name you've parameterized), read it with `Netlify.env.get("VAR")` rather than `process.env` — it works consistently across functions, edge functions, and server routes, and edge functions expose **only** `Netlify.env.get`.
+When your own code needs some *other* environment value (a config flag, a model name you've parameterized), prefer `Netlify.env.get("VAR")` — it works in Netlify Functions and Edge Functions, and Edge Functions expose **only** `Netlify.env.get`. (In a framework's own server routes, use whatever that framework documents for env access — often `process.env`.)
 
 ## Local Development
 

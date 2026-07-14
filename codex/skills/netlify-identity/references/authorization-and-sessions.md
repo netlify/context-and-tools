@@ -6,7 +6,7 @@ Where role-based access actually gets enforced, and why a role change doesn't ta
 
 Identity's admin API — creating users, updating a user's roles or metadata, deleting users (the `admin.*` operations) — requires a privileged admin token that is available **only in the Netlify Functions runtime**. It is not exposed to browser code and is not available in Edge Functions. Do all role assignment and user administration from inside a modern v2 Function (or an Identity event function), never from the client and never from an edge function. A "promote this user to admin" button in the UI must call a Function endpoint that performs the change server-side — it cannot call the admin API directly from the browser.
 
-Read the admin token at runtime with `Netlify.env.get("VAR")` and store it as a secret Netlify environment variable — never hardcode it, ship it in the client bundle, or pass it to the browser. Exposing the admin token client-side would let any visitor grant themselves the `admin` role.
+You don't configure or read the admin token yourself — the Netlify Functions runtime provides it automatically to `admin.*` calls made inside a Function, so there is no env var to set and no `Netlify.env.get(...)` to call for it. Run the `admin.*` operations server-side in a Function; never hardcode an admin token, ship one in the client bundle, or expose the admin operations to the browser. Exposing an admin capability client-side would let any visitor grant themselves the `admin` role.
 
 ## Redirect gating only covers CDN document requests
 

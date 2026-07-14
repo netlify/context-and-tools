@@ -8,7 +8,7 @@ SvelteKit deploys to Netlify via the official **`@sveltejs/adapter-netlify`** ad
 
 ## Setup
 
-> **Check current versions before pinning.** Knowledge cutoffs lag behind npm, and guessing a version tends to fail. Before pinning `@sveltejs/adapter-netlify` or other packages, run `npm view <pkg> version`, install with `@latest`, or omit explicit pins and let `npm install` resolve them.
+> **Check current versions before pinning.** Knowledge cutoffs lag behind npm, and guessing a version tends to fail. Before pinning `@sveltejs/adapter-netlify` or other packages, run `npm view <pkg> version`, install with `@latest`, or omit explicit pins and let `npm install` resolve them. If the version check itself fails (no network, registry unreachable), don't fall back to a guessed exact pin — install with `@latest` (or unpinned) and tell the user live verification wasn't possible so they should confirm the installed versions. Never present an unverified `x.y.z` as the current release.
 
 ```bash
 npm install -D @sveltejs/adapter-netlify

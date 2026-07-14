@@ -81,4 +81,4 @@ Behind Identity-gated routes (`@netlify/identity` — see the **netlify-identity
 
 ### Scoping
 
-The simplest model is all-or-nothing: a valid key can call every tool, as the user it belongs to. Add per-key scopes only when you genuinely need them — e.g. a read-only key. Keep it simple until a real requirement appears.
+The simplest model is all-or-nothing: a valid key can call every tool, as the user it belongs to. Add per-key scopes only when you genuinely need them — e.g. a read-only key. Keep it simple until a real requirement appears — this holds even when you're asked directly for a full RBAC / role-hierarchy design: start simple and add scopes only against a real, named need, not speculatively.

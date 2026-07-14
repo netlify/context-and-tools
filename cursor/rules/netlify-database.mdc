@@ -326,22 +326,18 @@ Once a migration has been applied to any database, never modify it — roll forw
 
 ## Preview branching
 
-Each deploy preview runs against its own database branch forked from production data. Schema and data changes in a preview do not affect production until the branch is merged and published. This means:
+Each deploy preview runs against its own database branch forked from production data — schema and data changes in a preview don't affect production until the branch is merged and published. Migrations run against the preview branch first (failures fail the preview, not production), and ad-hoc preview edits (UI data browser or a direct client) don't propagate to production — always express production changes as migrations.
 
-- Migrations run against the preview branch first — failures fail the preview, not production.
-- Ad-hoc edits in a preview (via the Netlify UI data browser or a direct client) do **not** propagate to production. Always express production changes as migrations.
+## Changing existing data — production or preview?
 
-## Changing existing data — resolve the production-vs-preview fork first
+A request to change existing data — "rename this category", "update that record", "fix the broken row for user X" — is **ambiguous about where it should land**: production, or only the current preview branch. Resolve that fork *before* changing anything: if the prompt didn't say, ask whether it's production-bound or a preview-only edit — a terse "update that record" tells you *what*, not *where*. When acting on someone's behalf, default to **not** touching production unless they explicitly asked.
 
-A request to change data that already exists — "rename this category", "update that record", "fix the broken row for user X" — is **ambiguous by default about where it should land**: in production, or only in the current preview branch. Resolve that fork *before* you change anything. If the prompt didn't already say, ask the user whether the change is meant for production or is a preview-only edit — a terse imperative like "update that record" tells you *what* they want, not that production should change. When you're making the change on someone's behalf, default to **not** mutating production unless they've explicitly asked for it.
+Once it's production-bound, express it as a **DML migration**, never a direct write:
 
-Once you know it's production-bound, express it as a **DML migration** — never a direct write:
+- **Don't run the `UPDATE`/`INSERT`/`DELETE` against production** (or ad-hoc in a preview). Generate a DML migration in `netlify/database/migrations/` (raw SQL or Drizzle-generated) and commit it — the deploy applies it, like a schema migration.
+- Tell the user you created a data migration; merging the branch applies it to production. Have them **verify in the deploy preview first** (it runs against a forked copy of production data).
 
-- **Don't connect to the production database and run the `UPDATE`/`INSERT`/`DELETE`** (and don't run it ad-hoc in a preview either). Generate a DML migration in `netlify/database/migrations/` — raw SQL or a Drizzle-generated equivalent — and commit it. The deploy applies it, exactly like a schema migration.
-- Tell the user, in plain language, that you created a data migration and that merging the branch is what applies it to production.
-- **Have them verify the result in the deploy preview first** — the preview runs against a forked copy of production data, so the change can be confirmed before it ever reaches production.
-
-This covers seed data, backfills, one-off cleanups, CSV imports, and single-row fixes alike. Full detail (including expand-and-contract for breaking changes) is in `references/migrations.md`.
+Covers seed data, backfills, cleanups, CSV imports, and single-row fixes. Full detail in `references/migrations.md`.
 
 ## Netlify CLI commands for Netlify Database
 
@@ -366,10 +362,6 @@ See `references/operational-footguns.md`: module-scope client reuse, scale-to-ze
 
 ## Common mistakes
 
-1. **Forgetting the `@beta` dist-tag.** `drizzle-orm` and `drizzle-kit` must be installed as `@beta`. The `latest` releases lack the `drizzle-orm/netlify-db` adapter.
-2. **Wrong migration output directory.** Drizzle Kit defaults to `drizzle/`. Set `out: "netlify/database/migrations"` in `drizzle.config.ts` — migrations outside that directory are not applied by the deploy.
-3. **Writing raw `CREATE TABLE` when using Drizzle.** The schema file is the source of truth. Define tables in `db/schema.ts` and generate migrations.
-4. **Running `drizzle-kit migrate` or `push` against a hosted DB.** Never. The deploy applies migrations. For local, use `netlify database migrations apply` instead.
-5. **Using `netlify database connect` to change schema.** Schema changes go through migration files — never DDL through `connect` or any direct connection.
-6. **Misunderstanding `netlify database migrations reset`.** It only deletes unapplied files. It cannot undo an applied migration — for that, roll forward with a new migration.
-7. **Assuming `netlify dev` applies migrations automatically.** It doesn't — only the deploy does. Run `netlify database migrations apply` locally yourself.
+1. **Missing the `@beta` dist-tag** — `drizzle-orm`/`drizzle-kit` must be `@beta`; the `latest` releases lack the `drizzle-orm/netlify-db` adapter.
+2. **Wrong migration output dir** — set `out: "netlify/database/migrations"` in `drizzle.config.ts` (Drizzle Kit defaults to `drizzle/`, and migrations elsewhere aren't applied by the deploy).
+3. **Applying migrations to a hosted DB yourself** — never `drizzle-kit migrate`/`push` or DDL via `connect` against production/preview; generate migration files and let the deploy apply them. (`netlify dev` doesn't apply them locally either — run `netlify database migrations apply` yourself.)

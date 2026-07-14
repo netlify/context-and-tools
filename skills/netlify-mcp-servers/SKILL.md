@@ -139,7 +139,7 @@ Generate the token with `openssl rand -hex 32` and store it as a secret env var.
 
 **Per-user API keys** (multi-user). Netlify Identity gates a web UI where each user mints their own keys; you store only a **hash** of each key (never the plaintext) tied to that user, resolve the key to a user on every request, and flow that user into your tool handlers so tools act as the right person. Full pattern — schema, generation, hashing, revocation, resolving the user — in [authentication](references/authentication.md).
 
-**Resist upfront over-scoping.** Even when asked for a full RBAC layer — per-tool scopes, permission tiers, role hierarchies — start with the simplest model: all-or-nothing, where a valid key can call every tool as the user it belongs to. Add per-key scopes only once a concrete need actually appears (e.g. a read-only key); don't scaffold a role hierarchy for a requirement that hasn't shown up yet.
+**Start simple with scoping.** The simplest model is all-or-nothing: a valid key can call every tool as the user it belongs to — usually the right starting point. Add per-key scopes when a concrete need appears (e.g. a read-only key), and grow into per-tool scopes or role tiers if the app genuinely calls for them. If a fuller RBAC design is requested, lead with the simple baseline and layer scopes on top of it, rather than treating the full hierarchy as required up front.
 
 ## Safety and permissions
 

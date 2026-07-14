@@ -1,6 +1,3 @@
-# This project's build emits to `build/`, but publish points at `dist/` —
-# so `netlify deploy` fails with "Publish directory not found: dist".
-# The fix is to point publish at the directory the build actually produces.
 [build]
   command = "npm run build"
   publish = "dist"

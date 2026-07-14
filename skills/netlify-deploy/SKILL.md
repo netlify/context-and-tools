@@ -111,7 +111,8 @@ Common issues and what to do:
 
 **"Publish directory not found"**
 → Run the build yourself (`netlify build`, which mimics the Netlify build environment, or the project's own build command) and look at which directory it actually emits — don't guess the output dir from the framework name, and don't just `ls` for a folder that isn't there.
-→ Set the `publish` path (in `netlify.toml`, or `--dir`) to match that real output directory — remembering it's resolved relative to any configured `base` directory (see above).
+→ If the build itself **fails**, that's the real problem — surface the build error to the user and stop; don't change the `publish` path to paper over a broken build.
+→ Once the build succeeds, set the `publish` path (in `netlify.toml`, or `--dir`) to match that real output directory — remembering it's resolved relative to any configured `base` directory (see above).
 
 ## Logs
 

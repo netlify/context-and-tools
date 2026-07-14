@@ -3,3 +3,5 @@ tmp/
 node_modules/
 .axis/
 .claude/worktrees/
+# Transient docs checkout used by the Context Pipeline receiver workflow.
+.docs-src/

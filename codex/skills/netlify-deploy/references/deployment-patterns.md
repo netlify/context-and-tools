@@ -82,8 +82,9 @@ Custom domains are configured in the Netlify UI (Domain settings), not through a
 ### "Publish directory not found"
 
 The build didn't produce the expected output directory, or the path is wrong.
-- Confirm the build succeeded and check the actual output directory name.
-- Fix the `publish` path in `netlify.toml`, remembering it's relative to any `base` directory.
+- Run the build yourself (`netlify build`, or the project's own build command) and check which directory it actually emits — don't guess from the framework name or just `ls` for a missing folder.
+- If the build fails, surface the error and stop — don't change `publish` to paper over a broken build.
+- Once it succeeds, fix the `publish` path in `netlify.toml` (or `--dir`) to match that real output directory, remembering it's relative to any `base` directory.
 
 ### "Build failed" / exit code 1
 

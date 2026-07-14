@@ -1,6 +1,6 @@
 ---
 name: netlify-deploy
-description: Deploy, host, and publish web projects on Netlify with the Netlify CLI. Use when the user wants to deploy a site or repository to Netlify, link a local project to a Netlify site, ship a production or preview/draft deploy, set up Git-based continuous deployment, run a manual or local deploy, configure CI deploys, or troubleshoot a failed or misconfigured deploy.
+description: Deploy, host, and publish web projects on Netlify with the Netlify CLI. Use when the user wants to deploy a site or repository to Netlify, link a local project to a Netlify site, ship a production or preview/draft deploy, set up Git-based continuous deployment, run a manual or local deploy, configure CI deploys, or troubleshoot a failed or misconfigured deploy. Also use to view or tail a deployed site's runtime logs — function and edge-function output, deploy logs — via `netlify logs` when debugging what a live site is doing (recent errors, recent activity, streaming output).
 ---
 
 # Netlify Deployment
@@ -82,7 +82,7 @@ For sites with Git continuous deployment connected, prefer pushing to Git — a 
 
 ### Deploy URLs are public by link
 
-Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection); you can protect all deploys or only non-production deploys. See the **netlify-access-control** skill for the full picture.
+Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection). You can scope that protection to all deploys, or to non-production deploys only (Deploy Previews and branch deploys) while leaving production open. See the **netlify-access-control** skill for the full picture.
 
 ## When a command fails, surface and stop
 
@@ -110,8 +110,9 @@ Common issues and what to do:
 → If the flagged value is legitimately non-secret (e.g. a value that must ship to the browser), scope the exception narrowly with build environment variables: `SECRETS_SCAN_OMIT_KEYS` to exclude specific env-var keys, or `SECRETS_SCAN_OMIT_PATHS` to exclude specific paths. Prefer these over `SECRETS_SCAN_ENABLED=false`, which disables scanning across the entire build.
 
 **"Publish directory not found"**
-→ Verify the build command ran successfully and produced output.
-→ Check the publish directory path is correct — and remember it's resolved relative to any configured `base` directory (see above).
+→ Run the build yourself (`netlify build`, which mimics the Netlify build environment, or the project's own build command) and look at which directory it actually emits — don't guess the output dir from the framework name, and don't just `ls` for a folder that isn't there.
+→ If the build itself **fails**, that's the real problem — surface the build error to the user and stop; don't change the `publish` path to paper over a broken build.
+→ Once the build succeeds, set the `publish` path (in `netlify.toml`, or `--dir`) to match that real output directory — remembering it's resolved relative to any configured `base` directory (see above).
 
 ## Logs
 

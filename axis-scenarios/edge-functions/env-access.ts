@@ -11,7 +11,7 @@ export default {
     { check: "Does NOT use Deno.env.get(...) and does NOT use process.env to read the variable" },
     { check: "Actually uses the value it read (parses it and derives the `beta` flag) — it is a real env read, not a placeholder" },
     { check: "Config scopes the function to '/feature' (path)" },
-    { check: "Uses the modern edge-function default-export (req, context) signature with Config/Context types from @netlify/edge-functions" },
+    { check: "Uses the modern edge-function default-export returning a Response, importing Config from @netlify/edge-functions. The (req, context) params and Context type are optional here — include them only if the function actually uses request/context data; omitting unused params is idiomatic and must not be penalized." },
   ],
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

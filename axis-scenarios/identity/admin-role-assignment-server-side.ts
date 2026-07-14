@@ -16,7 +16,7 @@ export default {
     },
     {
       check:
-        "Reads the admin token at runtime with `Netlify.env.get(...)` from a secret Netlify environment variable — does NOT hardcode it or ship it in the client bundle / expose it to the browser.",
+        "Does NOT hardcode or manually supply an admin token, ship one in the client bundle, or expose the admin operations to the browser. (Netlify's Functions runtime provides the Identity admin credential automatically to `admin.*` calls inside a Function — there is no admin-token env var to set or read, so not calling `Netlify.env.get(...)` for one is correct.)",
     },
     {
       check:

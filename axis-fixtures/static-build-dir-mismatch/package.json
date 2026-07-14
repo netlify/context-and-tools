@@ -1,0 +1,7 @@
+{
+  "name": "marketing-site",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p build && cp src/index.html build/index.html"
+  }
+}

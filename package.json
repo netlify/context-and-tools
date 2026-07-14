@@ -16,8 +16,5 @@
   "bugs": {
     "url": "https://github.com/netlify/context-and-tools/issues"
   },
-  "homepage": "https://github.com/netlify/context-and-tools#readme",
-  "devDependencies": {
-    "@netlify/axis": "^1.17.0"
-  }
+  "homepage": "https://github.com/netlify/context-and-tools#readme"
 }

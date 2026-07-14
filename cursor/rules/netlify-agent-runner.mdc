@@ -9,7 +9,8 @@ Run AI coding agents (Claude, Codex, Gemini) remotely on Netlify infrastructure 
 
 ## Prerequisites
 
-- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`), or you can specify `--project <name>` to target any Netlify site
+- The site must be **linked to a Netlify project** (via `netlify link` or `netlify init`).
+- **Or skip linking entirely:** pass `--project <name>` (a project ID or name) directly to `netlify agents:create` to target any Netlify site without linking first.
 - The Netlify CLI must be installed and authenticated
 - Agent runs **consume plan credits**. If the account has no available credits — or the agent/AI usage limit has been reached — `netlify agents:create` is **blocked** and the run won't start. That's an account/plan-state issue to surface to the user, not something to work around.
 
@@ -134,7 +135,16 @@ Some of the many things you can do with Agent Runners:
 
 If you are an AI agent, you can use `netlify agents:create` to delegate work to an agent running remotely on Netlify — for example, to get a second opinion from a different model.
 
-**IMPORTANT — ask for permission first.** Agent tasks run on Netlify infrastructure and incur cost for the user. You MUST get the user's explicit permission before running any `netlify agents:create` command. Explain what you want to run, which agent you want to use, and why. Never run these commands without the user's approval.
+**IMPORTANT — ask for permission first, as a distinct confirmation step.** Agent tasks run on Netlify infrastructure and cost the user credits, so a real approval gate matters. Get explicit permission before running any `netlify agents:create` command — and treat that as its own turn, separate from the user's original request. A directive-sounding prompt ("start a task…", "use the claude agent and pin it to Opus") is **not** itself the approval: it tells you what they want, but the billable command still waits for a yes.
+
+Make the permission request a concrete proposal, not a menu:
+
+- **The exact command**, filled in — e.g. `netlify agents:create -p "<the real prompt>" -a codex` — not a `<placeholder>` and not a pick-one list of agents.
+- **One agent, already chosen** — commit to a single `-a` value and say why you picked it ("codex for a second opinion on the auth logic"), rather than offering claude/codex/gemini as interchangeable options.
+- **Why**, plus **what happens after "yes"**: the run is asynchronous — `agents:create` returns as soon as the task is queued, there's no callback, and you'll poll `netlify agents:show <task-id>` for the outcome.
+- **Even if a prerequisite is missing** (not authenticated, not linked to a site, not a git repo yet), still show the exact command and chosen agent you'll run *once it's resolved* — surface the blocker **and** the concrete proposal, rather than collapsing to only describing the blocker.
+
+Never run these commands without the user's approval.
 
 Before delegating, understand what you're handing off (see [How Agent Tasks Run](#how-agent-tasks-run) above):
 

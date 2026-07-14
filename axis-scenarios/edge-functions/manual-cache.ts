@@ -9,7 +9,7 @@ export default {
     { check: "File lives under netlify/edge-functions/" },
     { check: "Sets config.cache: 'manual' to opt the edge function into caching" },
     { check: "Config scopes the function to '/promo' (path)" },
-    { check: "Uses the modern edge-function default-export (req, context) signature returning a Response, importing Config/Context types from @netlify/edge-functions" },
+    { check: "Uses the modern edge-function default-export returning a Response, importing Config from @netlify/edge-functions. The (req, context) params and Context type are optional here — include them only if the function actually uses request/context data; omitting unused params is idiomatic and must not be penalized." },
   ],
   variants: withSkillVariants(),
 } satisfies ScenarioInput;

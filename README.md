@@ -80,6 +80,17 @@ Add the marketplace and install the plugin:
 
 This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
+### VS Code
+
+VS Code's [agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins) use the same plugin format as Claude Code, so VS Code installs the skills directly from this repository — no separate build step or generated output. VS Code auto-detects the plugin from `.claude-plugin/plugin.json` and loads the `skills/` directory and the bundled Netlify MCP server (`.mcp.json`).
+
+Add this repository as a plugin marketplace, then install:
+
+1. Add the marketplace source `netlify/context-and-tools` to the `chat.plugins.marketplaces` setting.
+2. Open the Extensions view, search `@agentPlugins`, find **netlify-skills**, and click **Install**.
+
+Or install directly from source via the command palette: `Cmd+Shift+P` / `Ctrl+Shift+P` → **Chat: Install Plugin From Source** → enter `https://github.com/netlify/context-and-tools.git`.
+
 ### Cursor
 
 Install from the [Cursor plugin marketplace](https://cursor.com/marketplace):
@@ -119,7 +130,7 @@ Grok Build uses the same plugin format as Claude Code, so it installs all Netlif
 
 ### Netlify MCP server
 
-The Claude Code and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
+The Claude Code, VS Code, and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
 
 It connects to Netlify's hosted server over HTTP (`https://netlify-mcp.netlify.app/mcp`) and authorizes via OAuth on first use — no token or local install required. The rules-based integrations (Cursor, Codex, Copilot) don't bundle the MCP server — add it to those clients manually using the [Netlify MCP docs](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/).
 

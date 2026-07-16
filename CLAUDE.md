@@ -5,7 +5,7 @@ This repository contains public Netlify skills — factual platform reference fo
 ## Repository Structure
 
 - `context/` — Steering guides (e.g., POWER.md for Kiro deployments)
-- `.claude-plugin/` — Plugin marketplace config for Claude Code installation
+- `.claude-plugin/` — Plugin marketplace config for Claude Code installation (VS Code agent plugins share this format and auto-detect `.claude-plugin/plugin.json`; no VS-Code-specific mirror is generated)
 - `.grok-plugin/` — Plugin manifest for Grok Build (same plugin format as Claude Code; hand-authored, not generated)
 - `.mcp.json` — Netlify MCP server config bundled with the Claude Code and Grok Build plugins (hosted HTTP endpoint; OAuth at runtime)
 - `skills/` — Netlify platform skills (source of truth for all agent formats)

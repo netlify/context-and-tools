@@ -46,22 +46,15 @@ The `@beta` tag only affects the installed version — imports are written as `d
 
 The CLI ships a complete database surface under `netlify database` (alias: `netlify db`) that replaces hand-rolled scripts and direct API/UI work. Reach for these commands first before writing custom tooling. **Requires Netlify CLI 26.0.0+** — if a `netlify database` subcommand isn't recognized, run `npm install -g netlify-cli@latest`.
 
-The corollary: **never go around the CLI**, even for read-only operations. Specifically:
+The corollary: **never go around the CLI**, even for read-only work. Don't run `psql`/`pg_dump` or any raw Postgres client (use `netlify database connect --query "..."`), don't curl `https://api.netlify.com/...`, don't read auth tokens off disk for side-channel calls, and don't use `netlify api <method>` as a recovery hatch when provisioning fails — the supported recovery is under [If the first deploy fails to provision the database](#if-the-first-deploy-fails-to-provision-the-database).
 
-- **Do not run `psql`, `pg_dump`, or any other raw Postgres client** against a Netlify-hosted database, even for "harmless" `SELECT`s. Use `netlify database connect --query "..."` instead.
-- **Do not curl `https://api.netlify.com/...`** to manage the database.
-- **Do not read auth tokens** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) to authenticate side-channel calls.
-- **Do not use `netlify api <method>`** as a recovery hatch when a deploy fails to provision the database. The supported recovery is documented under [If the first deploy fails to provision the database](#if-the-first-deploy-fails-to-provision-the-database).
-
-Wandering off the documented surface is how agents end up touching the wrong database, deleting the wrong resource, or leaking credentials. If the documented happy path doesn't work, surface the failure to the user with context — see [When something fails, surface and stop](#when-something-fails-surface-and-stop) below.
-
-Full reference is in [Netlify CLI commands](#netlify-cli-commands-for-netlify-database) below.
+If the documented happy path doesn't work, [surface the failure and stop](#when-something-fails-surface-and-stop) — don't escalate to lower-level tools. Full command reference is in [Netlify CLI commands](#netlify-cli-commands-for-netlify-database) below.
 
 ## When something fails, surface and stop
 
 When a `netlify` command fails, a deploy fails to provision the database, or any documented happy path errors out, the right action is to **report the failure to the user** with the deploy log URL, the exact error, and the affected site/branch — and stop. Do not invent recovery commands or escalate to lower-level tools.
 
-Specific failure modes (like the first-deploy 401) get their own playbooks below. The general rule applies everywhere: a stuck agent surfacing context is far safer than a "helpful" agent that wanders off and deletes the wrong database.
+Specific failure modes (like the first-deploy 401) get their own playbooks below. The general rule applies everywhere: a stuck agent surfacing context is far safer than one that wanders off.
 
 ## CRITICAL: Never apply migrations to a Netlify-hosted database
 
@@ -129,7 +122,7 @@ Why preview-first matters: the preview deploy provisions the database and applie
 - Pull auth tokens out of `~/Library/Preferences/netlify/config.json`
 - Connect via `psql` to "check on things"
 
-The recovery is to give the user the deploy log URL, the site URL, and the exact error, and let them decide what to do next (file a support issue, recreate the site fresh, switch teams, etc.). Wandering off the happy path is how agents end up deleting the wrong resource — being stuck and clear is much safer than being "helpful" with side-channel calls.
+The recovery is to give the user the deploy log URL, the site URL, and the exact error, and let them decide what to do next (file a support issue, recreate the site, switch teams).
 
 ## Drizzle ORM (recommended path)
 
@@ -330,7 +323,7 @@ Each deploy preview runs against its own database branch forked from production 
 
 ## Changing existing data — production or preview?
 
-A request to change existing data — "rename this category", "update that record", "fix the broken row for user X" — is **ambiguous about where it should land**: production, or only the current preview branch. Resolve that fork *before* changing anything: if the prompt didn't say, ask whether it's production-bound or a preview-only edit — a terse "update that record" tells you *what*, not *where*. When acting on someone's behalf, default to **not** touching production unless they explicitly asked.
+A request to change existing data — "rename this category", "fix the broken row for user X" — is **ambiguous about where it should land**: production, or only the current preview branch. Resolve that fork *before* changing anything: if the prompt didn't say, ask. When acting on someone's behalf, default to **not** touching production unless they explicitly asked.
 
 Once it's production-bound, express it as a **DML migration**, never a direct write:
 
@@ -354,14 +347,19 @@ When a migration you generated needs to change, what you do depends on whether i
 
 ## Local development
 
-`netlify dev` runs the project against a local Postgres-compatible database — no remote connection, no risk of touching production. Use `netlify database migrations apply` to apply pending migrations locally, `netlify database connect` to query, and `netlify database reset` to wipe and replay. See `references/local-dev.md`.
-
-## Operational footguns
-
-See `references/operational-footguns.md`: module-scope client reuse, scale-to-zero cold starts, preview-data (PII) exposure, and legacy-extension deletion.
+`netlify dev` runs against a local Postgres-compatible database — no remote connection, no risk to production. The local DB is the only one you migrate yourself (`netlify database migrations apply`).
 
 ## Common mistakes
 
-1. **Missing the `@beta` dist-tag** — `drizzle-orm`/`drizzle-kit` must be `@beta`; the `latest` releases lack the `drizzle-orm/netlify-db` adapter.
-2. **Wrong migration output dir** — set `out: "netlify/database/migrations"` in `drizzle.config.ts` (Drizzle Kit defaults to `drizzle/`, and migrations elsewhere aren't applied by the deploy).
-3. **Applying migrations to a hosted DB yourself** — never `drizzle-kit migrate`/`push` or DDL via `connect` against production/preview; generate migration files and let the deploy apply them. (`netlify dev` doesn't apply them locally either — run `netlify database migrations apply` yourself.)
+1. **Missing `@beta`** — `drizzle-orm`/`drizzle-kit` must be `@beta`; `latest` lacks the `drizzle-orm/netlify-db` adapter.
+2. **Wrong output dir** — set `out: "netlify/database/migrations"` in `drizzle.config.ts`; migrations elsewhere aren't applied by the deploy.
+3. **Self-applying hosted migrations** — never `drizzle-kit migrate`/`push` or DDL via `connect` against production/preview; commit migration files and let the deploy apply them.
+
+## References
+
+- [Migrations](references/migrations.md) — full migration workflow, expand-and-contract for breaking changes, and production DML
+- [CLI commands](references/cli-commands.md) — `init`, `status`, `connect`, and `migrations new` / `apply` / `pull` / `reset`
+- [Local development](references/local-dev.md) — running against a local Postgres-compatible database with `netlify dev`
+- [Operational footguns](references/operational-footguns.md) — client reuse, cold starts, preview-data (PII) exposure, legacy-extension deletion
+- [Legacy `@netlify/neon` extension](references/legacy-extension.md) — recognizing and coexisting with the older extension
+- [Migrating from the extension](references/migration-from-extension.md) — switching from `@netlify/neon` or other external Postgres, including the one-time data import

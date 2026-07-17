@@ -365,3 +365,12 @@ See `references/operational-footguns.md`: module-scope client reuse, scale-to-ze
 1. **Missing the `@beta` dist-tag** — `drizzle-orm`/`drizzle-kit` must be `@beta`; the `latest` releases lack the `drizzle-orm/netlify-db` adapter.
 2. **Wrong migration output dir** — set `out: "netlify/database/migrations"` in `drizzle.config.ts` (Drizzle Kit defaults to `drizzle/`, and migrations elsewhere aren't applied by the deploy).
 3. **Applying migrations to a hosted DB yourself** — never `drizzle-kit migrate`/`push` or DDL via `connect` against production/preview; generate migration files and let the deploy apply them. (`netlify dev` doesn't apply them locally either — run `netlify database migrations apply` yourself.)
+
+## References
+
+- [Migrations](references/migrations.md) — full migration workflow, expand-and-contract for breaking changes, and production DML
+- [CLI commands](references/cli-commands.md) — `init`, `status`, `connect`, and `migrations new` / `apply` / `pull` / `reset`
+- [Local development](references/local-dev.md) — running against a local Postgres-compatible database with `netlify dev`
+- [Operational footguns](references/operational-footguns.md) — client reuse, cold starts, preview-data (PII) exposure, legacy-extension deletion
+- [Legacy `@netlify/neon` extension](references/legacy-extension.md) — recognizing and coexisting with the older extension
+- [Migrating from the extension](references/migration-from-extension.md) — switching from `@netlify/neon` or other external Postgres, including the one-time data import

@@ -43,6 +43,9 @@ Read `netlify-access-control/SKILL.md` to pick the right layer — app-level Ide
 **Deploying a site to Netlify — installing/authenticating the CLI, linking a project, Git-based or manual deploys, CI deploys, or troubleshooting a failed deploy?**
 Read `netlify-deploy/SKILL.md` — the single deploy skill covering CLI install/auth, site linking, Git-based continuous deployment (the primary path), manual/local and CI deploys, and deploy troubleshooting. (Environment variables live in `netlify-config`; local dev lives in `netlify-frameworks`.)
 
+**Setting up A/B testing or a private beta by splitting traffic between deployed branches?**
+Read `netlify-split-testing/SKILL.md` for the branch-based Split Testing feature, the `nf_ab` cookie, client-side analytics tracking, and its conflicts with Edge Functions, Agent Runners, and Functions/proxy-generated content.
+
 **Want to run AI agents (Claude, Codex, Gemini) remotely on your site?**
 Read `netlify-agent-runner/SKILL.md` for creating, listing, and managing remote agent tasks.
 

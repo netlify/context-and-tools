@@ -4,6 +4,20 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [0.13.0](https://github.com/netlify/context-and-tools/compare/v0.12.1...v0.13.0) (2026-07-17)
+
+
+### Features
+
+* add context around vs code ([43059a3](https://github.com/netlify/context-and-tools/commit/43059a39003935fd78b72eff40071e060b236f37))
+* **ctx-pipeline:** add Stage-2 agent-context receiver (AX-97) ([#92](https://github.com/netlify/context-and-tools/issues/92)) ([8470331](https://github.com/netlify/context-and-tools/commit/8470331ab9f3e19de4eb2a88cc27f853bf214736))
+
+
+### Bug Fixes
+
+* improve db setup so linting works as expected ([#97](https://github.com/netlify/context-and-tools/issues/97)) ([b4ac277](https://github.com/netlify/context-and-tools/commit/b4ac277e6795f90e6a1d163c001c0d7667ff9143))
+* **skills:** close AXIS sub-95 gaps across all domains (skills, fixtures, rubrics, harness) ([#91](https://github.com/netlify/context-and-tools/issues/91)) ([48de7a4](https://github.com/netlify/context-and-tools/commit/48de7a41e3ab0e0381d63d6ad26f78b063754a7b))
+
 ## [0.12.1](https://github.com/netlify/context-and-tools/compare/v0.12.0...v0.12.1) (2026-07-09)
 
 

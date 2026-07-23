@@ -44,6 +44,7 @@ Read `netlify-access-control/SKILL.md` to pick the right layer — app-level Ide
 Read `netlify-deploy/SKILL.md` — the single deploy skill covering CLI install/auth, site linking, Git-based continuous deployment (the primary path), manual/local and CI deploys, and deploy troubleshooting. (Environment variables live in `netlify-config`; local dev lives in `netlify-frameworks`.)
 
 **Setting up A/B testing or a private beta by splitting traffic between deployed branches?**
+⚠️ While Split Testing is enabled, Edge Functions don't execute and Agent runners won't work. Don't recommend it for sites relying on edge/SSR/agent features
 Read `netlify-split-testing/SKILL.md` for the branch-based Split Testing feature, the `nf_ab` cookie, client-side analytics tracking, and its conflicts with Edge Functions, Agent Runners, and Functions/proxy-generated content.
 
 **Want to run AI agents (Claude, Codex, Gemini) remotely on your site?**

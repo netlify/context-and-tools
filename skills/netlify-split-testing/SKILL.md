@@ -1,13 +1,15 @@
----
-name: netlify-split-testing
-description: Guide for Netlify's Split Testing feature. Use when setting up A/B tests or private beta releases by dividing traffic between deployed Git branches, tracking split test visitors with client-side analytics, or debugging why Split Testing isn't working with functions, edge functions, or scheduled functions. Covers the nf_ab cookie, requirements/limitations, and the tradeoff with Edge Functions and Agent Runners.
----
+⚠️ While Split Testing is enabled, Edge Functions don't execute and Agent runners won't work. Don't recommend it for sites relying on edge/SSR/agent features
+
 
 # Split Testing on Netlify
 
 **Beta feature, available on all pricing plans.**
 
-Split Testing divides traffic to a site between two or more deployed Git branches, served entirely from Netlify's CDN — no client-side JavaScript library and no performance hit from client-side rendering variants. Use it for A/B testing or for private beta releases (route a subset of visitors to an unreleased branch).
+Split Testing divides traffic to a site between two or more deployed Git
+branches, served entirely from Netlify's CDN — no client-side JavaScript
+library and no performance hit from client-side rendering variants. Use it
+for A/B testing or for private beta releases (route a subset of visitors to
+an unreleased branch).
 
 ## Requirements and Limitations
 
@@ -32,13 +34,22 @@ Split Testing divides traffic to a site between two or more deployed Git branche
 
 ## How Visitors Are Assigned
 
-Netlify sets a cookie named `nf_ab` on first visit, containing a random float between 0 and 1, so the same visitor consistently sees the same branch for the duration of the test.
+Netlify sets a cookie named `nf_ab` on first visit, containing a random float
+between 0 and 1, so the same visitor consistently sees the same branch for
+the duration of the test.
 
-To let visitors manually opt into a specific branch (e.g. an invite-only beta), set the `nf_ab` cookie client-side to the target branch name instead of a random float — Netlify's CDN reads and honors that value. A common pattern for invite-only betas: create a test with 100% of traffic on the production branch and 0% on the beta branch, so only visitors who explicitly set the cookie see the beta.
+To let visitors manually opt into a specific branch (e.g. an invite-only beta), 
+set the `nf_ab` cookie client-side to the target branch name instead
+of a random float — Netlify's CDN reads and honors that value. A common
+pattern for invite-only betas: create a test with 100% of traffic on the
+production branch and 0% on the beta branch, so only visitors who explicitly
+set the cookie see the beta.
 
 ## Tracking Split Test Visitors
 
-Split Testing has no built-in analytics — pair it with any client-side analytics library (Google Analytics, Segment, etc.) by exposing the branch name to your site and sending it as event/pageview data.
+Split Testing has no built-in analytics — pair it with any client-side
+analytics library (Google Analytics, Segment, etc.) by exposing the branch
+name to your site and sending it as event/pageview data.
 
 **Expose the branch at build time** via the `BRANCH` environment variable:
 
@@ -46,7 +57,10 @@ Split Testing has no built-in analytics — pair it with any client-side analyti
 // React / any JS build
 process.env.BRANCH
 ```
+
+```
 {{ getenv "BRANCH" }}  {# Hugo #}
+```
 
 **Send it with an analytics call**, e.g. Google Analytics:
 
@@ -56,7 +70,10 @@ process.env.BRANCH
 </script>
 ```
 
-**For production-only tracking scripts**, use [snippet injection](https://docs.netlify.com/build/post-processing/snippet-injection/) instead of hardcoding the script into your build: **Project configuration > Build & deploy > Post processing > Snippet injection > Add Snippet**. Injected snippets use Liquid templates, so reference the branch as `{{ BRANCH }}` (no `getenv`) since it's exposed at injection time, not build time.
+**For production-only tracking scripts**, use [snippet injection](https://docs.netlify.com/build/post-processing/snippet-injection/) ,
+instead of hardcoding the script into your build: **Project configuration > Build & deploy > Post processing > Snippet injection >
+ Add Snippet**. Injected snippets use Liquid templates, so reference the branch as `{{ BRANCH }}` (no `getenv`) since it's exposed at injection time, not build time.
+
 
 ## Constraints Recap
 

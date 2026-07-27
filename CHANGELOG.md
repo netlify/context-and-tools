@@ -4,6 +4,14 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.2.1](https://github.com/netlify/context-and-tools/compare/v1.2.0...v1.2.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* **deps:** update dependency drizzle-orm to ^0.45.0 ([#100](https://github.com/netlify/context-and-tools/issues/100)) ([43c87de](https://github.com/netlify/context-and-tools/commit/43c87de59548f80fab1eafbf48b60c77212a9e2e))
+* **plugin:** sync .github/plugin manifest version with release-please ([#96](https://github.com/netlify/context-and-tools/issues/96)) ([15ac65e](https://github.com/netlify/context-and-tools/commit/15ac65eec926da863c3f72fee021309229f0d904))
+
 ## [1.2.0](https://github.com/netlify/context-and-tools/compare/v1.1.0...v1.2.0) (2026-07-27)
 
 

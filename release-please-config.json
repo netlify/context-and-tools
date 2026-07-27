@@ -1,7 +1,5 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "bump-minor-pre-major": true,
-  "bump-patch-for-minor-pre-major": false,
   "include-component-in-tag": false,
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
@@ -15,7 +13,13 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "context-and-tools"
+      "package-name": "context-and-tools",
+      "extra-files": [
+        { "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "json", "path": ".grok-plugin/plugin.json",   "jsonpath": "$.version" },
+        { "type": "json", "path": ".cursor-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "gemini-extension.json",       "jsonpath": "$.version" }
+      ]
     }
   }
 }

@@ -8,9 +8,9 @@
   },
   "dependencies": {
     "@netlify/database": "^1.1.0",
-    "drizzle-orm": "^0.36.0-beta.1"
+    "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.28.0-beta.1"
+    "drizzle-kit": "^0.31.0"
   }
 }

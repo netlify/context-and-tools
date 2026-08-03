@@ -8,6 +8,18 @@
     {
       "grouping": "functions",
       "skill": "netlify-functions"
+    },
+    {
+      "grouping": "forms",
+      "skill": "netlify-forms"
+    },
+    {
+      "grouping": "edge-functions",
+      "skill": "netlify-edge-functions"
+    },
+    {
+      "grouping": "image-cdn",
+      "skill": "netlify-image-cdn"
     }
   ]
 }

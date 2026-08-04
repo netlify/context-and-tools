@@ -1,99 +1,145 @@
 ---
-description: Guide for using Netlify Image CDN for image optimization and transformation. Use when serving optimized images, creating responsive image markup, setting up user-uploaded image pipelines, or configuring image transformations. Covers the /.netlify/images endpoint, query parameters, remote image allowlisting, clean URL rewrites, and composing uploads with Functions + Blobs.
+description: Transform, resize, crop, and reformat images on demand via Netlify's Image CDN HTTP endpoint (/.netlify/images). Use when serving optimized images, converting formats (webp/avif/jpg/png), generating responsive/thumbnail sizes, adding a blurhash placeholder, allowlisting remote image domains, or wiring framework image components (Next.js, Astro, Nuxt, Angular, Gatsby) to Netlify. Triggers on tasks like "optimize images", "resize an image", "convert to webp", "crop to a square thumbnail", or "serve images from an external bucket".
 alwaysApply: false
 ---
 
 # Netlify Image CDN
 
-Every Netlify site has a built-in `/.netlify/images` endpoint for on-the-fly image transformation. No configuration required for local images.
+Transform images by requesting the edge endpoint — no function code, no source file to author.
 
-## Basic Usage
-
-```html
-<img src="/.netlify/images?url=/photo.jpg&w=800&h=600&fit=cover&q=80" />
+```
+GET /.netlify/images?url=<source>&<transform params>
 ```
 
-## Query Parameters
+`url` is REQUIRED. All other params optional. This is the only documented form; there is no legacy/deprecated syntax.
 
-| Param | Description | Values |
-|---|---|---|
-| `url` | Source image path (required) | Relative path or absolute URL |
-| `w` | Width in pixels | Any positive integer |
-| `h` | Height in pixels | Any positive integer |
-| `fit` | Resize behavior | `contain` (default), `cover`, `fill` |
-| `position` | Crop alignment (with `cover`) | `center` (default), `top`, `bottom`, `left`, `right` |
-| `fm` | Output format | `avif`, `webp`, `jpg`, `png`, `gif`, `blurhash` |
-| `q` | Quality (lossy formats) | 1-100 (default: 75) |
+## Runnable examples
 
-When `fm` is omitted, Netlify auto-negotiates the best format based on browser support (preferring `webp`, then `avif`).
+```bash
+# Format conversion (JPEG -> PNG); response has content-type: image/png
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg&fm=png'
 
-### `fm=blurhash` returns a string, not an image
+# Resize width only (height derived to keep aspect ratio)
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg&w=50'
 
-`fm=blurhash` is special: the response body is a short BlurHash **text string**, not image bytes. Pointing an `<img src>` (or CSS `background-image`) straight at a `/.netlify/images?...&fm=blurhash` URL does not work — the browser receives text and has nothing to render. Use it as a placeholder workflow instead: obtain the blurhash string ahead of time (server-side, in a data loader, via a `fetch`, or at build time), decode it with a BlurHash decoder library into a rendered placeholder (a canvas or a data-URI), and show that while the real image loads. The real, displayable image is a **separate** `/.netlify/images` request **without** `fm=blurhash`.
+# Square thumbnail — resize + crop (fit=cover REQUIRES both w and h)
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg&fit=cover&w=50&h=50'
 
-## Remote Image Allowlisting
+# Cover with crop anchor (keep left side)
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg&fit=cover&w=50&h=50&position=left'
 
-External images must be explicitly allowed in `netlify.toml`:
+# Convert to AVIF at medium quality
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg&fm=avif&q=50'
+
+# Source-only: no url params -> auto content-negotiated webp/avif, size unchanged
+curl -vs 'https://mysite.netlify.app/.netlify/images?url=/owl.jpeg'
+```
+
+## Query parameters
+
+| Param | Values | Notes |
+|-------|--------|-------|
+| `url` | relative (`/owl.jpeg`) or remote (`https://...`) | **Required.** Remote domains must be allowlisted (see below). |
+| `w` | integer px | Target width. Behavior depends on `fit`. |
+| `h` | integer px | Target height. Behavior depends on `fit`. |
+| `fit` | `contain` (default), `cover`, `fill` | Resize behavior. |
+| `position` | `center` (default), `top`, `bottom`, `left`, `right` | Crop anchor. **Only applies when `fit=cover`.** |
+| `fm` | `avif`, `jpg`, `png`, `webp`, `gif`, `blurhash` | Output format. `webp`/`gif` may be animated. `blurhash` returns a placeholder string (see https://blurha.sh). |
+| `q` | integer `1`–`100`, default `75` | Quality. **Only applies to `avif`, `jpg`, `gif`, `webp`.** |
+
+### `fit` behavior
+
+| `fit=` | aspect ratio kept | crops excess | returns exact requested dims |
+|--------|-------------------|--------------|------------------------------|
+| `contain` | yes | no | no — one dimension may be smaller |
+| `cover` | no (scaled then cropped) | yes | yes |
+| `fill` | no (stretches/squishes) | no | yes |
+
+- `contain` (default): supply one dimension and the other is derived.
+- `cover`: **must supply both `w` and `h`**; use `position` to control crop.
+- `fill`: distorts to fit exactly.
+
+### Format content negotiation
+
+If `fm` is omitted, Netlify inspects the `Accept` header: use `webp` if accepted, else `avif` if accepted, else the original format.
+
+## Remote source images
+
+Remote `url` domains MUST be allowlisted first or the request fails:
 
 ```toml
+# netlify.toml
 [images]
-remote_images = ["https://example\\.com/.*", "https://cdn\\.images\\.com/.*"]
+  remote_images = ["https://my-images.com/.*", "https://animals.more-images.com/[bcr]at/.*"]
 ```
 
-Values are regex patterns.
+- Array of regex strings; restrict to specific subdomains/directories.
+- **Double-escape regex.** `https://` becomes regex `https:\/\/` and must be written in `netlify.toml` as `https:\\/\\/`.
+- **Footgun:** Credential-bearing headers (`Authorization`, `Cookie`) are NOT forwarded to remote sources. Remote images must be publicly accessible, or use self-authorizing URLs (e.g. S3 presigned URLs) and ensure `remote_images` patterns match them.
 
-A remote source URL that does **not** match any `remote_images` pattern is rejected with a **404** — Netlify does not fetch or proxy it. This is a strict allowlist, not a fallback: there is no automatic proxying of arbitrary external hosts. Add the host (as an escaped regex) to `remote_images` *before* referencing it through `/.netlify/images`, or every transform request for that source will 404. (Local images on the same site never need allowlisting.)
+## Redirects / reusable transforms
 
-When referencing an allow-listed remote image, **percent-encode the source URL** before placing it in the `url` parameter:
+Alias transforms so multiple images share params:
 
-```html
-<!-- source: https://cdn.example.com/marketing/banner.jpg -->
-<img src="/.netlify/images?url=https%3A%2F%2Fcdn.example.com%2Fmarketing%2Fbanner.jpg&w=800&fm=webp&q=80" />
 ```
-
-Percent-encode the source value (e.g. with `encodeURIComponent`) whenever it contains characters that would otherwise be read as Image CDN params — `?`, `&`, `=`, `#`, or whitespace. This applies to remote URLs and relative paths alike (a filename or user-generated key can contain them too, e.g. `url=/uploads/a%26b.jpg`). Basic paths without those characters don't need encoding.
-
-## Clean URL Rewrites
-
-Create user-friendly image URLs with redirects:
+# _redirects — /transform-small/owl.jpeg transforms /owl.jpeg to 50x50
+/transform-small/* /.netlify/images?url=/:splat&w=50&h=50 200
+```
 
 ```toml
-# Basic optimization
+# netlify.toml
 [[redirects]]
-from = "/img/*"
-to = "/.netlify/images?url=/:splat"
-status = 200
-
-# Preset: thumbnail
-[[redirects]]
-from = "/img/thumb/:key"
-to = "/.netlify/images?url=/uploads/:key&w=150&h=150&fit=cover"
-status = 200
-
-# Preset: hero
-[[redirects]]
-from = "/img/hero/:key"
-to = "/.netlify/images?url=/uploads/:key&w=1200&h=675&fit=cover"
-status = 200
+  from = "/transform-small/*"
+  to = "/.netlify/images?url=/:splat&w=50&h=50"
+  status = 200
 ```
 
-## Local Development
+**Caution:** Cross-site redirects for image transformations are not recommended (performance impact).
 
-`/.netlify/images` is a Netlify platform endpoint — it does **not** exist in a framework's own dev server. Running `vite`, `next dev`, `astro dev`, etc. directly will **404** on `/.netlify/images`, and `[images]` allowlisting and your image redirects won't apply either. Run `netlify dev` for local work: it emulates the Image CDN endpoint, remote-image allowlisting, and redirect rules, so image URLs resolve locally the same way they do in production. A 404 on `/.netlify/images` locally almost always means a framework dev server is being run directly instead of `netlify dev` — the URL itself is fine.
+## Custom cache headers
 
-## Caching
+Header rules on source images propagate to the transformed asset:
 
-- Transformed images are cached at the CDN edge automatically
-- Cache invalidates on new deploys
-- Set cache headers on source images to control caching:
+```
+# _headers
+/source-images/*
+  Cache-Control: public, max-age=604800, must-revalidate
+```
 
 ```toml
+# netlify.toml
 [[headers]]
-for = "/uploads/*"
-[headers.values]
-Cache-Control = "public, max-age=31536000, immutable"
+  for = "/source-images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, must-revalidate"
 ```
 
-## User-Uploaded Images
+- Custom headers apply ONLY to source images on the site's own domain — NOT to remote sources (Netlify does respect cache headers the remote domain sends).
+- `Cache-Control` on source images applies only to browsers/CDNs in front of Netlify — NOT the Netlify Cache itself.
 
-Combine **Netlify Functions** (upload handler) + **Netlify Blobs** (storage) + **Image CDN** (serving/transforming) to build a complete user-uploaded image pipeline. See [references/user-uploads.md](references/user-uploads.md) for the full pattern.
+## Response codes
+
+- Invalid transformation parameter value → `404` (fails silently as a not-found; validate params).
+- Valid new transformation → `200` with content + `content-type`.
+- Previously transformed image → `304`.
+
+## Framework integrations
+
+Use the framework's native image component to route through Netlify Image CDN automatically; each framework configures its own remote allowlist.
+
+| Framework | Prerequisites | Remote allowlist |
+|-----------|---------------|------------------|
+| Angular | None — `NgOptimizedImage` auto-uses it. | `[images] remote_images` in `netlify.toml` |
+| Astro | None — `<Image />` auto-uses it. | `image.domains` / `image.remotePatterns` in `astro.config.mjs` |
+| Gatsby | `NETLIFY_IMAGE_CDN=true` env var + Contentful/Drupal/WordPress source plugin. | `[images] remote_images` in `netlify.toml` |
+| Next.js | Next.js 13.5+ and Netlify adapter v5. | `remotePatterns` in `next.config.js` |
+| Nuxt | None — `nuxt/image` module auto-uses it. | `image.domains` in `nuxt.config.ts` |
+
+For any other framework, call `/.netlify/images` directly.
+
+## Notes
+
+- Transformed results are cached per-transformation on the edge; atomic deploys re-run transforms when a source image changes so stale assets aren't served.
+- Test locally with Netlify Dev (Netlify CLI).
+- **Split Testing is not supported** — image results may be inconsistent across split-test branches.
+- **Not supported under HIPAA-compliant hosting.**

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "netlify-skills",
+  "version": "1.2.1",
+  "description": "Netlify platform skills — functions, edge functions, blobs, database, identity, image CDN, forms, config, CLI, frameworks, caching, AI gateway, and deployment — plus the official Netlify MCP server.",
+  "author": {
+    "name": "Netlify",
+    "url": "https://www.netlify.com"
+  },
+  "homepage": "https://docs.netlify.com",
+  "repository": "https://github.com/netlify/context-and-tools",
+  "license": "MIT",
+  "keywords": [
+    "netlify",
+    "deploy",
+    "serverless",
+    "functions",
+    "edge-functions",
+    "blobs",
+    "database",
+    "image-cdn",
+    "forms",
+    "mcp"
+  ]
+}

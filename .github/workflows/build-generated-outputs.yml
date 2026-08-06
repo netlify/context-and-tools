@@ -7,12 +7,14 @@ on:
       - "skills/**"
       - "scripts/build-cursor-rules.sh"
       - "scripts/build-codex-skills.sh"
+      - "scripts/build-agent-plugin.sh"
       - ".github/workflows/build-generated-outputs.yml"
   pull_request:
     paths:
       - "skills/**"
       - "scripts/build-cursor-rules.sh"
       - "scripts/build-codex-skills.sh"
+      - "scripts/build-agent-plugin.sh"
       - ".github/workflows/build-generated-outputs.yml"
 
 permissions:
@@ -48,22 +50,25 @@ jobs:
       - name: Build Codex skills from skills
         run: bash scripts/build-codex-skills.sh
 
-      # Same-repo PRs and pushes to main: commit both generated trees in ONE
-      # commit so the mirrors travel with the source change — keeping cursor/
-      # and codex/ in parity with skills/ at every commit (including whatever
-      # commit the release-please PR tags). One job / one push means the cursor
-      # and codex builds can't race each other.
+      - name: Build Agent Plugin package from skills
+        run: bash scripts/build-agent-plugin.sh
+
+      # Same-repo PRs and pushes to main: commit all generated trees in ONE
+      # commit so the mirrors travel with the source change — keeping cursor/,
+      # codex/, and agent-plugin/skills/ in parity with skills/ at every commit
+      # (including whatever commit the release-please PR tags). One job / one
+      # push means the builds can't race each other.
       #
-      # No [skip ci]: the path filters above already exclude cursor/ and codex/,
-      # so this generated-only commit won't retrigger the build — and dropping
-      # the skip token lets the normal PR checks evaluate the actual head commit
-      # instead of being skipped on it.
+      # No [skip ci]: the path filters above already exclude the generated
+      # trees, so this generated-only commit won't retrigger the build — and
+      # dropping the skip token lets the normal PR checks evaluate the actual
+      # head commit instead of being skipped on it.
       - name: Commit regenerated outputs
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cursor/rules/ codex/
+          git add cursor/rules/ codex/ agent-plugin/skills/
           if git diff --cached --quiet; then
             echo "Generated outputs already up to date"
           else
@@ -77,11 +82,11 @@ jobs:
       - name: Verify generated outputs are in sync (fork PRs)
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
-          git add cursor/rules/ codex/
+          git add cursor/rules/ codex/ agent-plugin/skills/
           if git diff --cached --quiet; then
-            echo "Generated cursor/codex are in sync."
+            echo "Generated cursor/codex/agent-plugin are in sync."
           else
-            echo "::error::cursor/ and codex/ are out of date with skills/. This is a fork PR, so they can't be auto-committed here. Regenerate with 'bash scripts/build-cursor-rules.sh && bash scripts/build-codex-skills.sh' and commit, or a maintainer will — they're also rebuilt automatically when this merges to main."
+            echo "::error::cursor/, codex/, and agent-plugin/skills/ are out of date with skills/. This is a fork PR, so they can't be auto-committed here. Regenerate with 'bash scripts/build-cursor-rules.sh && bash scripts/build-codex-skills.sh && bash scripts/build-agent-plugin.sh' and commit, or a maintainer will — they're also rebuilt automatically when this merges to main."
             git diff --cached --stat
             exit 1
           fi

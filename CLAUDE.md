@@ -9,11 +9,13 @@ This repository contains public Netlify skills — factual platform reference fo
 - `.grok-plugin/` — Plugin manifest for Grok Build (same plugin format as Claude Code; hand-authored, not generated)
 - `.mcp.json` — Netlify MCP server config bundled with the Claude Code and Grok Build plugins (hosted HTTP endpoint; OAuth at runtime)
 - `skills/` — Netlify platform skills (source of truth for all agent formats)
+- `agent-plugin/` — [Agent Plugins](https://agent-plugins.org) spec-compliant package (`plugin.json` + `mcp.json` + `skills/`). Root manifests are hand-authored; `agent-plugin/skills/` is auto-generated (do NOT edit directly)
 - `cursor/rules/` — Auto-generated Cursor `.mdc` rule files (do NOT edit directly)
 - `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
 - `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
-- `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/` and `codex/` from `skills/` and commits them in a single step (on push to main and on PRs), so the generated mirrors always stay in parity with `skills/`
+- `scripts/build-agent-plugin.sh` — Mirrors `skills/` → `agent-plugin/skills/`
+- `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/`, `codex/`, and `agent-plugin/skills/` from `skills/` and commits them in a single step (on push to main and on PRs), so the generated mirrors always stay in parity with `skills/`
 
 ## Skills
 
@@ -33,4 +35,4 @@ Skills should be factual and platform-focused — not opinionated about framewor
 
 Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content.
 
-**Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/` or `codex/` — they are overwritten by CI.
+**Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/`, `codex/`, or `agent-plugin/skills/` — they are overwritten by CI.

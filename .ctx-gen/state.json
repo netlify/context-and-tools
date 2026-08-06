@@ -1,1 +1,62 @@
-{}
+{
+  "functions": {
+    "sourceHash": "a71d9a4ba1be3f6849eb2de10299eb896f0aa0649aba0a45c43dbc8db50eb4e6",
+    "docsCommit": "0c205e4da28ff49b5ab8871ac1c2d592c0050cee",
+    "importerVersion": 1,
+    "affects": [
+      "api",
+      "authoring",
+      "compat",
+      "configuration",
+      "constraints",
+      "examples",
+      "overview",
+      "workflows"
+    ]
+  },
+  "forms": {
+    "sourceHash": "e9238e4279d3cd87a88b715f87e36d4de6afbac3640e3b5ae1cbc9569374f3a9",
+    "docsCommit": "0c205e4da28ff49b5ab8871ac1c2d592c0050cee",
+    "importerVersion": 1,
+    "affects": [
+      "api",
+      "authoring",
+      "compat",
+      "configuration",
+      "constraints",
+      "examples",
+      "overview",
+      "workflows"
+    ]
+  },
+  "edge-functions": {
+    "sourceHash": "6aefbe078cf6e2ad07f2825f043393143fd45ce202071399dc1b6e54ca555f53",
+    "docsCommit": "0c205e4da28ff49b5ab8871ac1c2d592c0050cee",
+    "importerVersion": 1,
+    "affects": [
+      "api",
+      "authoring",
+      "compat",
+      "configuration",
+      "constraints",
+      "examples",
+      "overview",
+      "workflows"
+    ]
+  },
+  "image-cdn": {
+    "sourceHash": "d610f4e75340434db04b75990b57e1833818f6c3f33b4a2b3ffdea201cc09d23",
+    "docsCommit": "0c205e4da28ff49b5ab8871ac1c2d592c0050cee",
+    "importerVersion": 1,
+    "affects": [
+      "api",
+      "authoring",
+      "compat",
+      "configuration",
+      "constraints",
+      "examples",
+      "overview",
+      "workflows"
+    ]
+  }
+}

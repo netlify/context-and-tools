@@ -20,6 +20,42 @@
     {
       "grouping": "image-cdn",
       "skill": "netlify-image-cdn"
+    },
+    {
+      "grouping": "caching",
+      "skill": "netlify-caching"
+    },
+    {
+      "grouping": "blobs",
+      "skill": "netlify-blobs"
+    },
+    {
+      "grouping": "database",
+      "skill": "netlify-database"
+    },
+    {
+      "grouping": "deploy",
+      "skill": "netlify-deploy"
+    },
+    {
+      "grouping": "ai-gateway",
+      "skill": "netlify-ai-gateway"
+    },
+    {
+      "grouping": "frameworks",
+      "skill": "netlify-frameworks"
+    },
+    {
+      "grouping": "identity",
+      "skill": "netlify-identity"
+    },
+    {
+      "grouping": "access-control",
+      "skill": "netlify-access-control"
+    },
+    {
+      "grouping": "config",
+      "skill": "netlify-config"
     }
   ]
 }

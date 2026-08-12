@@ -1,240 +1,200 @@
 ---
 name: netlify-ai-gateway
-description: Reference for Netlify AI Gateway — the managed proxy that routes calls to OpenAI, Anthropic, and Google Gemini SDKs without provider API keys. Use this skill any time the user wants to add AI on a Netlify site (chat, completion, reasoning, image generation, image-to-image edit/stylize), choose or change a model, wire up the OpenAI / Anthropic / @google/genai SDK, decide which provider to use for an image-gen feature (it's Gemini-only on the gateway), or debug "model not found" / "API key missing" against the gateway. Required reading before pinning a model — the gateway exposes a curated subset, not every provider model.
+description: Use OpenAI, Anthropic, Google Gemini, or OpenRouter models from Netlify Functions or Edge Functions without managing provider API keys or accounts — the gateway injects credentials automatically. Reach for this when you add an AI chatbot or completion endpoint, generate images or text with Gemini/GPT/Claude, summarize form submissions with AI, build an LLM-backed API route, stream a long AI generation, or wire up any server-side AI provider call on Netlify. Covers provider SDK setup, injected env vars, model availability, rate limits, credit costs, streaming for long generations, and local dev with netlify dev or the Vite plugin.
 ---
 
 # Netlify AI Gateway
 
-> **IMPORTANT:** Only use models listed in the "Available Models" section below. AI Gateway does not support every model a provider offers. Using an unsupported model returns an HTTP error from the gateway.
+Call AI providers from Netlify server-side compute using each provider's **official SDK** with zero credential config — the gateway injects the API keys and base URLs the SDKs already read. Instantiate the client with no args (except OpenRouter, which needs an explicit base URL).
 
-> **First-deploy requirement:** The AI Gateway only activates after a site has had at least one production deploy. Local dev (`netlify dev`, `@netlify/vite-plugin`) will NOT have gateway access on a brand-new project until you deploy to production once.
+**Never do these** (they silently fail or cost money):
+- **Not browser-callable.** The gateway lives in Functions/Edge Functions only. Never call it from client-side React/browser code.
+- **Runtime-only credentials.** Never call the gateway from build scripts, prerender/SSG, or build plugins — those get no credentials and fail. Do AI work at request time; cache to Netlify Blobs if output must look precomputed.
+- **60s sync timeout.** A slow generation in a synchronous function is killed at 60s. Stream it (SDK streaming + `ReadableStream`), or use a background function that persists output for the client to fetch.
+- **Requires a production deploy.** The gateway does not activate until the project has at least one production deploy — even in local dev.
+- **Don't hardcode model lists.** Model availability changes; check the live providers endpoint rather than baking in IDs.
 
-> **Usage is credit-metered:** Gateway calls draw down your Netlify AI credit/inference allowance and start returning errors once it's exhausted — there's no separate provider bill behind it. Budget for this explicitly in any bulk or fan-out design (generating content for hundreds of rows/pages, retry loops), and don't retry unbounded.
+## Function example
 
-Netlify AI Gateway provides access to AI models from multiple providers without managing API keys directly. It is available on all Netlify sites.
+File: `netlify/functions/joke.js` (`mkdir -p netlify/functions`). Install: `npm install openai`.
 
-## How It Works
-
-The AI Gateway acts as a proxy — you use standard provider SDKs but point them at Netlify's gateway URL. Netlify auto-injects both the base URL and a placeholder API key for each provider, then authenticates upstream on your behalf.
-
-Always make the call through the provider's official SDK, constructed bare (`new OpenAI()`, `new Anthropic()`, `new GoogleGenAI()`) — the SDK reads the auto-injected base URL and key from the environment. **Don't hand-roll the gateway call with a raw `fetch()` and a manually-read `process.env.OPENAI_API_KEY`** (or a hardcoded key/URL): the injected key is only a placeholder, and rolling your own request bypasses the supported path the gateway expects.
-
-## Setup
-
-1. Enable AI on your site in the Netlify UI
-2. Deploy to production at least once — the gateway does not activate until then
-3. Install the provider SDK you want to use
-
-Don't set your own `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `GOOGLE_API_KEY` (the `@google/genai` SDK reads either `GEMINI_API_KEY` or `GOOGLE_API_KEY`). Doing so disables Netlify's auto-injection and routes calls directly to the provider, bypassing the gateway.
-
-## Using OpenAI SDK
-
-```bash
-npm install openai
-```
-
-```typescript
+```js
+import process from "process";
 import OpenAI from "openai";
 
-const openai = new OpenAI();
-// `OPENAI_API_KEY` and `OPENAI_BASE_URL` are auto-injected; the SDK
-// reads both from the environment, so no constructor args are needed.
+export default async () => {
+  const client = new OpenAI(); // reads OPENAI_API_KEY + OPENAI_BASE_URL
+  try {
+    const res = await client.responses.create({
+      model: "gpt-5-mini",
+      input: [{ role: "user", content: "Give me a random short dad joke" }],
+      reasoning: { effort: "minimal" },
+    });
+    return Response.json({
+      joke: res.output_text?.trim() || "Out of jokes",
+      model: res.model,
+      tokens: { input: res.usage.input_tokens, output: res.usage.output_tokens },
+    });
+  } catch (e) {
+    return Response.json({ error: `${e}` }, { status: 500 });
+  }
+};
 
-const completion = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [{ role: "user", content: "Hello!" }],
-});
+export const config = { path: "/api/joke" }; // route, local + deployed
 ```
 
-## Using Anthropic SDK
+Client-side fetch just hits the route:
 
-```bash
-npm install @anthropic-ai/sdk
+```jsx
+const res = await fetch("/api/joke");
+const data = await res.json();
 ```
 
-```typescript
-import Anthropic from "@anthropic-ai/sdk";
+## Provider SDKs (modern — instantiate with no args)
 
-const client = new Anthropic();
-// `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` are auto-injected; the SDK
-// reads both from the environment, so no constructor args are needed.
+Each SDK auto-reads the injected env vars. **OpenRouter is the exception:** its base URL must be passed explicitly.
 
-const message = await client.messages.create({
-  model: "claude-sonnet-4-5-20250929",
+```js
+// Anthropic — npm i @anthropic-ai/sdk
+import Anthropic from '@anthropic-ai/sdk';
+const anthropic = new Anthropic(); // ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL
+await anthropic.messages.create({
+  model: 'claude-sonnet-4-5-20250929',
   max_tokens: 1024,
-  messages: [{ role: "user", content: "Hello!" }],
+  messages: [{ role: 'user', content: 'Hello!' }],
 });
 ```
 
-## Using Google Gemini SDK
-
-Use `@google/genai` (the unified Google GenAI SDK). The older `@google/generative-ai` package does not pick up the gateway env vars.
-
-```bash
-npm install @google/genai
-```
-
-```typescript
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({});
-// `GEMINI_API_KEY` and `GOOGLE_GEMINI_BASE_URL` are auto-injected. The SDK also
-// honors `GOOGLE_API_KEY`; leave both Gemini keys unset so the gateway's
-// injection isn't shadowed.
-
-const response = await ai.models.generateContent({
-  model: "gemini-2.5-flash",
-  contents: "Hello!",
-});
-
-const text = response.text;
-```
-
-## In a Netlify Function
-
-```typescript
-import type { Config, Context } from "@netlify/functions";
-import OpenAI from "openai";
-
-export default async (req: Request, context: Context) => {
-  const { prompt } = await req.json();
-  const openai = new OpenAI();
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  return Response.json({
-    response: completion.choices[0].message.content,
-  });
-};
-
-export const config: Config = {
-  path: "/api/ai",
-  method: "POST",
-};
-```
-
-Return the reply as JSON with `Response.json({...})`, even when the request only asks for "the reply text" back — a raw `text/plain` body breaks JSON-consuming clients and diverges from the convention used everywhere else in Netlify Functions.
-
-## Image Generation
-
-Image generation on the gateway is supported through **Gemini image models** (e.g., `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`). OpenAI's image models (`gpt-image-1`, `dall-e-*`) are **not** routed through the gateway.
-
-Both text-to-image and image-to-image use the same `generateContent` method as chat — only the model and response shape differ. The image is returned as base64 `inlineData` on a content part, not as a URL.
-
-### Text-to-image
-
-```typescript
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({});
-
-const response = await ai.models.generateContent({
-  model: "gemini-3.1-flash-image",
-  contents: "A watercolor portrait of a corgi wearing a beret",
-});
-
-const imagePart = response.candidates[0].content.parts.find(
-  (p) => p.inlineData,
-);
-const base64 = imagePart.inlineData.data;
-const mimeType = imagePart.inlineData.mimeType; // e.g. "image/png"
-const bytes = Buffer.from(base64, "base64");
-```
-
-### Image-to-image (edit / stylize an input image)
-
-Pass the source image as an additional content part with `inlineData`:
-
-```typescript
-const sourceBase64 = sourceBuffer.toString("base64");
-
-const response = await ai.models.generateContent({
-  model: "gemini-3.1-flash-image",
-  contents: [
-    { text: "Restyle this photo as a Picasso-era cubist portrait" },
-    { inlineData: { mimeType: "image/png", data: sourceBase64 } },
-  ],
+```js
+// OpenAI — npm i openai
+import OpenAI from 'openai';
+const openai = new OpenAI(); // OPENAI_API_KEY + OPENAI_BASE_URL
+await openai.chat.completions.create({
+  model: 'gpt-5',
+  messages: [{ role: 'user', content: 'Hello!' }],
 });
 ```
 
-The response shape is the same — pull `base64` and `mimeType` off the first part with `inlineData`. Most callers persist the bytes to Netlify Blobs (see `netlify-blobs/SKILL.md`) and serve a URL back to the client rather than returning multi-MB base64 in the function response.
+```js
+// Google Gemini — npm i @google/genai
+import { GoogleGenAI } from '@google/genai';
+const genAI = new GoogleGenAI({}); // GEMINI_API_KEY + GOOGLE_GEMINI_BASE_URL
+await genAI.models.generateContent({
+  model: 'gemini-2.5-pro',
+  contents: 'Hello!',
+});
+```
 
-## Environment Variables
+```js
+// OpenRouter — npm i @openrouter/sdk — base URL REQUIRED
+import { OpenRouter } from '@openrouter/sdk';
+const openRouter = new OpenRouter({
+  serverURL: process.env.OPENROUTER_BASE_URL, // API key auto-read from OPENROUTER_API_KEY
+});
+await openRouter.chat.send({
+  chatRequest: {
+    model: 'x-ai/grok-4.5',
+    messages: [{ role: 'user', content: 'Hello!' }],
+  },
+});
+```
 
-All of these are injected automatically by Netlify when AI is enabled. Setting your own value for any of the per-provider vars disables gateway routing.
+**OpenRouter models via the OpenAI SDK:** you can reach any OpenRouter-served model (xAI, DeepSeek, Meta, Mistral, Qwen) through the plain OpenAI SDK — just pass the model ID in OpenRouter notation, no extra config:
 
-| Variable | Provider | Purpose |
-|---|---|---|
-| `OPENAI_BASE_URL` | OpenAI | Gateway endpoint |
-| `OPENAI_API_KEY` | OpenAI | Placeholder; satisfies the SDK's "key required" check |
-| `ANTHROPIC_BASE_URL` | Anthropic | Gateway endpoint |
-| `ANTHROPIC_API_KEY` | Anthropic | Placeholder; satisfies the SDK's "key required" check |
-| `GOOGLE_GEMINI_BASE_URL` | Google Gemini | Gateway endpoint |
-| `GEMINI_API_KEY` | Google Gemini | Placeholder; satisfies the SDK's "key required" check |
-| `NETLIFY_AI_GATEWAY_BASE_URL` | (universal) | Provider-agnostic gateway endpoint |
-| `NETLIFY_AI_GATEWAY_KEY` | (universal) | Provider-agnostic gateway key |
+```js
+await openai.chat.completions.create({
+  model: 'deepseek/deepseek-v4-flash-0731',
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+```
 
-The real upstream API keys live on Netlify's side. The per-provider `*_API_KEY` vars are placeholders so the SDKs construct successfully; the gateway authenticates server-side. You don't read these yourself — the SDK picks them up.
+## Injected environment variables
 
-When your own code needs some *other* environment value (a config flag, a model name you've parameterized), prefer `Netlify.env.get("VAR")` — it works in Netlify Functions and Edge Functions, and Edge Functions expose **only** `Netlify.env.get`. (In a framework's own server routes, use whatever that framework documents for env access — often `process.env`.)
+Set in all Netlify compute contexts at function init **only if you have not already set them** at project/team level (Netlify never overrides your keys):
 
-## Local Development
+| Provider | Vars |
+| --- | --- |
+| OpenAI | `OPENAI_API_KEY`, `OPENAI_BASE_URL` |
+| Anthropic | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` |
+| Google Gemini | `GEMINI_API_KEY`, `GOOGLE_GEMINI_BASE_URL` |
+| OpenRouter | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` |
 
-With `@netlify/vite-plugin` or `netlify dev`, gateway environment variables are injected automatically into the local process — but only after the site has had at least one production deploy. A brand-new local-only project will see "API key missing" or "model not found" errors until you deploy.
+**Gemini special case:** Netlify will **not** inject `GEMINI_API_KEY` / `GOOGLE_GEMINI_BASE_URL` if either `GOOGLE_API_KEY` or `GOOGLE_VERTEX_BASE_URL` is set (use those to point at Vertex or your own Google credentials).
 
-Local injection also requires the working directory to be **linked** to the Netlify site. `netlify dev` pulls the gateway base URL and placeholder key from the linked site's environment, so an unlinked directory has no site context — nothing is injected and gateway calls fail even when the site has already been deployed to production. Run `netlify link` (or `netlify init`) in the project first, then start `netlify dev`. A bare framework dev server started outside `netlify dev` / `@netlify/vite-plugin` also gets no gateway env vars.
+**Always injected, never collide with your provider vars:**
+- `NETLIFY_AI_GATEWAY_KEY`
+- `NETLIFY_AI_GATEWAY_BASE_URL`
 
-## Usage metering and where the gateway runs
+Use the SDK path with the per-provider injected vars above as your default. Reach for `NETLIFY_AI_GATEWAY_KEY` / `NETLIFY_AI_GATEWAY_BASE_URL` only when a third-party or unsupported library needs the credentials passed explicitly — that's the correct time to configure them by hand.
 
-**Gateway usage is credit-metered.** Calls draw down your Netlify AI credit/inference allowance; when that limit is reached the gateway **pauses** and returns errors until the allowance resets or is raised. There's no separate provider bill to fall back on — an unbounded loop of gateway calls burns the allowance and then starts failing, so budget for it and don't retry indefinitely.
+## Local dev
 
-**Gateway credentials are runtime-only.** Netlify injects the base URL and placeholder key only into runtime compute — deployed functions, edge functions, and server-rendered routes at request time. They are **not** present during the build: AI calls made at build time, in prerender/SSG, or in a build plugin get no gateway credentials and fail. Do AI work at request time (in a function or server route) and cache the result if you need it to look precomputed (e.g. to Netlify Blobs) — don't call the gateway from build scripts or static-generation hooks.
+Two supported paths — both still require an existing production deploy:
+- **Netlify CLI:** `netlify dev` (full support). Needs `npm install -g netlify-cli@latest` and `netlify login`.
+- **Netlify Vite plugin:** install `@netlify/vite-plugin`, add `netlify()` to `vite.config.js` plugins, run your normal `npm run dev` — gateway access without `netlify dev`.
 
-## No browser-callable gateway — proxy through server code
+```js
+// vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import netlify from "@netlify/vite-plugin";
 
-Gateway credentials are injected only into server-side runtime compute (functions, edge functions, server-rendered routes). There is **no browser-callable gateway endpoint**: client-side JavaScript has no gateway credentials, and there is no public URL a browser can hit to reach the gateway directly. Client code (React/Vue/vanilla JS running in the browser) that constructs a provider SDK against the gateway will find no key and fail — and "fixing" it by hardcoding a real provider key in the client leaks that key to every visitor AND bypasses the gateway (a user-set key disables Netlify's auto-injection).
+export default defineConfig({
+  plugins: [react(), netlify()],
+})
+```
 
-The correct pattern is to proxy: put the gateway call in a **Netlify Function** (or edge function / server route), and have the browser `fetch()` your own endpoint (e.g. `/api/chat`). The function talks to the gateway server-side with the auto-injected credentials and returns the result to the client. Never import a provider SDK into a browser bundle to call the gateway, and never expose a provider API key to the client.
+## Enable & deploy
 
-## Long generations and the function timeout
+1. Be on a credit-based plan (Free, Personal, Pro; Enterprise via Account Manager). Legacy plans must switch to a current plan.
+2. Link a project: `netlify init`.
+3. **Deploy to production at least once** — required to activate: `netlify deploy --prod --open`.
+4. Don't disable AI Features; don't set your own provider keys unless you intend to override.
 
-A gateway call runs inside your function, so it is bound by the **60-second synchronous function timeout**. Large completions, reasoning models, and image generations can run longer than that, and a synchronous function that exceeds the ceiling is terminated before it can respond. Two mitigations:
+## Constraints & gotchas
 
-- **Stream the response.** Enable streaming on the SDK call and return a `ReadableStream` (e.g. `Content-Type: text/event-stream`), forwarding the provider's tokens/chunks as they arrive — for example `stream: true` on the OpenAI SDK, `client.messages.stream(...)` on Anthropic, or `generateContentStream(...)` on `@google/genai`. Streaming sends bytes to the client incrementally instead of buffering the whole completion inside the sync window, and is the right default for interactive chat and long text.
-- **Use a background function** for long, fire-and-forget jobs (batch generation, large image renders). Background functions run up to 15 minutes, but they return a `202` immediately and their return value is ignored — they cannot hand the result back to the caller. Persist the output (e.g. to Netlify Blobs or a database) and have the client poll or fetch it.
+- **Plan gating:** Credit-based plans only (Free/Personal/Pro; Enterprise via Account Manager).
+- **Context window:** input capped at **200k tokens**.
+- **Rate limits** (per team, across all projects, per minute, in credits): Free 90 / Personal 450 / Pro 1,800 / Enterprise 9,000. Set up [rate limiting rules](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/) on AI functions to prevent visitor abuse driving up cost.
+- **Credit cost:** tokens → USD (provider published rates) → credits. **$1 USD of usage = 180 credits.** Enable [auto recharge](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/configure-auto-recharge/) or buy [credit packs](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/buy-credit-packs/) to meet demand.
+- **No request headers passed through** — you can't enable proprietary header-gated experimental features.
+- **Batch inference not supported.**
+- **OpenAI priority processing not supported.**
+- **Prompt caching:** Anthropic — only the default 5-minute ephemeral cache; OpenAI — a per-account `prompt_cache_key` is set; Gemini — explicit context caching not supported.
+- **Zero Data Retention only:** the gateway only routes to ZDR providers. A model listed in the OpenRouter directory is **not** served if no ZDR host offers it. Browse the ZDR-filtered catalog at https://openrouter.ai/models?zdr=true.
+- **Model list is dynamic** — served-directly models (Anthropic, OpenAI, Gemini) are enumerated from a live endpoint; OpenRouter-served models (xAI, DeepSeek, Meta, Mistral, Qwen) use OpenRouter notation. Don't hardcode; check availability at runtime.
+- **Privacy:** the gateway does not store prompts or outputs.
 
-Don't leave a slow synchronous generation unstreamed and assume it will finish — bound the model and `max_tokens`, and choose streaming or a background function based on how long the job runs.
+## Reference
 
-## Errors & Troubleshooting
+- Full docs, quickstart, and example projects (AI SEO Image Generator, form-submission summaries, TanStack Start chat app) at [AI Gateway overview](https://docs.netlify.com/build/ai-gateway/overview.md) and [quickstart](https://docs.netlify.com/build/ai-gateway/quickstart-for-ai-gateway.md).
 
-- **Unsupported model:** the gateway returns an HTTP error. Check the "Available Models" list below — the gateway exposes a curated subset, not every model the provider offers.
-- **`OPENAI_API_KEY missing` (or equivalent) at runtime:** AI Features are disabled on the site, or the project has not had a production deploy yet.
-- **Calls succeed but skip the gateway / aren't tracked:** check you haven't set your own `*_API_KEY`. Any user-set provider key shadows Netlify's auto-injection and routes directly to the provider.
-- **Limits:** 200k-token context window. Batch inference, custom request headers, and OpenAI priority processing are not supported. Anthropic prompt caching is limited to the 5-minute ephemeral cache; Gemini explicit caching is not supported.
+<!-- GAP: source does not enumerate concrete model IDs (dynamic live endpoint); model names in examples are illustrative only. -->
+<!-- GAP: SDK streaming + background-function patterns are mandated by house rules but no streaming code example exists in the source. -->
 
-## Available Models
+<!-- system: agent-context/ai-gateway/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
+# Netlify house rules (ai-gateway)
 
-_Verified 2026-04-30 against the live AI Gateway providers list. The user-facing reference is https://docs.netlify.com/build/ai-gateway/overview/ — re-check before pinning a new model._
+These are org conventions, not docs facts — merged into the rendered skill by
+ctx-gen and never generated. Owned by the skills maintainer.
 
-### Anthropic (chat)
-- `claude-haiku-4-5`, `claude-haiku-4-5-20251001`
-- `claude-sonnet-4-0`, `claude-sonnet-4-20250514`, `claude-sonnet-4-5`, `claude-sonnet-4-5-20250929`, `claude-sonnet-4-6`
-- `claude-opus-4-1-20250805`, `claude-opus-4-20250514`, `claude-opus-4-5`, `claude-opus-4-5-20251101`, `claude-opus-4-6`, `claude-opus-4-7`
-
-### OpenAI (chat / reasoning / Codex)
-- gpt-4 family: `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`
-- gpt-5: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5-pro`, `gpt-5-codex`; dated: `gpt-5-2025-08-07`, `gpt-5-mini-2025-08-07`
-- gpt-5.1: `gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`; dated: `gpt-5.1-2025-11-13`
-- gpt-5.2: `gpt-5.2`, `gpt-5.2-codex`, `gpt-5.2-pro`; dated: `gpt-5.2-2025-12-11`, `gpt-5.2-pro-2025-12-11`
-- gpt-5.3: `gpt-5.3-chat-latest`, `gpt-5.3-codex` (no unversioned `gpt-5.3`)
-- gpt-5.4: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-pro`; dated: `gpt-5.4-2026-03-05`, `gpt-5.4-mini-2026-03-17`, `gpt-5.4-nano-2026-03-17`, `gpt-5.4-pro-2026-03-05`
-- gpt-5.5: `gpt-5.5`, `gpt-5.5-pro`; dated: `gpt-5.5-2026-04-23`, `gpt-5.5-pro-2026-04-23`
-- Reasoning (o-series): `o3`, `o3-mini`, `o4-mini`
-
-### Google Gemini (chat + image)
-- Chat: `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`, `gemini-flash-latest`, `gemini-flash-lite-latest`
-- Image: `gemini-2.5-flash-image`, `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`
-
+1. Use the provider SDK with the injected env credentials — don't hand-roll
+   a raw `fetch()` against the gateway, even though raw REST is a supported
+   surface. The body must not present raw REST or the
+   `NETLIFY_AI_GATEWAY_KEY` / `NETLIFY_AI_GATEWAY_BASE_URL` pair as a
+   recommended path — but it MUST still document the pair as facts: always
+   injected, never collide with user-set provider vars, and the right choice
+   when a third-party or unsupported library needs explicit configuration.
+   Demote the recommendation; keep the knowledge.
+2. The gateway is not browser-callable: calls belong in functions or edge
+   functions, never client-side code.
+3. Model availability changes: don't hardcode model lists; check the live
+   providers endpoint.
+4. Gateway credentials are runtime-only: never call the gateway from build
+   scripts, prerender/SSG, or build plugins — those calls get no credentials
+   and fail. Do AI work at request time and cache the result (e.g. to
+   Netlify Blobs) if it must look precomputed.
+5. Gateway calls in a synchronous function are bound by the 60-second
+   timeout: stream long generations (SDK streaming + `ReadableStream`), or
+   use a background function that persists output for the client to fetch —
+   never leave a slow generation unstreamed and assume it finishes.

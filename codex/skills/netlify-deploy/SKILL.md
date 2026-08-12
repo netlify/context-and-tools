@@ -1,153 +1,186 @@
 ---
 name: netlify-deploy
-description: Deploy, host, and publish web projects on Netlify with the Netlify CLI. Use when the user wants to deploy a site or repository to Netlify, link a local project to a Netlify site, ship a production or preview/draft deploy, set up Git-based continuous deployment, run a manual or local deploy, configure CI deploys, or troubleshoot a failed or misconfigured deploy. Also use to view or tail a deployed site's runtime logs — function and edge-function output, deploy logs — via `netlify logs` when debugging what a live site is doing (recent errors, recent activity, streaming output).
+description: Create and manage Netlify deploys — Git continuous deployment, CLI manual/anonymous deploys, Deploy to Netlify buttons, drag-and-drop, and per-context netlify.toml build settings. Use when linking a repo, deploying from the CLI, setting up Deploy Previews or branch deploys, configuring deploy contexts, adding skew protection, fixing a failed or secrets-flagged deploy, or wiring build hooks and Deploy to Netlify buttons.
 ---
 
-# Netlify Deployment
+# Netlify deploy
 
-Install the CLI, link a project to a Netlify site, and deploy it — either through Git-based continuous deployment (the primary path) or a manual CLI upload (for prototypes and CI). Environment-variable management lives in the **netlify-config** skill; local development lives in the **netlify-frameworks** skill.
+## Deploy context config (netlify.toml, current form)
 
-## Installation
+Configure per-context build settings in `netlify.toml` at the repo root. Five predefined contexts: `production`, `deploy-preview`, `branch-deploy`, `preview-server`, `dev`. Branch names also work as custom contexts (a `staging` branch matches a `staging` context).
 
-```bash
-npm install -g netlify-cli    # Global (for local dev)
-npm install netlify-cli -D    # Local (for CI)
+```toml
+[context.production]
+  command = "make production"
+  [context.production.environment]
+    ACCESS_TOKEN = "super secret"
+  # Plugins context REQUIRES double brackets:
+  [[context.production.plugins]]
+    package = "@netlify/plugin-sitemap"
+
+[context.deploy-preview.environment]
+  ACCESS_TOKEN = "not so secret"
+
+[context.branch-deploy]
+  command = "make staging"
+
+[context.dev.environment]
+  NODE_ENV = "development"
+
+# Specific-branch context (overrides branch-deploy):
+[context.feature]
+  command = "make feature"
+
+[context."features/branch"]
+  command = "gulp"
 ```
 
-Requires Node.js 18.14.0+. You can also invoke the CLI without installing it using `npx netlify <command>`.
+Precedence: site globals < context overrides; production overrides globals when building production; more specific contexts (a named branch) override general ones (`branch-deploy`). Only explicitly-set options are overridden. File-based config overrides UI settings.
 
-## Authentication
+**Footgun — secrets in netlify.toml:** `netlify.toml` is committed to your repo. Do not put sensitive env values here, especially for public repos. Set secrets via the Netlify UI/CLI/API instead. Also: env vars declared in `netlify.toml` are NOT available to the deploy environment (Functions/Runtime/Post-processing scopes) — only UI/CLI/API-created vars are.
 
-```bash
-netlify login       # Opens browser for OAuth
-```
-
-For CI, set the `NETLIFY_AUTH_TOKEN` environment variable instead of logging in interactively. Generate a token from **User settings → Applications → Personal access tokens** in the Netlify UI.
-
-**CI also needs a site to target.** `NETLIFY_AUTH_TOKEN` only authenticates you — it does **not** select which site a deploy publishes to. In CI there is no linked `.netlify/state.json`, so also set `NETLIFY_SITE_ID` (the site's API/Project ID, shown as **Project ID** in the site's configuration) as an environment variable so `netlify deploy` knows where to publish. Without it, a CI deploy has no site to target and fails or tries to prompt. Locally this is handled by `netlify link`, which writes the site ID into `.netlify/state.json`; CI has no such file.
-
-Don't pre-check auth as a separate step. Run the real operation (`netlify deploy`, `netlify link`) directly; only if it fails with an authentication error do you surface `netlify login` (or setting `NETLIFY_AUTH_TOKEN`) as the fix.
-
-## Linking a Site
-
-Linking connects the local directory to a Netlify site and writes the site ID into `.netlify/state.json`.
+## CLI deploys
 
 ```bash
-# Interactive — pick an existing site
-netlify link
-
-# By Git remote (if the project has one)
-netlify link --git-remote-url https://github.com/org/repo
-
-# Create a new site
-netlify init           # With Git CI/CD setup
-netlify init --manual  # Without Git CI/CD
+netlify create              # new project from a natural-language prompt
+netlify deploy              # manual deploy, no continuous deployment
+netlify deploy --prod       # deploy directly to production
+netlify deploy --allow-anonymous   # temp deploy, claim within 1 hour
+npm update -g netlify-cli   # skew protection needs CLI v23.11.0+
 ```
 
-Run `netlify link` directly rather than pre-checking link status. If the command reports the project isn't linked to any site (or the site can't be found), that failure is the signal to link or create one with `netlify link` / `netlify init`.
+Manual deploys do NOT run a build command (exception: Netlify Drop builds for you when logged in). Anonymous deploys create a temporary project claimable within one hour; on claim it adopts the team's default visibility.
 
-**Always add `.netlify` to `.gitignore`** — every linking path (`netlify link`, `netlify init`, `netlify init --manual`) writes site state to `.netlify/state.json`, which shouldn't be committed. Mention this whenever you link or create a site.
+**Footgun — link writes `.netlify/state.json`:** every linking/create path writes `.netlify/state.json`. Add `.netlify` to `.gitignore` so it is never committed.
 
-## Deploying
+**Footgun — manual `--prod` on a Git-connected site:** the next push to the production branch silently replaces your hand-shipped deploy. Warn the user before running it; if the deploy must stay live, lock the published deploy.
 
-### Git-Based Deploys (Continuous Deployment) — primary path
+## Git continuous deployment
 
-The standard way to deploy on Netlify is to connect the site to a Git repository (set up with `netlify init`, or in the UI). Netlify then builds and deploys automatically on every push:
+Connect a Git repo (Git provider OAuth2 or the Netlify GitHub App). Netlify runs your build command and deploys on every push. Production deploys are triggered by pushes to the production branch (default `main`); Deploy Previews are built for pull/merge requests and agent runs.
 
-- **Push to the production branch → production deploy.**
-- **Open a pull request → deploy preview** with its own unique URL.
-- **Push to other branches → branch deploy**, but **only if branch deploys are enabled** — they are off by default. Turn them on (per branch or for all branches) in the site's build & deploy settings.
+## Deploy Previews & branch deploys
 
-The build runs on Netlify's servers, not your machine. Configure build settings (command, publish directory, base directory) in `netlify.toml` — see the **netlify-config** skill for the full configuration reference.
+- Deploy Previews build by default for PRs/MRs and agent runs. Base branch of a Deploy Preview must be a production branch or a branch with branch deploys enabled.
+- Branch deploys are OFF by default — a Developer/Owner must enable them: Project configuration > Build & deploy > Continuous Deployment > Branches and deploy contexts > Configure. Add individual branches, use a `features/*` prefix wildcard, or select **All**.
+- URL prefixes: branch deploys `<branch>--`; PR/MR previews `deploy-preview-<number>--`; agent previews `agent-<runID>--`; permalinks `<deployID>--`.
+- While the initial Deploy Preview builds, its URL returns `Not Found`.
 
-**`netlify.toml` overrides the UI.** File-based configuration in `netlify.toml` takes precedence over the equivalent build settings configured in the Netlify UI. When the same option is set in both places, the committed `netlify.toml` wins — editing that setting in the dashboard has no effect until you change the file and redeploy. This surprises people who tweak the build command, publish directory, or base directory in the UI and watch the old committed value keep applying on every deploy.
+**Deploy Preview entry path** — set in the PR/MR description (updates the PR comment link):
+```markdown
+@netlify /start/choose-your-path
+```
+Push a new (or empty) commit to regenerate the link. Once set in the PR/MR, you cannot override the entry path in the Netlify Drawer.
 
-**Monorepo config discovery order.** In a monorepo, Netlify searches for the `netlify.toml` in this order and uses the **first** one it finds: (1) the package directory, then (2) the base directory, then (3) the repository root. Put a site-specific `netlify.toml` in the package directory (the subdirectory that contains that site) so it takes precedence over any root-level config. A base directory set in a root-level `netlify.toml` also overrides the base directory configured in the UI.
+## Skip a deploy
 
-**The publish directory is resolved relative to the base directory.** When a `base` directory is configured, the publish directory is interpreted relative to that base, **not** the repository root. A top-level `publish = "dist"` combined with `base = "apps/web"` publishes `apps/web/dist`, not `dist` at the repo root. Set `publish` relative to the base so the built output is found.
+Add `[skip ci]` or `[skip netlify]` to a PR/MR title (skips the Deploy Preview) or anywhere in a commit message (skips branch/production deploy). For a multi-commit push, put it in the most recent commit. The next commit without the token deploys all skipped changes.
 
-### Manual / Local Deploys (No Git Required) — secondary path
+## Deploy to Netlify button
 
-Build the site, then upload the output directly with the CLI. This bypasses Netlify's build servers and is the right tool for prototypes, local-only projects with no Git remote, or a CI pipeline that builds elsewhere and uploads the artifact.
+Template code must be in a **public** GitHub.com or GitLab.com repo.
 
-```bash
-netlify deploy             # Draft deploy (preview URL)
-netlify deploy --prod      # Production deploy
-netlify deploy --dir=dist  # Specify the directory to upload
+```md title="Markdown"
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/netlify/netlify-statuskit)
 ```
 
-For sites with Git continuous deployment connected, prefer pushing to Git — a manual upload is the exception, not the default.
-
-**A manual `--prod` deploy is replaced by the next Git push.** If the same site also has Git continuous deployment connected, the next push to the production branch triggers a new build that auto-publishes and **replaces** your manually shipped `--prod` deploy — the hand-shipped build silently disappears from production. To keep a specific deploy live, **lock the published deploy** ("Stop auto publishing") from the site's Deploys list in the UI: while locked, new pushes still build but do not auto-publish until you unlock or manually publish. Mixing manual `--prod` deploys with Git CD on the same production branch is otherwise a race the next commit wins.
-
-### Deploy URLs are public by link
-
-Draft deploys (`netlify deploy`), Deploy Previews, branch deploys, and deploy permalinks each get a **unique URL that anyone with the link can open** — they are not private just because the URL is unguessable and unlisted. Don't treat a preview URL as a safe place for confidential or unreleased content on that basis alone. To actually restrict access, enable site protection in the UI (Password Protection, or Team/SSO protection). You can scope that protection to all deploys, or to non-production deploys only (Deploy Previews and branch deploys) while leaving production open. See the **netlify-access-control** skill for the full picture.
-
-## When a command fails, surface and stop
-
-When a `netlify` command or a deploy fails, **report the failure to the user** with the exact error, the deploy log URL (the CLI prints one), and the affected site/branch — and stop. Do not invent recovery commands or escalate to lower-level tools: do not curl `https://api.netlify.com/...`, do not run `netlify api <method>` as a recovery hatch, and do not read auth tokens off disk to force the operation through. If the documented happy path is broken, that's a platform-state problem the user needs to see.
-
-## Error Handling
-
-Common issues and what to do:
-
-**"Not logged in"**
-→ Run `netlify login` (or set `NETLIFY_AUTH_TOKEN` in CI).
-
-**"No site linked"**
-→ Run `netlify link` (existing site) or `netlify init` (new site).
-
-**"Build failed" / "Function bundling failed" / deploy marked failed**
-→ A failed deploy does **not** publish — the site keeps serving the last successful deploy, so it isn't down, and there's nothing to "roll back." The only way to get the new code live is to fix the failure and redeploy.
-→ Get the exact error from the deploy log (the CLI prints a log URL; the dashboard has the full build log), then address the actual cause — the build command or publish directory in `netlify.toml`, a missing dependency, or the function that failed to bundle — and re-run the deploy.
-→ Don't route around a failed build to force the site live: no `netlify api` publish/restore, no direct `https://api.netlify.com/...` calls, no reading auth tokens off disk, and don't ship a previous deploy in place of the failing one. If the log doesn't resolve it, report the exact error + log URL + affected site to the user and stop.
-→ Even if the user *asks* how to "roll back" or restore a previous deploy, correct the premise rather than complying: because the failed deploy never published, the previous deploy is still live and there is nothing to restore. Do **not** hand over `netlify api restoreSiteDeploy` / `publishDeploy` (or a dashboard rollback) as the answer — the fix is to resolve the build failure and redeploy.
-
-**"Secrets scanning found secrets" / deploy fails after a successful build**
-→ Netlify scans the build output and source for secret values (env-var values, known key formats) *after* the build succeeds and **fails the deploy** if it finds one — so an otherwise-green build can still fail here. Read the log: it names the offending key and where it appeared.
-→ If it's a real secret (an API/DB key that ended up in bundled or published output), that's a genuine leak — stop writing it into client/published files, and rotate the key if it was committed. Silencing the scanner over a real leak just ships the secret.
-→ If the flagged value is legitimately non-secret (e.g. a value that must ship to the browser), scope the exception narrowly with build environment variables: `SECRETS_SCAN_OMIT_KEYS` to exclude specific env-var keys, or `SECRETS_SCAN_OMIT_PATHS` to exclude specific paths. Prefer these over `SECRETS_SCAN_ENABLED=false`, which disables scanning across the entire build.
-
-**"Publish directory not found"**
-→ Run the build yourself (`netlify build`, which mimics the Netlify build environment, or the project's own build command) and look at which directory it actually emits — don't guess the output dir from the framework name, and don't just `ls` for a folder that isn't there.
-→ If the build itself **fails**, that's the real problem — surface the build error to the user and stop; don't change the `publish` path to paper over a broken build.
-→ Once the build succeeds, set the `publish` path (in `netlify.toml`, or `--dir`) to match that real output directory — remembering it's resolved relative to any configured `base` directory (see above).
-
-## Logs
-
-The simplest command is the right default: bare `netlify logs` shows recent logs from both the `functions` and `edge-functions` sources, covering roughly the last 10 minutes. Add flags only to scope or extend it:
-
-```bash
-netlify logs                                       # recent functions + edge-functions logs (~last 10m)
-netlify logs --follow                              # stream live
-netlify logs --source functions --function my-fn   # one function's logs
-netlify logs --source deploy --source functions    # include deploy logs (sources combine)
-netlify logs --since 24h                           # longer historical window
+URL parameters (query params; env vars go in the URL hash):
+```txt
+# require/set env vars via hash (values may be null; processed client-side, not logged)
+...?repository=REPO#SECRET_TOKEN=value&CUSTOM_LOGO=
+&fullConfiguration=true   # extra step to install SDK extensions + configure before deploy
+&base=blog                # alternate base dir for monorepos (repo still fully cloned)
+&create_from_path=examples/hello   # clone only this subdirectory
+&branch=beta-feature      # set production branch to this branch
 ```
 
-`--source` accepts `functions`, `edge-functions`, and `deploy`. This is the documented CLI logs surface — reach for it before the dashboard, and see [CLI commands](references/cli-commands.md) for more.
+File-based template config in root `netlify.toml` `[template]` section:
+```toml
+[template]
+  incoming-hooks = ["Contentful"]
+  required-extensions = ["supabase"]
+[template.environment]
+  SECRET_TOKEN = "change me for your secret token"   # label only; cannot set real values
+```
+`[template]` cannot set env var values (use the URL hash) or a base directory (use `base`). With an alternate `base`, the `netlify.toml` in the base directory wins over root config for that site's builds. `USAGE.md` at repo root shows extra instructions during the `fullConfiguration` flow.
 
-## Useful Commands
+## Drag and drop (Netlify Drop)
 
-| Command | Description |
-|---|---|
-| `netlify build` | Run the build locally (mimics the Netlify build environment) |
-| `netlify deploy` | Draft deploy (preview URL) |
-| `netlify deploy --prod` | Production deploy |
-| `netlify deploy --dir=<dir>` | Deploy a specific directory |
-| `netlify clone org/repo` | Clone, link, and set up in one step |
-| `netlify open` | Open the site in the Netlify dashboard |
-| `netlify logs` | Recent function + edge-function logs (see Logs above) |
+Drag a folder to https://app.netlify.com/drop. Logged in: Netlify detects the framework and builds before publishing (a pre-built output folder also works). Not logged in: files publish as-is. Update a drag-and-drop site by dropping the new output folder at the dropzone on the site's **Deploys** page (works for any non-Git site).
 
-## Related skills
+## Build hooks
 
-- **netlify-config** — `netlify.toml` (build settings, redirects, headers, deploy contexts) and environment-variable management (`env:set`, `env:get`, `env:list`, context scoping).
-- **netlify-frameworks** — framework adapter/plugin setup and local development (`netlify dev`, the Netlify Vite plugin).
-- **netlify-access-control** — restricting who can reach a site or its deploys.
+Build hooks give unique URLs to trigger builds/deploys. Builds from build hooks are treated as trusted and are NOT subject to the Deploy Request Policy.
 
-## References
+## Managing deploys
 
-- [CLI commands](references/cli-commands.md)
-- [Deployment patterns](references/deployment-patterns.md)
-- [netlify.toml guide](references/netlify-toml.md)
+- **Find:** Deploys tab; search by deploy ID or branch; filter by time frame, deploy context, and status.
+- **Lock (pause publishing):** on the Deploys list, **Lock to stop auto publishing**. New deploys still build but don't publish. **Unlock to start auto publishing** to resume. Use this to keep a specific deploy live.
+- **Cancel:** on the in-progress deploy's detail page, **Cancel deploy**.
+- **Retry:** builds from the branch HEAD — if HEAD moved past the original deploy SHA, it still builds from HEAD.
+- **Download:** deploy detail page — single file via **Deploy file browser**, or all files as ZIP via header **Download**.
+- **Delete:** Developer/Team Owner only. You cannot delete the currently-published deploy or one in progress. Permanent; does not reduce cost or preserve build minutes.
+
+Netlify auto-deletes deploys older than 30 days (90 days on paid plans); failed/canceled deploys are cleaned up on the same schedule. It never auto-deletes the published deploy, the most recent successful production deploy, or the most recent successful branch deploy per branch.
+
+**Fix a failed deploy:** a failed deploy never publishes — the previously published deploy stays live, so there is nothing to restore. Fix forward: use the **"Why did it fail?"** diagnosis above the deploy log, revert the offending commit, and let CI redeploy. Retry (optionally clearing cache) rebuilds from branch HEAD.
+
+## Skew protection
+
+Available on all plans. Routes requests to the server version that matches each client, avoiding version skew across deploys. Requires Netlify CLI v23.11.0+ for CLI deploys.
+
+- **Production context only.** Branch deploys, Deploy Previews, and permalinks bypass skew protection and serve the latest deploy for that context.
+- Framework support: Astro 5.15.0+ (on by default via the Netlify adapter); Next.js (optional; older versions need a config change). Framework maintainers add support via `netlify/v1/skew-protection.json`.
+- **Password protection:** works only if you protect non-production deploys only. Protecting production deploys (or all deploys) disables/ignores skew protection.
+- Netlify discards skew signals on hard navigation (`Sec-Fetch-Mode: navigate`, or `Sec-Fetch-Site` present and not `same-origin`).
+
+## Secrets scanning failures
+
+If a deploy fails secrets scanning and the flagged value is a real secret, that is a leak: stop shipping it in client/published output and rotate it. Never disable the scanner over a real leak. For genuine non-secrets, scope narrowly with `SECRETS_SCAN_OMIT_KEYS` / `SECRETS_SCAN_OMIT_PATHS` — never `SECRETS_SCAN_ENABLED=false`.
+
+## Constraints
+
+- **54,000 files per directory** max — any directory in your publish dir over this limit fails the deploy. No limit on total files.
+- Deploys are atomic: only changed files upload; nothing goes live until the whole deploy is ready.
+- Only the published production deploy and most recent branch deploys are indexable; other previews get `X-Robots-Tag: noindex`.
+- Deploy Request Policy: private-repo deploys build only for recognized authors (Owners, Developers, Git Contributors; Marketplace bots count). Non-team-member deploys land as **Pending approval** until a Team Owner approves/matches them. Build-hook builds are exempt.
+- Retention limit is adjustable only on Enterprise (up to 365 days). Lock/unlock event notifications: Pro and Enterprise.
+
+## More
+
+Deep guides in this skill: `references/netlify-toml.md`, `references/cli-commands.md`, `references/deployment-patterns.md`.
+
+<!-- Gap: deploy-overview states failed/canceled deploys are deleted at 6 months, contradicting the 30/90-day cleanup figure used above; the 30/90-day value is stated here as the documented default. -->
+
+<!-- system: agent-context/deploy/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
+# Netlify house rules (deploy)
+
+These are org conventions, not docs facts — merged into the rendered skill by
+ctx-gen and never generated. Owned by the skills maintainer.
+
+1. Agents do not roll back deploys: never call `restoreSiteDeploy` or
+   `publishDeploy` to restore an older deploy. Fix forward — revert the
+   commit and let CI deploy it.
+2. A failed deploy never publishes; on failure there is nothing to roll
+   back.
+3. Deep guides live in this skill: `references/netlify-toml.md`,
+   `references/cli-commands.md`, `references/deployment-patterns.md`.
+4. The frontmatter description must never advertise rollback or restore as a
+   capability — no "roll back", "restore a deploy", or equivalent.
+5. When the user asks to roll back or restore a previous deploy, correct the
+   premise rather than complying: after a failed deploy the previous deploy
+   is still live and there is nothing to restore; for a bad published deploy,
+   fix forward per rule 1. Do not hand over `restoreSiteDeploy` /
+   `publishDeploy` or a dashboard rollback as the answer.
+6. Always add `.netlify` to `.gitignore` when linking or creating a site —
+   every linking path writes `.netlify/state.json`, which must not be
+   committed. Mention it whenever you link.
+7. Secrets-scanning deploy failures: if the flagged value is a real secret,
+   that is a leak — stop shipping it in client/published output and rotate
+   it; never silence the scanner over a real leak. For genuinely non-secret
+   values, scope narrowly with `SECRETS_SCAN_OMIT_KEYS` /
+   `SECRETS_SCAN_OMIT_PATHS`, never `SECRETS_SCAN_ENABLED=false`.
+8. Before running a manual `netlify deploy --prod` on a site with Git CD
+   connected, warn the user that the next push to the production branch
+   silently replaces the hand-shipped deploy; suggest locking the published
+   deploy if it must stay live.

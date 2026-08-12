@@ -1,286 +1,348 @@
 ---
 name: netlify-functions
-description: Guide for writing Netlify serverless functions. Use when creating API endpoints, background processing, scheduled tasks, or any server-side logic using Netlify Functions. Covers modern syntax (default export + Config), TypeScript, path routing, background functions, scheduled functions, streaming, and method routing.
+description: Write, configure, and deploy Netlify serverless functions in TypeScript, JavaScript, or Go. Use this when adding an API endpoint or backend route, adding a contact form handler, wiring auth or Identity signup/login hooks, building streaming or AI-proxy responses, scheduling cron jobs, running long background jobs (batch processing/scraping), reacting to deploy or form events, setting up rate limiting or region/memory config, or reading environment variables and secrets inside a function. Covers file locations, the Request/Context/Response handler shape, path routing, config options, and local testing with netlify dev.
 ---
 
 # Netlify Functions
 
-## Modern Syntax
+Reach for the modern default-handler API (`.mts` TypeScript). Export a default async handler taking a web `Request` and a Netlify `Context`, returning a web `Response`. Avoid the legacy AWS Lambda handler shape unless writing Go or migrating old code (see Legacy at the end).
 
-Always use the modern default export + Config pattern. Never use the legacy `exports.handler` or named `handler` export.
+## File locations
 
-```typescript
-import type { Context, Config } from "@netlify/functions";
+- Default directory: `netlify/functions/` (relative to base directory). Keep it **outside** your publish directory or source files ship as static assets.
+- A function is one file or a subdirectory whose entry file is named `index` or matches the subdirectory name. All of these create a function `hello`:
+  - `netlify/functions/hello.mts`
+  - `netlify/functions/hello/hello.mts`
+  - `netlify/functions/hello/index.mts`
+- Use `.mts` (TS) / `.mjs` (JS) for ES modules. `.cts`/`.cjs` force CommonJS; `.ts`/`.js` follow the nearest `package.json` `"type"`.
+
+## Minimal function
+
+No `config` export. Serves at `/.netlify/functions/hello`.
+
+```ts title="netlify/functions/hello.mts"
+import type { Context } from "@netlify/functions"
 
 export default async (req: Request, context: Context) => {
-  return new Response("Hello, world!");
-};
-
-export const config: Config = {
-  path: "/api/hello",
-};
+  return new Response("Hello, world!")
+}
 ```
 
-The handler receives a standard Web API `Request` and returns a `Response`. The second argument is a Netlify `Context` object.
+Install types: `npm install @netlify/functions` (required for TS types; optional for JS).
 
-The bare default export shown above is the recommended form. The default export can also be an object with a `fetch` method — prefer this form only if (1) other functions in the project already use it, or (2) the function also subscribes to platform events (see [Event Handlers](#event-handlers) below), since events are exposed as named handlers on the same object:
+Read env vars and secrets with `Netlify.env.get()`:
 
-```typescript
+```ts
+const apiKey = Netlify.env.get("STRIPE_SECRET_KEY")
+```
+
+Never hardcode secrets. For the variable to exist at runtime its scope must include **Functions**. Variables set in `netlify.toml` are NOT available to functions. Values are frozen per deploy — change them and redeploy to apply.
+
+**Response headers are set in code** on the returned `Response`. `[[headers]]` in `netlify.toml`, `_headers`, and redirect header rules apply ONLY to static CDN responses, not function responses. Do not add CORS headers unless explicitly requested.
+
+## Custom path routing
+
+Set `config.path` to route to custom URLs. When set, the function serves ONLY at that path — not at `/.netlify/functions/<name>`.
+
+```ts title="netlify/functions/travel.mts"
+import type { Config, Context } from "@netlify/functions"
+
+export default async (req: Request, context: Context) => {
+  const { city, country } = context.params
+  return new Response(`You're visiting ${city} in ${country}!`)
+}
+
+export const config: Config = {
+  path: "/travel-guide/:city/:country",
+}
+```
+
+- Multiple paths: `path: ["/cats", "/dogs"]`.
+- Patterns: `path` supports [`URLPattern`](https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API) syntax — `path: ["/sale/*", "/item/:sku"]`. Named groups land on `context.params`. For the query string use `req.url`.
+- `excludedPath`: carve exceptions, e.g. `excludedPath: ["/product/*.css"]` with `path: "/product/*"`.
+- `preferStatic: true`: let a real static file at the URL win.
+- `method`: restrict methods, e.g. `method: ["GET", "POST"]`.
+
+## Fetchable module shape (alternative)
+
+Equivalent to the bare handler; carries `config` inline and lets you add event handlers.
+
+```ts
+import type { NetlifyFunction } from "@netlify/functions"
+
 export default {
-  fetch(req: Request, context: Context) {
-    return new Response("Hello, world!");
-  },
-};
+  fetch: (req, context) => new Response("Hello, world!"),
+  config: { path: "/hello" },
+} satisfies NetlifyFunction
 ```
 
-## File Structure
+## Context object
 
-Place functions in `netlify/functions/`:
+Second handler argument (or `getContext()` from `@netlify/functions` when out of handler scope — throws outside a request; wrap in try/catch).
 
-```
-netlify/functions/
-  _shared/           # Non-function shared code (underscore prefix)
-    auth.ts
-    db.ts
-  items.ts           # -> /.netlify/functions/items (or custom path via config)
-  users/index.ts     # -> /.netlify/functions/users
-```
+- `context.params` — named path params.
+- `context.geo` — `city`, `country.code/name`, `latitude`, `longitude`, `subdivision`, `timezone`, `postalCode`.
+- `context.ip` — client IP string.
+- `context.cookies` — `get(name)` / `set(options)` / `delete(name|options)`. Cross-subdomain cookies need a custom domain (`netlify.app` is on the Public Suffix List).
+- `context.site` — `id`, `name`, `url`. `context.deploy` — `context`, `id`, `published`, `skewProtectionToken`. `context.account.id`. `context.server.region`. `context.requestId`.
+- `context.waitUntil(promise)` — run work after the response is sent (analytics, logs) without blocking. Billing/log duration counts until the promise settles. Available for functions deployed on/after 2025-03-20.
 
-Use `.ts` or `.mts` extensions. If both `.ts` and `.js` exist with the same name, the `.js` file takes precedence.
+⚠️ Under `netlify dev`, `context.geo` and `context.ip` are **mocked** — placeholder values that never change. Don't conclude geo code is broken locally. Exercise branches with `netlify dev --geo=mock --country=DE` and verify on a real deploy.
 
-## Path Routing
+## Config object
 
-Define custom paths via the `config` export:
+Export `const config` (or the `config` property of a Fetchable module):
 
-```typescript
-export const config: Config = {
-  path: "/api/items",                    // Static path
-  // path: "/api/items/:id",            // Path parameter
-  // path: ["/api/items", "/api/items/:id"], // Multiple paths
-  // excludedPath: "/api/items/special", // Excluded paths
-  // preferStatic: true,                // Don't override static files
-};
-```
+- `path` / `excludedPath` — `string | string[]`, must start with `/`.
+- `method` — one method or array.
+- `preferStatic` — `boolean`.
+- `background` — `boolean` (see Background).
+- `schedule` — cron string (see Scheduled). Mutually exclusive with `path`/`excludedPath`.
+- `rateLimit` — `{ action: 'rate_limit'|'rewrite', aggregateBy: 'domain'|'ip'|[...], to?, windowSize, windowLimit }`.
+- `memory` / `vcpu` — see below; mutually exclusive.
+- `region` — airport code; see below.
 
-Without a `path` config, functions are available at `/.netlify/functions/{name}`. Setting a `path` makes the function available **only** at that path.
+## Integrations
 
-Access path parameters via `context.params`:
+```ts title="netlify/functions/users.mts"
+import type { Config } from "@netlify/functions"
+import { getDatabase } from "@netlify/database"
 
-```typescript
-// config: { path: "/api/items/:id" }
-export default async (req: Request, context: Context) => {
-  const { id } = context.params;
-  // ...
-};
-```
+const db = getDatabase()
 
-## Method Routing
-
-```typescript
-export default async (req: Request, context: Context) => {
-  switch (req.method) {
-    case "GET":    return handleGet(context.params.id);
-    case "POST":   return handlePost(await req.json());
-    case "DELETE": return handleDelete(context.params.id);
-    default:       return new Response("Method not allowed", { status: 405 });
-  }
-};
-
-export const config: Config = {
-  path: "/api/items/:id",
-  method: ["GET", "POST", "DELETE"],
-};
-```
-
-## Background Functions
-
-For long-running tasks (up to 15 minutes). The client receives an immediate `202` response; return values are ignored.
-
-Enable background mode by setting `background: true` in config:
-
-```typescript
 export default async (req: Request) => {
-  await someLongRunningTask();
-};
+  const users = await db.sql`SELECT id, email FROM users LIMIT 10`
+  return Response.json({ users })
+}
+
+export const config: Config = { path: "/users" }
+```
+
+Blobs: `import { getStore } from "@netlify/blobs"`; `getStore("uploads").set(key, await req.blob())`.
+
+`purgeCache()` from `@netlify/functions` invalidates the edge cache from inside a function:
+
+```ts
+import { purgeCache } from "@netlify/functions"
+
+export default async () => {
+  await purgeCache({ tags: ["products"] }) // omit tags to purge all
+  return new Response("Purged!", { status: 202 })
+}
+```
+
+## Streaming responses
+
+Return a `ReadableStream` as the `Response` body. Limits: **60s execution, 20 MB response**.
+
+```ts
+export default async (req: Request) => {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Netlify.env.get("OPENAI_API_KEY")}`,
+    },
+    body: JSON.stringify({ model: "gpt-4o-mini", stream: true, messages: [/* ... */] }),
+  })
+  return new Response(res.body, { headers: { "content-type": "text/event-stream" } })
+}
+```
+
+To build a stream manually, `new ReadableStream({ start(controller) { controller.enqueue(...); controller.close() } })`.
+
+## Background functions (long-running)
+
+`config.background: true`. Client gets an immediate `202`; the return value is discarded; runs up to **15 minutes**. No streaming. Retries: on invocation error, retry after 1 min, then again 2 min later. Send results somewhere other than the client.
+
+```ts title="netlify/functions/process.mts"
+import type { Config } from "@netlify/functions"
+
+export default async (req: Request) => {
+  // Long-running work. Client already has its 202.
+}
+
+export const config: Config = { background: true, path: "/process" }
+```
+
+Limits: background payload **256 KB**. Legacy `-background` filename suffix still works but prefer `config.background`.
+
+## Scheduled functions (cron)
+
+`config.schedule` with a cron expression, executed in **UTC**. The request body is JSON with `next_run` (ISO-8601). Inline config is TS/JS only — Go must use `netlify.toml`.
+
+Always compute the UTC time for the target local hour. E.g. 9 AM ET → `"0 13 * * *"` UTC (note this shifts by an hour across DST; pick the UTC offset you need). Prefer explicit cron over `@daily`/`@hourly` shortcuts, which can't target a specific local hour.
+
+```ts title="netlify/functions/daily-digest.mts"
+import type { Config } from "@netlify/functions"
+
+export default async (req: Request) => {
+  const { next_run } = await req.json()
+  console.log("Next invocation at:", next_run)
+}
 
 export const config: Config = {
-  path: "/process",
-  background: true,
-};
+  schedule: "0 13 * * *", // 9 AM ET (EST); UTC
+}
 ```
 
-Store results externally (Netlify Blobs, database) for later retrieval.
+Via `netlify.toml` (all languages):
 
-The legacy filename convention (`process-background.ts`) is still supported, but new functions should use `config.background`.
-
-## Region
-
-Functions deploy to `cmh` (Ohio) by default for new sites. This is a deliberate choice: US East is centrally located for an international audience, has a broad provider ecosystem, and gives most projects the lowest overall latency without any configuration. Sites created before October 4, 2023 may have a different default region — check Project configuration > Build & deploy > Continuous deployment > Functions region to confirm.
-
-Do NOT override `config.region` unless the user has stated a specific reason — for example, a database or backend service in another region with measurable roundtrip savings, a data-residency requirement, or an audience concentrated in one region whose compute dependencies (database, backend services) also live in that region.
-
-Two constraints to be aware of before adding `config.region`:
-
-- A function runs in exactly one region. Don't try to deploy the same function to multiple regions — if the user wants geo-routing, route between distinct functions with an edge function instead.
-- For framework adapter–generated functions (Next.js, Astro, Nuxt, etc.) the region must be set site-wide in the Netlify UI, not via `config.region` in code. The generated files can't carry per-function config.
-
-Region values are IATA airport codes — for example `cmh` (Columbus/Ohio, the default), `dub` (Dublin), and `fra` (Frankfurt). See [Region](https://docs.netlify.com/build/functions/configuration#region) for the full list of supported regions and details.
-
-## Memory or vCPU
-
-Functions run with 1024 MB of memory and a proportional amount of compute by default. The default fits most workloads, and raising it has a direct cost impact: function billing scales linearly with the configured size.
-
-Do NOT set `config.memory` or `config.vcpu` speculatively. Only reach for them when:
-
-- The workload is known to be memory- or compute-intensive (AI inference, image/PDF manipulation, large payload processing, CPU-bound work).
-- The function is hitting out-of-memory errors or timeouts caused by the function's own work, rather than by waiting on an external service or database.
-
-`memory` and `vcpu` configure the same underlying resource and are mutually exclusive — set one, not both. Set `memory` as a number of megabytes (e.g. `memory: 2048`) or as a string with a unit (e.g. `'2gb'` or `'2048mb'`, case-insensitive), within the 1024–4096 MB range. Adjusting them is available only on Credit-based Pro and Enterprise plans; on other plans these settings have no effect. See [Memory or vCPU](https://docs.netlify.com/build/functions/configuration#memory-or-vcpu) for accepted values and the exact mapping.
-
-## Scheduled Functions
-
-Run on a cron schedule (UTC timezone):
-
-```typescript
-export default async (req: Request) => {
-  const { next_run } = await req.json();
-  console.log("Next invocation at:", next_run);
-};
-
-export const config: Config = {
-  schedule: "@hourly", // or cron: "0 * * * *"
-};
+```toml
+[functions."daily-digest"]
+  schedule = "0 13 * * *"
 ```
 
-Shortcuts: `@yearly`, `@monthly`, `@weekly`, `@daily`, `@hourly`. Scheduled functions have a **30-second timeout** and only run on published deploys.
+Constraints: **30s limit** (use background for longer); only fire on **published deploys** (not Deploy Previews/branch deploys — invoke manually with **Run now**); no URL invocation; no streaming; no request payloads/POST data; incompatible with Split Testing. All extensions supported **except** `@reboot` and `@annually`.
 
-**Testing and triggering.** A scheduled function does **not** fire on its cron schedule under `netlify dev` — the local dev server never runs the schedule, so waiting for the clock will appear to do nothing. Test it by invoking it directly: `netlify functions:invoke <name>` calls the function once, on demand. In production a scheduled function also has **no public HTTP URL** — it is not reachable at `/.netlify/functions/{name}` and cannot be triggered by an external HTTP request; it runs only on its schedule. If you also need to trigger the same work over HTTP (a manual "run now" or a webhook), expose that logic through a separate ordinary HTTP function and share the implementation rather than trying to POST to the scheduled function.
+## Platform-event functions
 
-## Streaming Responses
+Export a default object with handlers named after events. They always run in the background — no response to a client. Combine with `fetch` in the same function. Every handler is fully typed; import event types from `@netlify/functions`.
 
-Return a `ReadableStream` body for streamed responses (up to 20 MB):
-
-```typescript
-export default async (req: Request) => {
-  const stream = new ReadableStream({ /* ... */ });
-  return new Response(stream, {
-    headers: { "Content-Type": "text/event-stream" },
-  });
-};
-```
-
-## Event Handlers
-
-A function can subscribe to platform events by exporting an object instead of a function as its default. Each event has a named handler property:
-
-```typescript
-import type { DeploySucceededEvent, UserSignupEvent } from "@netlify/functions";
+```ts title="netlify/functions/on-deploy.mts"
+import type { DeploySucceededEvent, DeployFailedEvent } from "@netlify/functions"
 
 export default {
   deploySucceeded(event: DeploySucceededEvent) {
-    console.log(`Deploy ${event.deploy.id} succeeded`);
+    console.log(`Deploy ${event.deploy.id} succeeded for ${event.site.name}`)
   },
-
-  userSignup(event: UserSignupEvent) {
-    return {
-      user: {
-        ...event.user,
-        appMetadata: { ...event.user.appMetadata, roles: ["member"] },
-      },
-    };
+  deployFailed(event: DeployFailedEvent) {
+    console.log(`Deploy ${event.deploy.id} failed: ${event.deploy.errorMessage}`)
   },
-};
+}
 ```
 
-A single function can declare multiple handlers; multiple functions can also subscribe to the same event.
+**Deploy events** (`event.deploy`, `event.site`; return `void`): `deployBuilding`, `deploySucceeded`, `deployFailed`, `deployDeleted`, `deployLocked`, `deployUnlocked`.
 
-**Available handlers:**
+**Identity events** (`event.user`, only `id` guaranteed):
 
-| Handler | Trigger |
-|---|---|
-| `fetch` | HTTP request (equivalent to a bare function default export) |
-| `deployBuilding` / `deploySucceeded` / `deployFailed` / `deployDeleted` / `deployLocked` / `deployUnlocked` | Deploy lifecycle |
-| `userSignup` / `userLogin` / `userValidate` / `userModified` / `userDeleted` | Identity lifecycle |
-| `formSubmitted` | Form submission verified |
+| Handler | Can deny? | Can mutate? |
+|---|---|---|
+| `userValidate` | Yes | Yes |
+| `userSignup` | Yes | Yes |
+| `userLogin` | Yes | Yes |
+| `userModified` | Yes | Yes |
+| `userDeleted` | No | No |
 
-### Identity handlers: deny an action
+- Deny: call `event.deny()` inside the handler → end user gets `401`. First function to deny aborts the chain.
+- Mutate: return `{ user: {...} }` to persist changes; return `undefined` to pass through.
 
-`userSignup`, `userLogin`, `userValidate`, and `userModified` can reject the action by calling `event.deny()`. The end user receives a 401; no observability error is produced (unlike throwing).
+**Form events**: `formSubmitted` → `event.data` (object keyed by field name). Return `void`.
 
-```typescript
-export default {
-  userLogin(event: UserLoginEvent) {
-    if (!event.user.email?.endsWith("@example.com")) {
-      return event.deny();
-    }
-  },
-};
+Multiple functions can handle the same event (all run). Netlify signs each event (JWS) and verifies before invoking, blocking external requests. Legacy filename convention (file named after the event, payload via `await req.json()` → `payload`) still works but prefer typed handlers.
+
+## Region
+
+⚠️ Do NOT override `config.region` unless the user states a specific reason (co-located DB/backend, data residency, regional audience). The default `cmh` (US East, Ohio) is deliberate.
+
+When justified — e.g. an EU-resident database:
+
+```ts
+export const config: Config = { path: "/eu-data", region: "dub" }
 ```
 
-If multiple functions subscribe to the same event, the first to call `event.deny()` aborts the chain.
+Airport codes (self-serve): `cmh`, `dub`, `fra`, `gru`, `iad`, `lhr`, `nrt`, `pdx`, `sfo`, `sin`, `syd`, `yul`. Support-assisted: `cdg`, `mxp`. Each function runs in exactly one region (no multi-region geo-routing). Region selection needs Pro/Enterprise. Framework-adapter-generated functions can't take `export const config` — set region at project level in the UI. After changing region, **redeploy**. Function-level region beats the site-level UI setting.
 
-## Context Object
+## Memory / vCPU
 
-| Property | Description |
-|---|---|
-| `context.params` | Path parameters from config |
-| `context.geo` | `{ city, country: {code, name}, latitude, longitude, subdivision, timezone, postalCode }` |
-| `context.ip` | Client IP address |
-| `context.cookies` | `.get()`, `.set()`, `.delete()` |
-| `context.deploy` | `{ context, id, published }` |
-| `context.site` | `{ id, name, url }` |
-| `context.account.id` | Team account ID |
-| `context.requestId` | Unique request ID |
-| `context.waitUntil(promise)` | Extend execution after response is sent |
+⚠️ Do NOT set `config.memory` or `config.vcpu` speculatively — billing scales linearly with size. Raise them only for known memory/compute-intensive work (AI inference, image/PDF, large JSON/CSV) or observed OOM/timeouts caused by the function's own work.
 
-**`context.geo` and `context.ip` are mocked under `netlify dev`.** Locally these return placeholder values, not your real location or client IP, so a value that looks "stuck" on a default country does not mean your geo code is broken — real geolocation is populated only for deployed functions. To exercise geo branching locally, start dev with the geo flags: `netlify dev --geo=mock --country=DE` forces mock data (`--geo=mock`) and sets the mock country (`--country`). Don't conclude `context.geo` is broken because local values never change.
+When justified (e.g. observed OOM processing large PDFs):
 
-## Environment Variables
-
-Prefer `Netlify.env.get` inside functions:
-
-```typescript
-const apiKey = Netlify.env.get("API_KEY");
+```ts
+export const config: Config = { path: "/heavy", memory: "2gb" } // or memory: 2048
 ```
 
-`process.env` is also valid inside Functions and reads the same variables — prefer `Netlify.env.get` for cross-runtime and edge portability (a function you later move to an Edge Function keeps working, since Edge Functions expose **only** `Netlify.env.get`, not `process.env`).
+- `memory`: 1024–4096 MB. `vcpu`: 0.5–2.0 (0.5 → 1024 MB, 2.0 → 4096 MB). Mutually exclusive; Netlify sizes the other automatically. Needs Credit-based Pro/Enterprise. Via `netlify.toml`: `[functions.heavy]\n  memory = "2gb"`.
 
-**Environment variables have a small total size budget.** Functions run on AWS Lambda, which caps the *combined* size of all environment variables at roughly 4 KB. A single large value — a service-account JSON credential, a PEM private key, a big config blob — can blow past that on its own and break the deploy or the function at runtime. Do not store large payloads in environment variables; keep only small secrets and config (API keys, connection strings) there and move anything large into a bundled file, Netlify Blobs, or a fetch at runtime. There is no Netlify setting that raises this cap.
+## Bundling & files on disk
 
-## Reading Files at Runtime
-
-Only a function's own code and the modules it `import`s are bundled and deployed. A file the function opens from disk at runtime — `fs.readFile`/`readFileSync` on a template, a JSON data file, a WASM binary, a fixture — is **not** part of the bundle unless you declare it. This is a classic "works locally, ENOENT in production" trap: under `netlify dev` the function reads the file straight from your working tree, but the deployed function only contains what was bundled.
-
-Declare runtime-read files with `included_files` in `netlify.toml` so they ship with the function:
+⚠️ Files read from disk at runtime (`fs.readFile` on templates, JSON, WASM) are **not bundled**: works under `netlify dev`, ENOENT in production. Prefer importing static data as a module. Otherwise declare it in `netlify.toml`:
 
 ```toml
 [functions]
-  included_files = ["netlify/functions/templates/**"]
-
-# or scope it to one function:
-[functions."render-email"]
-  included_files = ["netlify/functions/templates/welcome.html"]
+  included_files = ["files/*.md"]
+  external_node_modules = ["package-1"]
 ```
 
-When the data is static, prefer importing it as a module (`import data from "./data.json"`) so bundling is automatic; reach for `included_files` for files you must read from the filesystem at runtime.
+⚠️ The combined env-var limit is **~4 KB** for ALL functions (they run on AWS Lambda) — no Netlify setting raises it. Keep large payloads (service-account JSON, PEM keys) out of env vars; use a bundled file, Blobs, or a runtime fetch.
 
-## Resource Limits
+JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 
-| Resource | Limit |
-|---|---|
-| Synchronous timeout | 60 seconds |
-| Background timeout | 15 minutes |
-| Scheduled timeout | 30 seconds |
-| Memory | 1024 MB default; configurable 1024–4096 MB (see [Memory or vCPU](#memory-or-vcpu)) |
-| Buffered payload | 6 MB |
-| Streamed payload | 20 MB |
+## Limits (not configurable)
 
-## Framework Considerations
+- Synchronous execution: **60s**. Scheduled: **30s**. Background: **15 min**.
+- Buffered request/response payload: **6 MB** (binary is Base64-encoded, ~30% overhead → effective **4.5 MB** binary limit).
+- Streamed response: **20 MB**. Background payload: **256 KB**.
 
-Frameworks with server-side capabilities (Astro, Next.js, Nuxt, SvelteKit, TanStack Start) typically generate their own serverless functions via adapters. You usually do not write raw Netlify Functions in these projects — the framework adapter handles server-side rendering and API routes. Write Netlify Functions directly when:
+## Local testing & deploy
 
-- Using a client-side-only framework (Vite + React SPA, vanilla JS)
-- Adding background or scheduled tasks to any project
-- Building standalone API endpoints outside the framework's routing
+- Most frameworks emulate functions in their dev server. Vite frameworks (Astro, Nuxt, TanStack Start, React Router): install `@netlify/vite-plugin` and run the dev server. Next.js and anything else: use the [Netlify CLI](https://docs.netlify.com/api-and-cli-guides/cli-guides/local-development/) (`netlify dev`).
+- Scheduled functions don't fire on a schedule locally — invoke once with `netlify functions:invoke <name>`.
+- Deploy: push to Git for continuous deployment, or use the Netlify CLI/API.
+- Logs & metrics live in the Netlify UI; stream with the CLI.
 
-See the **netlify-frameworks** skill for adapter setup.
+## Node runtime version
+
+Runtime follows the build's Node.js version (fallback: Node.js 24). Override by setting env var `AWS_LAMBDA_JS_RUNTIME` (e.g. `nodejs24.x`) via UI/CLI/API — **not** `netlify.toml` — then redeploy. ES modules: `__dirname`/`__filename` unavailable, use `import.meta.url`; named imports of CommonJS packages fail, use a default import.
+
+## Legacy / Go (avoid unless needed)
+
+Go must use the [Lambda-compatible API](https://docs.netlify.com/build/functions/lambda-compatibility/?fn-language=go); Go routing/region/memory are set in `netlify.toml`. For migrating Lambda-style JS/TS, `@netlify/aws-lambda-compat` wraps an AWS handler:
+
+```ts
+import { withLambda } from "@netlify/aws-lambda-compat"
+import type { HandlerContext, HandlerEvent, HandlerResponse } from "@netlify/aws-lambda-compat"
+
+export default withLambda(async (event: HandlerEvent, context: HandlerContext): Promise<HandlerResponse> => {
+  const name = event.queryStringParameters?.name ?? "World"
+  return { statusCode: 200, headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) }
+})
+```
+
+Lambda-compat mode enforces the 4 KB env-var limit; [upgrade to modern functions](https://developers.netlify.com/guides/migrating-to-the-modern-netlify-functions/) to remove it.
+
+<!-- system: agent-context/functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
+# Netlify house rules (functions)
+
+These are org conventions, not docs facts — they are merged into the rendered
+skill by ctx-gen and are never generated. Extracted from the previous
+hand-written netlify-functions skill; owned by the skills maintainer.
+
+1. Use TypeScript (`.mts`) when possible.
+2. Access environment variables via `Netlify.env.get()` (prefer it over
+   `process.env` for consistency).
+3. Never add CORS headers unless explicitly requested.
+4. Store secrets in environment variables, never in code.
+5. `context.geo` and `context.ip` are mocked under `netlify dev` — placeholder
+   values, not the real location or client IP. Don't conclude geo code is
+   broken because local values never change; exercise branches with
+   `netlify dev --geo=mock --country=DE` and verify on a deploy.
+6. Do NOT set `config.memory` or `config.vcpu` speculatively. Raise them only
+   for known memory/compute-intensive work or observed OOM/timeouts caused by
+   the function's own work — billing scales linearly with size.
+7. Do NOT override `config.region` unless the user has stated a specific
+   reason (co-located database/backend, data residency, regional audience).
+   The `cmh` default is a deliberate choice.
+8. Files read from disk at runtime (`fs.readFile` on templates, JSON, WASM)
+   are not bundled: works under `netlify dev`, ENOENT in production. Prefer
+   importing static data as a module; otherwise declare the file with a
+   scoped `included_files` entry in `netlify.toml`.
+9. The ~4 KB combined environment-variable limit applies to ALL functions
+   (they run on AWS Lambda), not just Lambda-compat mode. Keep large payloads
+   (service-account JSON, PEM keys) out of env vars — use a bundled file,
+   Blobs, or a runtime fetch. No Netlify setting raises this cap.
+10. The body's FIRST function example must be the minimal default: no
+    `config` export at all, stating the function serves at
+    `/.netlify/functions/<name>`. Custom `path` routing appears only in a
+    later example — agents imitate the first example they see.
+11. Never demonstrate `memory`, `vcpu`, or `region` in a generic example —
+    show them only attached to an explicit stated reason (observed OOM,
+    co-located backend, data residency).
+12. Scheduled-function examples use a real cron expression with the UTC
+    conversion spelled out (e.g. 9 AM ET → `"0 13 * * *"` UTC, noting DST) —
+    never only `@hourly`/`@daily` shortcuts, which can't target a specific
+    local hour.
+13. The body must state that `[[headers]]` in netlify.toml, `_headers`, and
+    redirect header rules apply ONLY to static CDN responses — response
+    headers for a function are set in code on the returned `Response`.

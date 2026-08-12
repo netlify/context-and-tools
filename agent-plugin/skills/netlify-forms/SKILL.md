@@ -1,195 +1,196 @@
 ---
 name: netlify-forms
-description: Guide for using Netlify Forms for HTML form handling. Use when adding contact forms, feedback forms, file upload forms, or any form that should be collected by Netlify. Covers the data-netlify attribute, spam filtering, AJAX submissions, file uploads, notifications, and the submissions API.
+description: Serverless form handling on Netlify-hosted sites — detects HTML forms at deploy time, stores submissions, filters spam, and sends notifications. Use when adding a contact form, lead-capture form, file-upload form, or newsletter signup to a Netlify site; wiring AJAX form submission; setting up a custom thank-you page; adding a honeypot or reCAPTCHA to a form; getting forms working in Next.js, Nuxt, SvelteKit, Astro, or Gatsby; reading form submissions via the Netlify API; or debugging missing submissions and forms that silently fail to register.
 ---
 
 # Netlify Forms
 
-Netlify Forms collects HTML form submissions without server-side code. Form detection must be enabled in the Netlify UI (Forms section).
+Mark a form for detection with `data-netlify="true"` (or the bare `netlify` attribute — equivalent) on the `<form>` tag. Forms are detected by **parsing the final built HTML at deploy time** — there is no runtime API call or backend code. Client-side/JS-rendered/SSR forms are NOT in the built HTML and are never detected on their own; they require a static skeleton file (see below).
 
-> **Enabling detection only affects future deploys.** Netlify scans for forms at deploy time, so turning on (or re-enabling) form detection does **not** rescan your current live deploy. After enabling detection you must trigger a new deploy/build before an already-published form is registered and starts collecting submissions.
+Prerequisite: form detection must be enabled once in the Netlify UI (Forms > **Enable form detection**). Takes effect on the next deploy.
 
-## Basic Setup
-
-Add `data-netlify="true"` and a unique `name` to the form:
+## Static HTML form
 
 ```html
 <form name="contact" method="POST" data-netlify="true">
-  <label>Name: <input type="text" name="name" /></label>
-  <label>Email: <input type="email" name="email" /></label>
-  <label>Message: <textarea name="message"></textarea></label>
-  <button type="submit">Send</button>
+  <p><label>Your Name: <input type="text" name="name" /></label></p>
+  <p><label>Your Email: <input type="email" name="email" /></label></p>
+  <p><label>Message: <textarea name="message"></textarea></label></p>
+  <p><button type="submit">Send</button></p>
 </form>
 ```
 
-Netlify's build system detects the form and injects a hidden `form-name` input automatically. For a custom success page, add `action="/thank-you"` to the form tag. Use paths without `.html` extension — Netlify serves `thank-you.html` at `/thank-you` by default, and the `.html` path returns 404.
+- `name` sets the form name in the UI and **must be unique per site**.
+- At deploy, Netlify strips the `data-netlify`/`netlify` attribute and injects `<input type="hidden" name="form-name" value="contact" />`.
+- Add an `<input name="email">` so the notification email's `Reply-to` is set to the submitter.
 
-## JavaScript-Rendered Forms (React, Vue, SSR Frameworks)
+## JS-rendered / SSR / framework forms (Next.js, Nuxt, SvelteKit, Astro, Gatsby)
 
-For forms rendered by JavaScript frameworks (React, Vue, Astro, TanStack Start, Next.js, SvelteKit, Remix, Nuxt), Netlify's build parser cannot detect the form in static HTML. You MUST create a static HTML skeleton file for build-time form detection:
+Two required pieces:
 
-> **Form detection parses prerendered HTML only.** A `data-netlify` form is registered only if it appears in HTML produced at build time. On an Astro route that is server-rendered on demand (`export const prerender = false`, or an `output: "server"` route), the form is generated per request and is never scanned at build — so it is never registered. Put the form on a prerendered page, or add the static skeleton file below.
-
-Create a static HTML file in `public/` (e.g. `public/__forms.html`) containing a hidden copy of each form:
+**1. Static skeleton file `public/__forms.html`** — a hidden copy of each form with `data-netlify="true"`, a hidden `form-name` input, and every field the component submits, with names matching **exactly** (Netlify validates field names against the registered form). Without this file, submissions silently fail.
 
 ```html
-<!DOCTYPE html>
-<html>
-  <body>
-    <form name="contact" data-netlify="true" netlify-honeypot="bot-field" hidden>
-      <input type="hidden" name="form-name" value="contact" />
-      <input type="text" name="name" />
-      <input type="email" name="email" />
-      <textarea name="message"></textarea>
-      <input name="bot-field" />
-    </form>
-  </body>
-</html>
+<!-- public/__forms.html -->
+<form name="pizzaOrder" data-netlify="true" hidden>
+  <input type="hidden" name="form-name" value="pizzaOrder" />
+  <input name="order" type="text" />
+</form>
 ```
 
-**Rules:**
-- The form `name` must exactly match the `form-name` value used in your component's fetch call
-- Include every field your component submits — Netlify validates field names against the registered form
-- Without this file, Netlify cannot detect the form and submissions will silently fail
-
-Your component must also include a hidden `form-name` input:
+**2. The rendered form** carries a matching hidden `form-name` input:
 
 ```jsx
-<form name="contact" method="POST" data-netlify="true">
-  <input type="hidden" name="form-name" value="contact" />
-  {/* ... fields ... */}
+<form name="pizzaOrder" method="post" data-netlify="true" onSubmit={handleSubmit}>
+  <input type="hidden" name="form-name" value="pizzaOrder" />
+  <input name="order" type="text" onChange={handleChange} />
+  <input type="submit" />
 </form>
 ```
 
-## AJAX Submissions
+**⚠️ SSR POST target:** In SSR apps, `fetch("/")` is intercepted by the SSR catch-all function and never reaches form processing. POST to the static skeleton file itself — `/__forms.html` — not `/` or an arbitrary path.
 
-> **Netlify Forms does not accept JSON.** The submission body must be `application/x-www-form-urlencoded` (encode the fields with `URLSearchParams`) or `multipart/form-data` (a raw `FormData` object, for file uploads). A `fetch` that sends `JSON.stringify(...)` with `Content-Type: application/json` is silently **not** recorded as a submission — always send URL-encoded key/value pairs (or `FormData`), never JSON.
+**⚠️ Astro on-demand routes:** Routes with `export const prerender = false` or `output: "server"` are never scanned at build time, so their forms are never registered. Put the form on a prerendered page, or rely on the static skeleton file.
 
-### Vanilla JavaScript
+**Next.js Runtime v5 (Next.js 13.5+):** extract form definitions to the static skeleton file and submit via AJAX rather than full-page navigation. See https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview#v5-breaking-changes
 
-```javascript
-const form = document.querySelector("form");
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const formData = new FormData(form);
-  await fetch("/", {
+## AJAX submission
+
+```js
+const handleSubmit = event => {
+  event.preventDefault();
+  const formData = new FormData(event.target);
+  fetch("/__forms.html", {   // static sites may POST to "/"; SSR must target the skeleton file
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(formData).toString(),
-  });
+    body: new URLSearchParams(formData).toString()
+  })
+    .then(() => alert("Thank you for your submission"))  // or navigate("/thank-you")
+    .catch(error => alert(error));
+};
+document.querySelector("form").addEventListener("submit", handleSubmit);
+```
+
+- **Body MUST be URL-encoded. JSON is NOT supported.**
+- If the rendered form has no hidden `form-name` input, you MUST include a `form-name` field in the POST body.
+- The honeypot field name and `g-recaptcha-response` (if used) must be in the body — automatic with `FormData()`.
+
+## File uploads
+
+Add `type="file"`; optionally `enctype="multipart/form-data"` on the `<form>`. For AJAX file uploads, **do NOT set a `Content-Type` header** — let the browser set it (with the multipart boundary).
+
+```js
+document.forms.fileForm.addEventListener("submit", event => {
+  event.preventDefault();
+  fetch("/", { body: new FormData(event.target), method: "POST" })  // no headers
+    .then(() => { /* success */ });
 });
 ```
 
-> **SSR frameworks (TanStack Start, Next.js, SvelteKit, Remix, Nuxt):** The `fetch` URL must target the static skeleton
-> file path (e.g. `"/__forms.html"`), **not** `"/"`. In SSR apps, `fetch("/")` is intercepted by the SSR catch-all
-> function and never reaches Netlify's form processing middleware. See the React example and troubleshooting section below.
+Limits: one file per field (use multiple fields for multiple files) · 8 MB max request size · 30 s upload timeout · after form deletion, uploaded files stay at their direct URL for 24 h. PII uploads need extra security (Very Good Security integration).
 
-### React Example
+## Custom success page
 
-```tsx
-function ContactForm() {
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    // For SSR apps, use the skeleton file path instead of "/" (e.g. "/__forms.html")
-    const response = await fetch("/__forms.html", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(formData as any).toString(),
-    });
-    if (response.ok) {
-      // Show success feedback
-    }
-  };
+Add an `action` path relative to site root, starting with `/`. **Use extensionless paths** — Netlify serves `thank-you.html` at `/thank-you`; the `.html` path returns 404.
 
-  return (
-    <form name="contact" method="POST" data-netlify="true" onSubmit={handleSubmit}>
-      <input type="hidden" name="form-name" value="contact" />
-      <input type="text" name="name" placeholder="Name" />
-      <input type="email" name="email" placeholder="Email" />
-      <textarea name="message" placeholder="Message" />
-      <button type="submit">Send</button>
-    </form>
-  );
-}
+```html
+<form name="contact" action="/thank-you" method="POST" data-netlify="true"></form>
 ```
 
-> **SSR troubleshooting:** If form submissions appear to succeed (200 response) but nothing shows in the Netlify Forms
-> UI, the POST is likely being intercepted by the SSR function. Ensure `fetch` targets the skeleton file path (e.g.
-> `"/__forms.html"`), not `"/"`. The skeleton file path routes through the CDN origin where Netlify's form handler runs.
+Custom success *alert* is only possible via AJAX (substitute the redirect with your own logic).
 
-## Spam Filtering
+## Spam prevention
 
-Netlify uses Akismet automatically. Add a honeypot field for extra protection:
+All submissions are filtered by Akismet. Passed → **Verified submissions**; flagged → **Spam submissions**. Honeypot/reCAPTCHA failures are rejected and appear in neither list.
+
+**Honeypot:** add `netlify-honeypot="bot-field"` to the `<form>` and include a CSS-hidden field of that name. Any value entered → submission quietly rejected.
 
 ```html
 <form name="contact" method="POST" netlify-honeypot="bot-field" data-netlify="true">
-  <p style="display:none">
-    <label>Don't fill this out: <input name="bot-field" /></label>
-  </p>
-  <!-- visible fields -->
+  <p class="hidden"><label>Don’t fill this out: <input name="bot-field" /></label></p>
+  <!-- real fields -->
 </form>
 ```
 
-For reCAPTCHA, add `data-netlify-recaptcha="true"` to the form and include `<div data-netlify-recaptcha="true"></div>` where the widget should appear.
+**Netlify reCAPTCHA 2:** add `data-netlify-recaptcha="true"` to the `<form>` AND an empty `<div data-netlify-recaptcha="true"></div>` where it renders. Only ONE Netlify-provided challenge per page — for multiple, use custom reCAPTCHA. For JS-rendered forms, also add the `div` to the static skeleton file.
 
-By default Netlify provisions and verifies the reCAPTCHA for you — do **not** add a site key/secret or load Google's reCAPTCHA script yourself. To use **your own** reCAPTCHA v2 keys, keep the same `data-netlify-recaptcha="true"` markup and set the credentials as Netlify environment variables: `SITE_RECAPTCHA_KEY` (the site key, scoped to Builds and Runtime) and `SITE_RECAPTCHA_SECRET` (the secret, scoped to Runtime). Netlify picks these up automatically — the secret stays server-side as an env var (never hardcoded in client code), and you still don't render the widget with Google's own script or build a custom Function to verify the token.
+**Custom reCAPTCHA 2:** your own reCAPTCHA snippet + `data-netlify-recaptcha="true"` on the `<form>`, plus env vars:
+- `SITE_RECAPTCHA_KEY` — site key (scopes: Builds + Runtime)
+- `SITE_RECAPTCHA_SECRET` — secret (scope: Runtime)
 
-> **Spam submissions are silent.** Akismet-flagged submissions are moved to a separate **Spam** list in the Forms UI — they do **not** appear in the verified submissions list and do **not** trigger email/Slack notifications. Submissions caught by a honeypot field or a failed reCAPTCHA challenge are discarded entirely and never appear in either list. So a "missing" legitimate submission is usually a false-positive spam classification, not a delivery bug: check the Spam list (or the Submissions API with `?state=spam`) and mark it verified — do not build a custom Function to "recover" it or disable spam filtering as a first resort.
+## Email notifications & subject line
 
-## File Uploads
+Default sender: `formresponses@netlify.com`. Set subject via a hidden `subject` input **or** the Netlify UI (Configuration > Notifications) — **not both; the HTML value always overrides the UI.**
 
 ```html
-<form name="upload" enctype="multipart/form-data" data-netlify="true">
-  <input type="text" name="name" />
-  <input type="file" name="attachment" />
-  <button type="submit">Upload</button>
-</form>
+<input type="hidden" name="subject" value="New lead from %{formName} (%{submissionId})" />
 ```
 
-For AJAX file uploads, use `FormData` directly — do **not** set `Content-Type` (the browser sets it with the correct boundary):
+Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before **May 5, 2023** carry a `[Netlify]` subject prefix — remove it by adding the `data-remove-prefix` attribute to the `subject` input.
 
-```javascript
-await fetch("/", { method: "POST", body: new FormData(form) });
-```
+Set up notifications (email/webhook/Slack) in the UI: Configuration > Notifications > Form submission notifications > **Add notification**.
 
-**Limits:** 8 MB max request size, 30-second timeout, one file per input field.
+## Reading submissions via the API
 
-## Notifications
+Use only documented surfaces. Do NOT invent `api.netlify.com` endpoints or read tokens from local CLI config files. Reference: https://open-api.netlify.com/#tag/submission/operation/listFormSubmissions
 
-Configure in the Netlify UI under **Project configuration > Notifications**:
+- **Page through results using the `Link` header** — code that reads only the first response silently drops the rest.
+- `listFormSubmissions` returns data from old/removed fields no longer shown in the UI.
+- Query spam with `?state=spam`.
 
-- **Email**: Auto-sends on submission. Add `<input type="hidden" name="subject" value="Contact form" />` for custom subject lines.
-- **Slack**: Via Netlify App for Slack.
-- **Webhooks**: Trigger external services on submission.
+## Submission summary (field order matters)
 
-## Submissions API
+The UI summary is derived from field **type**, not name:
+- **Title**: first non-hidden text `<input>` that isn't email-like (`type="email"`, or name matching `email`/`mail`/`from`/`twitter`/`sender`); falls back to a field named `title` or `subject`.
+- **Body**: first `<textarea>`.
 
-Access submissions programmatically:
+Field order in the HTML affects what appears in the summary.
 
-```
-GET /api/v1/forms/{form_id}/submissions
-Authorization: Bearer <PERSONAL_ACCESS_TOKEN>
-```
+## Debugging missing submissions
 
-Key endpoints:
+- **First suspect: Akismet false positive.** A missing legitimate submission is usually spam-flagged — check the **Spam** list (or API `?state=spam`) and mark it verified. Do NOT build a custom recovery function or disable spam filtering as a first resort.
+- Test submissions get flagged as spam: use a real email (not `test@test.com`), write full sentences, don't hammer from one IP.
+- No submissions at all: confirm form detection is enabled and redeploy.
+- SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
+- Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
 
-| Action | Method | Path |
-|---|---|---|
-| List forms | GET | `/api/v1/sites/{site_id}/forms` |
-| Get submissions | GET | `/api/v1/forms/{form_id}/submissions` |
-| Get spam | GET | `/api/v1/forms/{form_id}/submissions?state=spam` |
-| Delete submission | DELETE | `/api/v1/submissions/{id}` |
+## Constraints
 
-### Pagination
+- Deleting a form is permanent: future submissions return `404`, past submissions become unavailable. Export CSV first.
+- Submitted code is sanitized (`<script>` → escaped entities).
+- For PII, export and delete data regularly.
+- Data is stored in Netlify's database, not accessible except via UI/API/CSV.
 
-The Netlify API paginates any response over 100 items (100 per page by default). Pass `?page=` (1-based) and optionally `?per_page=` (max 100), and follow the `Link` response header — it carries the `rel="next"` and `rel="last"` page URLs. To sync **every** submission, page through until there is no `rel="next"` link (or a page returns fewer than `per_page` items). A single request does **not** return all submissions once a form has more than 100 — code that reads only the first response silently drops the rest.
+<!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
+# Netlify house rules (forms)
 
-## Use only documented surfaces
+These are org conventions and field-learned guardrails, not docs facts — they
+are merged into the rendered skill by ctx-gen and are never generated.
+Extracted from the previous hand-written netlify-forms skill; owned by the
+skills maintainer.
 
-To manage forms or read submissions programmatically, use the documented `netlify` CLI or the Submissions API above with an explicit personal access token supplied via an environment variable. Do **not** go around the documented surface:
-
-- **Do not curl `https://api.netlify.com/...`** with an invented endpoint shape, and do **not** run `netlify api <method>` as a recovery hatch when a documented path fails.
-- **Do not read the token** out of `~/Library/Preferences/netlify/config.json` (or anywhere on disk) — it comes from the configured env var.
-
-If a documented path fails, report the exact error and context to the user and stop.
+1. In SSR apps (Next.js, Nuxt, SvelteKit, etc.), `fetch("/")` is intercepted
+   by the SSR catch-all function and never reaches Netlify's form processing.
+   POST the AJAX submission to the static skeleton file itself (e.g.
+   `/__forms.html`), not to an arbitrary path.
+2. Use only documented surfaces: do not curl `https://api.netlify.com/...`
+   with an invented endpoint shape, and do not read tokens out of local CLI
+   config files (`~/Library/Preferences/netlify/config.json`).
+3. When reading submissions via the API, page through results (`Link`
+   header); code that reads only the first response silently drops the rest.
+4. For JS-rendered and SSR forms, always create the static skeleton file
+   `public/__forms.html`: a hidden copy of each form with
+   `data-netlify="true"`, a hidden `form-name` input, and every field the
+   component submits — names matching exactly (Netlify validates field names
+   against the registered form). Without this file, submissions silently fail.
+5. Astro routes rendered on demand (`export const prerender = false`, or
+   `output: "server"` routes) are never scanned at build time, so their forms
+   are never registered. Put the form on a prerendered page or rely on the
+   static skeleton file.
+6. A "missing" legitimate submission is usually an Akismet false positive:
+   check the Spam list (or the API with `?state=spam`) and mark it verified.
+   Do not build a custom recovery function or disable spam filtering as a
+   first resort.
+7. For custom success pages, use extensionless `action` paths (`/thank-you`,
+   not `/thank-you.html`) — Netlify serves `thank-you.html` at `/thank-you`
+   and the `.html` path returns 404.

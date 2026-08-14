@@ -109,6 +109,12 @@ jobs:
             echo "no prior import state — bootstrap import proceeds"
             exit 0
           fi
+          # Present but not a regular file (dir/FIFO/symlink): fail before
+          # node — require() on a dir can execute code, on a FIFO can hang.
+          if [ ! -f .ctx-gen/state.json ] || [ -L .ctx-gen/state.json ]; then
+            echo "::error::state.json exists but is not a regular file — failing closed"
+            exit 1
+          fi
           # Exactly one distinct recorded docsCommit, and it must look like a
           # commit hash. Disagreement or garbage = corrupt state: fail, don't guess.
           last=$(node -e '

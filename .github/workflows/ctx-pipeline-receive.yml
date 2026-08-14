@@ -111,13 +111,16 @@ jobs:
           # commit hash. Disagreement or garbage = corrupt state: fail, don't guess.
           last=$(node -e '
             const s = require("./.ctx-gen/state.json");
-            const c = [...new Set(Object.values(s).map(v => v && v.docsCommit).filter(Boolean))];
-            if (c.length === 0) { console.log("BOOTSTRAP"); process.exit(0); }
-            if (c.length > 1) { console.error("state.json records conflicting docsCommit values: " + c.join(", ")); process.exit(1); }
-            if (!/^[0-9a-f]{40}$/.test(c[0])) { console.error("recorded docsCommit is not a commit hash: " + JSON.stringify(c[0])); process.exit(1); }
-            console.log(c[0]);
+            const entries = Object.values(s);
+            if (entries.length === 0) { console.error("state.json is present but empty — not a bootstrap; reset it explicitly if intended"); process.exit(1); }
+            // EVERY entry must carry the same valid commit — a partial state
+            // (some entries missing docsCommit) is corruption, not a quorum.
+            const commits = entries.map(v => v && v.docsCommit);
+            if (commits.some(c => !/^[0-9a-f]{40}$/.test(c || ""))) { console.error("state entry missing or malformed docsCommit — state is partial/corrupt"); process.exit(1); }
+            const distinct = [...new Set(commits)];
+            if (distinct.length > 1) { console.error("state.json records conflicting docsCommit values: " + distinct.join(", ")); process.exit(1); }
+            console.log(distinct[0]);
           ') || { echo "::error::import state exists but cannot be validated — failing closed (fix or explicitly reset .ctx-gen/state.json)"; exit 1; }
-          [ "$last" = "BOOTSTRAP" ] && { echo "state has no recorded docsCommit — bootstrap import proceeds"; exit 0; }
           incoming=$(git -C .docs-src rev-parse HEAD)
           if ! git -C .docs-src cat-file -e "$last" 2>/dev/null; then
             echo "::error::last imported commit $last is not present in the docs checkout — cannot establish ordering (incomplete fetch or rewritten history); failing closed"

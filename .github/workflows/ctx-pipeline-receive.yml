@@ -95,18 +95,42 @@ jobs:
           # Full history: the monotonicity guard below needs ancestry.
           fetch-depth: 0
 
-      # Reject out-of-order deliveries: gates can finish out of order, and an
-      # older dispatch arriving after a newer import must not roll skills
-      # back. The incoming commit must descend from the last imported one.
+      # Reject out-of-order deliveries: an older dispatch arriving after a
+      # newer import must not roll skills back. The incoming commit must
+      # descend from the last imported one. Fail-closed semantics: only a
+      # genuinely absent prior state proceeds (bootstrap); a state that
+      # exists but cannot be validated FAILS the run — silence here is how
+      # rollbacks happen.
       - name: Monotonicity guard
         run: |
-          last=$(node -e 'try{const s=require("./.ctx-gen/state.json");const c=[...new Set(Object.values(s).map(v=>v.docsCommit).filter(Boolean))];console.log(c[0]||"")}catch{console.log("")}')
+          if [ ! -f .ctx-gen/state.json ]; then
+            echo "no prior import state — bootstrap import proceeds"
+            exit 0
+          fi
+          # Exactly one distinct recorded docsCommit, and it must look like a
+          # commit hash. Disagreement or garbage = corrupt state: fail, don't guess.
+          last=$(node -e '
+            const s = require("./.ctx-gen/state.json");
+            const c = [...new Set(Object.values(s).map(v => v && v.docsCommit).filter(Boolean))];
+            if (c.length === 0) { console.log("BOOTSTRAP"); process.exit(0); }
+            if (c.length > 1) { console.error("state.json records conflicting docsCommit values: " + c.join(", ")); process.exit(1); }
+            if (!/^[0-9a-f]{40}$/.test(c[0])) { console.error("recorded docsCommit is not a commit hash: " + JSON.stringify(c[0])); process.exit(1); }
+            console.log(c[0]);
+          ') || { echo "::error::import state exists but cannot be validated — failing closed (fix or explicitly reset .ctx-gen/state.json)"; exit 1; }
+          [ "$last" = "BOOTSTRAP" ] && { echo "state has no recorded docsCommit — bootstrap import proceeds"; exit 0; }
           incoming=$(git -C .docs-src rev-parse HEAD)
-          if [ -n "$last" ] && git -C .docs-src cat-file -e "$last" 2>/dev/null; then
-            if ! git -C .docs-src merge-base --is-ancestor "$last" "$incoming"; then
-              echo "::notice::stale delivery: incoming $incoming does not descend from last imported $last — skipping (a newer import already covers this)"
-              echo "SKIP_IMPORT=1" >> "$GITHUB_ENV"
-            fi
+          if ! git -C .docs-src cat-file -e "$last" 2>/dev/null; then
+            echo "::error::last imported commit $last is not present in the docs checkout — cannot establish ordering (incomplete fetch or rewritten history); failing closed"
+            exit 1
+          fi
+          rc=0
+          git -C .docs-src merge-base --is-ancestor "$last" "$incoming" || rc=$?
+          if [ "$rc" = 1 ]; then
+            echo "::notice::stale delivery: incoming $incoming does not descend from last imported $last — skipping (a newer import already covers this)"
+            echo "SKIP_IMPORT=1" >> "$GITHUB_ENV"
+          elif [ "$rc" != 0 ]; then
+            echo "::error::merge-base failed with status $rc — cannot establish ordering; failing closed"
+            exit 1
           fi
 
 

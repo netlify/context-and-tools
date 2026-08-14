@@ -103,7 +103,9 @@ jobs:
       # rollbacks happen.
       - name: Monotonicity guard
         run: |
-          if [ ! -f .ctx-gen/state.json ]; then
+          # True absence only — a directory, FIFO, or broken symlink at this
+          # path is NOT absence; it falls through and fails validation below.
+          if [ ! -e .ctx-gen/state.json ] && [ ! -L .ctx-gen/state.json ]; then
             echo "no prior import state — bootstrap import proceeds"
             exit 0
           fi

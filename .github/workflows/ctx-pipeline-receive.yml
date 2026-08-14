@@ -92,6 +92,24 @@ jobs:
           token: ${{ secrets.DOCS_READ_TOKEN }}
           path: .docs-src
           persist-credentials: false
+          # Full history: the monotonicity guard below needs ancestry.
+          fetch-depth: 0
+
+      # Reject out-of-order deliveries: gates can finish out of order, and an
+      # older dispatch arriving after a newer import must not roll skills
+      # back. The incoming commit must descend from the last imported one.
+      - name: Monotonicity guard
+        run: |
+          last=$(node -e 'try{const s=require("./.ctx-gen/state.json");const c=[...new Set(Object.values(s).map(v=>v.docsCommit).filter(Boolean))];console.log(c[0]||"")}catch{console.log("")}')
+          incoming=$(git -C .docs-src rev-parse HEAD)
+          if [ -n "$last" ] && git -C .docs-src cat-file -e "$last" 2>/dev/null; then
+            if ! git -C .docs-src merge-base --is-ancestor "$last" "$incoming"; then
+              echo "::notice::stale delivery: incoming $incoming does not descend from last imported $last — skipping (a newer import already covers this)"
+              echo "SKIP_IMPORT=1" >> "$GITHUB_ENV"
+            fi
+          fi
+
+
 
       - name: Resolve docs commit
         id: docs
@@ -99,6 +117,7 @@ jobs:
 
       - name: Import changed skills
         id: import
+        if: env.SKIP_IMPORT != '1'
         run: node scripts/ctx-receive.mjs --docs .docs-src --docs-commit "${{ steps.docs.outputs.sha }}"
 
       - name: Open or update the rolling sync PR

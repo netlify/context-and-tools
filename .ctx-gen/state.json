@@ -45,8 +45,8 @@
     ]
   },
   "image-cdn": {
-    "sourceHash": "d610f4e75340434db04b75990b57e1833818f6c3f33b4a2b3ffdea201cc09d23",
-    "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
+    "sourceHash": "4dffab1264df9f62a5ec9823657c860f6f7570c0bd8cd3a7f764fb86df669462",
+    "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
     "importerVersion": 1,
     "affects": [
       "api",
@@ -128,8 +128,8 @@
     ]
   },
   "frameworks": {
-    "sourceHash": "aa1942c92161d1d0487d0173ff19302c97d60129796d56456bafc7ca155b9574",
-    "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
+    "sourceHash": "17f8bfb84634504f7491f3f715e47adbdeef439c1574b0fadd6ace4174336b1f",
+    "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
     "importerVersion": 1,
     "affects": [
       "authoring",
@@ -142,8 +142,8 @@
     ]
   },
   "identity": {
-    "sourceHash": "735a828e3b87669025ac4e8cc82790defbf88ddc00591ab859d6e04194170c9b",
-    "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
+    "sourceHash": "03af265ab2cf40f3ea3ec2f2460c324d77c895364438a47823dc9bbfe17e7a61",
+    "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
     "importerVersion": 1,
     "affects": [
       "api",

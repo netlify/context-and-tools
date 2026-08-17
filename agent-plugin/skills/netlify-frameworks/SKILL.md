@@ -33,7 +33,7 @@ SPAs (React, Vue CLI, Vite, Nuxt in SPA mode) need a rewrite to serve `index.htm
 
 ## Local dev with platform emulation (no Netlify CLI)
 
-Vite-based frameworks emulate Netlify primitives (functions, edge functions, blobs, Cache API, Image CDN, redirects/rewrites, headers, env vars) in the dev server:
+Vite-based frameworks emulate Netlify primitives (functions, edge functions, blobs, Netlify Database, Cache API, Image CDN, redirects/rewrites, headers, env vars, AI Gateway) in the dev server:
 
 | Framework | Plugin/module | Run |
 |-----------|---------------|-----|
@@ -239,3 +239,9 @@ ctx-gen and never generated. Owned by the skills maintainer.
 6. Never use a client prefix (`VITE_`, `NEXT_PUBLIC_`, `PUBLIC_`,
    `NUXT_PUBLIC_`, `REACT_APP_`, `GATSBY_`, `VUE_APP_`) for secrets —
    client-prefixed vars are inlined into the browser bundle.
+7. Next.js skew protection is version-conditional: below Next 14.1.4 the
+   `NETLIFY_NEXT_SKEW_PROTECTION` env var is not sufficient on its own —
+   `experimental.useDeploymentId` (plus `useDeploymentIdServerActions` when
+   server actions are used) must also go in `next.config.js`. Always ask for
+   or state the version condition; never present the env var as the whole
+   setup.

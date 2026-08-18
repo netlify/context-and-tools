@@ -67,7 +67,7 @@ const src = `/.netlify/images?url=${encodeURIComponent("https://my-images.com/ow
 ```
 
 - **Always `encodeURIComponent` the remote URL** before placing it in `url` — URLs containing `?` or `&` break otherwise.
-- In `remote_images` patterns, **escape only the dot**: `"https://example\.com/.*"`. Forward slashes are NOT regex metacharacters — do not write `https:\/\/`.
+- In `remote_images` patterns, **escape only the dot**: `'https://example\.com/.*'`. Forward slashes are NOT regex metacharacters — do not write `https:\/\/`.
 - Remote sources must be **publicly accessible**. Netlify does NOT forward `Authorization` or `Cookie` headers to remote sources. For auth-required images use self-authorizing URLs (e.g. S3 presigned URLs) and make sure your `remote_images` pattern matches them.
 
 ## Reusable transformations (redirects)
@@ -152,6 +152,9 @@ ctx-gen and never generated. Owned by the skills maintainer.
    server (`vite`, `next dev`, `astro dev`) is running instead of
    `netlify dev` — the endpoint, `[images]` allowlisting, and image redirects
    only exist under `netlify dev`. The URL itself is usually fine.
-5. In `remote_images` patterns, the meaningful escape is the dot:
-   `"https://example\.com/.*"`. Forward slashes are not regex
-   metacharacters — do not write `https:\/\/`.
+5. In `remote_images` patterns, the meaningful regex escape is the dot;
+   forward slashes are not metacharacters — do not write `https:\/\/`.
+   In `netlify.toml`, use a single-quoted literal string
+   (`'https://example\.com/.*'`) or double the backslash in a
+   double-quoted string (`"https://example\\.com/.*"`) — a bare `\.`
+   inside double quotes is invalid TOML.

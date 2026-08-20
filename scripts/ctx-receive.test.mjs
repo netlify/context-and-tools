@@ -189,7 +189,7 @@ test('ctx-receive: byte-diff import delta', async (t) => {
 
     const result = run(fixture, ['--dry-run']);
 
-    assert.match(result.stdout, /\[import\] widgets .*hand edit \(source_hash unchanged/);
+    assert.match(result.stdout, /\[import\] widgets .*surface differs, source_hash unchanged/);
     assert.deepEqual(result.changed, [GROUPING]);
     assert.equal(result.changedCount, 1);
 
@@ -201,7 +201,7 @@ test('ctx-receive: byte-diff import delta', async (t) => {
   await t.test('hand edit propagates: grouping changed, edit lands in skills/, state updated', () => {
     const result = run(fixture);
 
-    assert.match(result.stdout, /\[import\] widgets .*hand edit \(source_hash unchanged/);
+    assert.match(result.stdout, /\[import\] widgets .*surface differs, source_hash unchanged/);
     assert.deepEqual(result.changed, [GROUPING]);
     assert.equal(result.changedCount, 1);
 

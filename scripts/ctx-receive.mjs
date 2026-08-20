@@ -126,11 +126,10 @@ function treeDiffers(srcDir, destDir) {
   const destFiles = listFiles(destDir);
   if (srcFiles.length !== destFiles.length) return true;
 
-  const destSet = new Set(destFiles);
-  for (const rel of srcFiles) {
-    if (!destSet.has(rel)) return true;
-    const a = fs.readFileSync(path.join(srcDir, rel));
-    const b = fs.readFileSync(path.join(destDir, rel));
+  for (let i = 0; i < srcFiles.length; i++) {
+    if (srcFiles[i] !== destFiles[i]) return true;
+    const a = fs.readFileSync(path.join(srcDir, srcFiles[i]));
+    const b = fs.readFileSync(path.join(destDir, destFiles[i]));
     if (!a.equals(b)) return true;
   }
   return false;
@@ -178,11 +177,16 @@ function main() {
     }
 
     const affects = unionAffects(manifest.changes);
+    // Factual, not inferential: this only states what changed and what
+    // didn't. An unchanged source_hash with a differing surface can mean an
+    // upstream hand edit (docs#801 shape) or local drift in skills/ — either
+    // way, the import below restores parity with the source.
+    const prevSourceHash = typeof prev?.sourceHash === 'string' ? prev.sourceHash : null;
     const reason = !prev
       ? 'first import'
-      : prev.sourceHash === sourceHash
-        ? `hand edit (source_hash unchanged at ${sourceHash.slice(0, 12)})`
-        : `source_hash ${prev.sourceHash.slice(0, 12)} → ${sourceHash.slice(0, 12)}`;
+      : prevSourceHash === sourceHash
+        ? `surface differs, source_hash unchanged at ${sourceHash.slice(0, 12)}`
+        : `source_hash ${prevSourceHash ? prevSourceHash.slice(0, 12) : '<unknown>'} → ${sourceHash.slice(0, 12)}`;
     console.log(`[import] ${grouping} → ${dest} (${reason}; affects: ${affects.join(', ') || 'n/a'})`);
 
     if (!opts.dryRun) {

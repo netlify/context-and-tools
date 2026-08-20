@@ -8,9 +8,20 @@
 // so a faithful copy is enough (test-where-the-mutation-happens). If we ever
 // start transforming content here, that is when this repo earns its own AXIS.
 //
-// Delta: each grouping is keyed on `manifest.generation.source_hash` plus the
-// importer version. Unchanged source_hash → skip. So repeated dispatches of the
-// same docs commit are no-ops, and only real content changes open a PR.
+// Delta: a grouping is "changed" iff `agent-context/<grouping>/skill/**` (in
+// the docs checkout) differs from `skills/<skill>/**` in this repo — the
+// relative-path set plus file bytes, computed by treeDiffers() below. A
+// missing destination directory counts as changed. manifest.generation
+// .source_hash, docsCommit, and importerVersion are still written to
+// state.json on import, but purely as provenance — they are never consulted
+// to decide skip vs. import.
+//
+// Accepted edge: a regeneration whose output is byte-identical to what's
+// already imported imports nothing and writes no state entry, so state.json
+// provenance can lag the newest source_hash. Harmless, and it guarantees
+// changed_count > 0 always implies a real git diff — previously, re-importing
+// byte-identical content could make the workflow's `git commit` fail on an
+// empty stage.
 //
 // Zero dependencies, Node 18+ (uses fs.cpSync / fs.rmSync).
 //
@@ -86,6 +97,45 @@ function unionAffects(changes) {
   return [...set].sort();
 }
 
+// Relative POSIX-style paths of every regular file under `dir`, recursive,
+// sorted. Symlinks and empty directories are not represented — only files
+// matter for the delta.
+function listFiles(dir) {
+  const out = [];
+  (function walk(current, prefix) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const abs = path.join(current, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+      } else if (entry.isFile()) {
+        out.push(rel);
+      }
+    }
+  })(dir, '');
+  return out.sort();
+}
+
+// True iff `srcDir` and `destDir` differ: a different relative-path set of
+// files, or any shared-path file with different bytes. A missing `destDir`
+// counts as different (e.g. first import).
+function treeDiffers(srcDir, destDir) {
+  if (!fs.existsSync(destDir)) return true;
+
+  const srcFiles = listFiles(srcDir);
+  const destFiles = listFiles(destDir);
+  if (srcFiles.length !== destFiles.length) return true;
+
+  const destSet = new Set(destFiles);
+  for (const rel of srcFiles) {
+    if (!destSet.has(rel)) return true;
+    const a = fs.readFileSync(path.join(srcDir, rel));
+    const b = fs.readFileSync(path.join(destDir, rel));
+    if (!a.equals(b)) return true;
+  }
+  return false;
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
   const config = readJson(opts.config);
@@ -108,15 +158,17 @@ function main() {
     const sourceHash = manifest.generation?.source_hash;
     if (!sourceHash) fail(`${manifestPath}: missing generation.source_hash`);
 
-    const prev = state[grouping];
-    if (prev && prev.sourceHash === sourceHash && prev.importerVersion === importerVersion) {
-      console.log(`[skip] ${grouping}: unchanged (source_hash ${sourceHash.slice(0, 12)})`);
-      continue;
-    }
-
     const skillSrc = path.join(groupingDir, 'skill');
     if (!fs.existsSync(path.join(skillSrc, 'SKILL.md'))) {
-      fail(`${grouping}: changed but ${skillSrc}/SKILL.md is missing`);
+      fail(`${grouping}: ${skillSrc}/SKILL.md is missing`);
+    }
+
+    const prev = state[grouping];
+    const dest = path.join(opts.skillsDir, skill);
+
+    if (!treeDiffers(skillSrc, dest)) {
+      console.log(`[skip] ${grouping}: surface identical (source_hash ${sourceHash.slice(0, 12)})`);
+      continue;
     }
 
     // Defend against mapping drift: the generated skill must own the name we map to.
@@ -125,9 +177,12 @@ function main() {
       fail(`${grouping}: mapping says skill "${skill}" but generated SKILL.md declares name "${declaredName}"`);
     }
 
-    const dest = path.join(opts.skillsDir, skill);
     const affects = unionAffects(manifest.changes);
-    const reason = prev ? `source_hash ${prev.sourceHash.slice(0, 12)} → ${sourceHash.slice(0, 12)}` : 'first import';
+    const reason = !prev
+      ? 'first import'
+      : prev.sourceHash === sourceHash
+        ? `hand edit (source_hash unchanged at ${sourceHash.slice(0, 12)})`
+        : `source_hash ${prev.sourceHash.slice(0, 12)} → ${sourceHash.slice(0, 12)}`;
     console.log(`[import] ${grouping} → ${dest} (${reason}; affects: ${affects.join(', ') || 'n/a'})`);
 
     if (!opts.dryRun) {

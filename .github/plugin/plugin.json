@@ -1,6 +1,6 @@
 {
   "name": "netlify",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Netlify platform skills — functions, edge functions, blobs, database, identity, image CDN, forms, config, CLI, frameworks, caching, AI Gateway, and deployment — plus the official Netlify MCP server for creating and managing projects, deploys, and environment variables.",
   "author": {
     "name": "Netlify",

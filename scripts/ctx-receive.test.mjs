@@ -103,7 +103,7 @@ let runCount = 0;
 
 // Runs ctx-receive.mjs against a fixture as a child process. Returns stdout plus the parsed
 // GITHUB_OUTPUT contract (`changed` as an array, `changed_count` as a number).
-function run(fixture, extraArgs = []) {
+function run(fixture, extraArgs = [], { docsCommit = 'docs-commit-1' } = {}) {
   runCount += 1;
   const outputPath = path.join(fixture.root, `github-output-${runCount}`);
   fs.writeFileSync(outputPath, '');
@@ -111,7 +111,7 @@ function run(fixture, extraArgs = []) {
   const args = [
     SCRIPT,
     '--docs', fixture.docsDir,
-    '--docs-commit', 'docs-commit-1',
+    '--docs-commit', docsCommit,
     '--config', fixture.configPath,
     '--state', fixture.statePath,
     '--skills-dir', fixture.skillsDir,
@@ -130,8 +130,11 @@ function run(fixture, extraArgs = []) {
   assert.ok(countLine, `GITHUB_OUTPUT missing changed_count= line:\n${raw}`);
   const changed = changedLine.slice('changed='.length).split(',').filter(Boolean);
   const changedCount = Number(countLine.slice('changed_count='.length));
+  const stateLine = lines.find((l) => l.startsWith('state_changed='));
+  assert.ok(stateLine, `GITHUB_OUTPUT missing state_changed= line:\n${raw}`);
+  const stateChanged = stateLine.slice('state_changed='.length) === 'true';
 
-  return { stdout, raw, changed, changedCount };
+  return { stdout, raw, changed, changedCount, stateChanged };
 }
 
 function readState(fixture) {
@@ -166,18 +169,44 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     assert.equal(state[GROUPING].docsCommit, 'docs-commit-1');
     assert.equal(state[GROUPING].importerVersion, 1);
     assert.deepEqual(state[GROUPING].affects, ['examples']);
+    assert.equal(state.lastImportedCommit, 'docs-commit-1');
   });
 
   const stateAfterFirstImport = readState(fixture);
 
-  await t.test('identical re-dispatch: no changes reported, no import', () => {
+  await t.test('identical re-dispatch, same commit: nothing moves', () => {
     const result = run(fixture);
 
     assert.match(result.stdout, /\[skip\] widgets: surface identical/);
     assert.deepEqual(result.changed, []);
     assert.equal(result.changedCount, 0);
+    assert.equal(result.stateChanged, false);
     assert.deepEqual(readState(fixture), stateAfterFirstImport);
   });
+
+  // The ordering key is the whole point of the split: per-grouping entries are
+  // provenance and may lag, but position advances on every run. Without this,
+  // the monotonicity guard reads a stale commit and can't order a later
+  // dispatch against it.
+  await t.test('identical re-dispatch, newer commit: position advances, provenance does not', () => {
+    const result = run(fixture, [], { docsCommit: 'docs-commit-2' });
+
+    assert.deepEqual(result.changed, []);
+    assert.equal(result.changedCount, 0);
+    assert.equal(result.stateChanged, true, 'ordering-only advance must be reported so the workflow commits it');
+    assert.match(result.stdout, /State advanced to docs-commit/);
+
+    const state = readState(fixture);
+    assert.equal(state.lastImportedCommit, 'docs-commit-2');
+    assert.equal(
+      state[GROUPING].docsCommit,
+      'docs-commit-1',
+      'per-grouping provenance stays at the commit that actually imported it',
+    );
+  });
+
+  // Restore the ordering key so later assertions compare against a known state.
+  run(fixture);
 
   // The docs#801 shape: SKILL.md and a references/*.md file are hand-edited upstream, but
   // manifest.json (and its generation.source_hash) is never touched.

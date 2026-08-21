@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "skills/**"
+      - "scripts/ctx-receive.mjs"
+      - "scripts/ctx-receive.test.mjs"
       - ".github/workflows/validate-skills.yml"
 
 jobs:
@@ -56,3 +58,15 @@ jobs:
 
           run_with_retries skill-validator check --strict --emit-annotations skills/
           run_with_retries skill-validator check --strict -o markdown skills/ >> "$GITHUB_STEP_SUMMARY"
+
+  test-receiver:
+    # Zero-dependency script tests for the Stage 2 receiver (scripts/ctx-receive.mjs).
+    # No npm install: the package has no dependencies, so `npm test` runs as-is.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Run receiver tests
+        run: npm test

@@ -4,7 +4,7 @@
   "description": "Public Netlify skills for AI coding agents. Each skill is a focused, factual reference for a Netlify platform primitive — designed to help agents build correctly on Netlify without needing to search docs.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test scripts/*.test.mjs"
   },
   "repository": {
     "type": "git",

@@ -79,5 +79,11 @@ Dispositions:
 Audit (round 1 of 3): security clean; simplicity 1 low (test-helper state
 and unused returns) — accepted, fixed in `eb3f515`.
 
+Post-push CodeRabbit (2, both accepted): `treeDiffers` short-circuited on a
+missing destination before listing the source, so a first import could
+still copy a symlink — source is now listed (and its root `lstat`ed) first,
+two first-import tests added (`7ed6a67`); `test-receiver` gets an explicit
+`contents: read` token (`ec61f34`). Tests 13/13.
+
 Gate re-run: `npm test` 11/11; old skip conjunction 0 hits; `treeDiffers`
 3; `npm test` in CI 2. Human-verify item unchanged (pending).

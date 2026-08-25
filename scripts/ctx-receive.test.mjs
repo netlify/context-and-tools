@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // ctx-receive.test.mjs — zero-dependency test suite for scripts/ctx-receive.mjs (AX-136).
 //
-// Builds a throwaway fixture: a fake docs checkout (agent-context/<grouping>/manifest.json
-// + skill/**) and a fake consumer repo (.ctx-gen/config.json, state.json, skills/), then
-// runs ctx-receive.mjs against it as a child process and asserts on stdout, the resulting
-// skills/ tree, state.json, and the GITHUB_OUTPUT contract.
+// Every subtest builds its own throwaway fixture: a fake docs checkout
+// (agent-context/<grouping>/manifest.json + skill/**) and a fake consumer repo
+// (.ctx-gen/config.json, state.json, skills/), runs ctx-receive.mjs against it as a child
+// process, and asserts on stdout/stderr, exit status, the resulting skills/ tree, state.json,
+// and the GITHUB_OUTPUT contract. Fixtures are never shared, so cases pass in any order.
 //
 // Covers the docs#801 shape this fixes: a hand edit to skill/SKILL.md and
 // skill/references/*.md that does NOT touch manifest.json must still import — the delta is
@@ -20,37 +21,48 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(__dirname, 'ctx-receive.mjs');
 
 const GROUPING = 'widgets';
 const SKILL_NAME = 'netlify-widgets';
+const DEFAULT_GROUPINGS = [{ grouping: GROUPING, skill: SKILL_NAME }];
 const SOURCE_HASH = 'a'.repeat(64);
+// Kept distinct so a test can tell which one landed in state.json.
+const DOCS_COMMIT = 'docs-commit-1';
+const MANIFEST_COMMIT = 'manifest-commit-1';
 
-const SKILL_MD = `---
-name: ${SKILL_NAME}
-description: A test skill for the widgets grouping.
+function skillMdFor(skillName) {
+  return `---
+name: ${skillName}
+description: A test skill for the ${skillName} grouping.
 ---
 
-# Widgets
+# ${skillName}
 
-Body content for the widgets skill.
+Body content for the ${skillName} skill.
 `;
+}
+
+const SKILL_MD = skillMdFor(SKILL_NAME);
 
 const REFERENCE_MD = `# Widgets reference
 
 Some reference detail.
 `;
 
-function writeSkillTree(skillDir, { skillMd = SKILL_MD, referenceMd = REFERENCE_MD } = {}) {
+function writeSkillTree(
+  skillDir,
+  { skillName = SKILL_NAME, skillMd = skillMdFor(skillName), referenceMd = REFERENCE_MD } = {},
+) {
   fs.mkdirSync(path.join(skillDir, 'references'), { recursive: true });
   fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillMd);
   fs.writeFileSync(path.join(skillDir, 'references', 'widgets.md'), referenceMd);
 }
 
-function writeManifest(manifestPath, { sourceHash = SOURCE_HASH, commit = 'docs-commit-1' } = {}) {
+function writeManifest(manifestPath, { sourceHash = SOURCE_HASH, commit = MANIFEST_COMMIT } = {}) {
   fs.writeFileSync(
     manifestPath,
     JSON.stringify(
@@ -66,16 +78,20 @@ function writeManifest(manifestPath, { sourceHash = SOURCE_HASH, commit = 'docs-
 }
 
 // Builds a fresh fixture: a fake docs checkout (docsDir) + a fake consumer repo (repoDir),
-// wired together via config.json, matching the shape ctx-receive.mjs expects.
-function buildFixture() {
+// wired together via config.json, matching the shape ctx-receive.mjs expects. `groupings`
+// is the config.json mapping list; every entry gets a manifest and a skill tree whose
+// SKILL.md declares the mapped name. `groupingDir`/`skillSrc` point at the first entry —
+// the one every single-grouping case edits.
+function buildFixture(groupings = DEFAULT_GROUPINGS) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-receive-test-'));
   const docsDir = path.join(root, 'docs');
   const repoDir = path.join(root, 'repo');
 
-  const groupingDir = path.join(docsDir, 'agent-context', GROUPING);
-  const skillSrc = path.join(groupingDir, 'skill');
-  writeSkillTree(skillSrc);
-  writeManifest(path.join(groupingDir, 'manifest.json'));
+  for (const { grouping, skill } of groupings) {
+    const dir = path.join(docsDir, 'agent-context', grouping);
+    writeSkillTree(path.join(dir, 'skill'), { skillName: skill });
+    writeManifest(path.join(dir, 'manifest.json'));
+  }
 
   const configPath = path.join(repoDir, '.ctx-gen', 'config.json');
   const statePath = path.join(repoDir, '.ctx-gen', 'state.json');
@@ -88,7 +104,7 @@ function buildFixture() {
       {
         source: { agentContextDir: 'agent-context' },
         importerVersion: 1,
-        groupings: [{ grouping: GROUPING, skill: SKILL_NAME }],
+        groupings,
       },
       null,
       2,
@@ -96,33 +112,52 @@ function buildFixture() {
   );
   fs.writeFileSync(statePath, '{}\n');
 
+  const groupingDir = path.join(docsDir, 'agent-context', groupings[0].grouping);
+  const skillSrc = path.join(groupingDir, 'skill');
   return { root, docsDir, repoDir, configPath, statePath, skillsDir, groupingDir, skillSrc };
+}
+
+function removeFixture(fixture) {
+  fs.rmSync(fixture.root, { recursive: true, force: true });
 }
 
 let runCount = 0;
 
-// Runs ctx-receive.mjs against a fixture as a child process. Returns stdout plus the parsed
-// GITHUB_OUTPUT contract (`changed` as an array, `changed_count` as a number).
-function run(fixture, extraArgs = []) {
+// Spawns ctx-receive.mjs against a fixture with a fresh GITHUB_OUTPUT file. Never throws on
+// a non-zero exit — run() and runExpectFailure() decide what status they expect.
+// `docsCommit: null` omits the --docs-commit flag entirely.
+function invoke(fixture, { docsCommit = DOCS_COMMIT, args = [] } = {}) {
   runCount += 1;
   const outputPath = path.join(fixture.root, `github-output-${runCount}`);
   fs.writeFileSync(outputPath, '');
 
-  const args = [
+  const argv = [
     SCRIPT,
     '--docs', fixture.docsDir,
-    '--docs-commit', 'docs-commit-1',
+    ...(docsCommit ? ['--docs-commit', docsCommit] : []),
     '--config', fixture.configPath,
     '--state', fixture.statePath,
     '--skills-dir', fixture.skillsDir,
-    ...extraArgs,
+    ...args,
   ];
-  const stdout = execFileSync('node', args, {
+  const { status, stdout, stderr } = spawnSync('node', argv, {
     env: { ...process.env, GITHUB_OUTPUT: outputPath },
     encoding: 'utf8',
   });
+  return { status, stdout, stderr, outputPath };
+}
 
-  const raw = fs.readFileSync(outputPath, 'utf8');
+function describeRun({ status, stdout, stderr }) {
+  return `exit ${status}\nstdout:\n${stdout}\nstderr:\n${stderr}`;
+}
+
+// Runs ctx-receive.mjs expecting exit 0. Returns stdout plus the parsed GITHUB_OUTPUT
+// contract (`changed` as an array, `changed_count` as a number).
+function run(fixture, opts) {
+  const result = invoke(fixture, opts);
+  assert.equal(result.status, 0, `ctx-receive failed: ${describeRun(result)}`);
+
+  const raw = fs.readFileSync(result.outputPath, 'utf8');
   const lines = raw.split('\n').filter(Boolean);
   const changedLine = lines.find((l) => l.startsWith('changed='));
   const countLine = lines.find((l) => l.startsWith('changed_count='));
@@ -131,21 +166,42 @@ function run(fixture, extraArgs = []) {
   const changed = changedLine.slice('changed='.length).split(',').filter(Boolean);
   const changedCount = Number(countLine.slice('changed_count='.length));
 
-  return { stdout, raw, changed, changedCount };
+  return { stdout: result.stdout, raw, changed, changedCount };
+}
+
+// Runs ctx-receive.mjs expecting the fail() exit code. Returns { status, stdout, stderr }.
+function runExpectFailure(fixture, opts) {
+  const { status, stdout, stderr } = invoke(fixture, opts);
+  assert.equal(status, 1, `expected ctx-receive to exit 1: ${describeRun({ status, stdout, stderr })}`);
+  return { status, stdout, stderr };
 }
 
 function readState(fixture) {
   return JSON.parse(fs.readFileSync(fixture.statePath, 'utf8'));
 }
 
+function skillFile(fixture, ...segments) {
+  return path.join(fixture.skillsDir, SKILL_NAME, ...segments);
+}
+
 function readSkillBytes(fixture, ...segments) {
-  return fs.readFileSync(path.join(fixture.skillsDir, SKILL_NAME, ...segments));
+  return fs.readFileSync(skillFile(fixture, ...segments));
+}
+
+// The docs#801 shape: SKILL.md and a references/*.md file are hand-edited upstream, but
+// manifest.json (and its generation.source_hash) is never touched.
+const editedSkillMd = SKILL_MD + '\n<!-- hand edit: docs#801 shape -->\n';
+const editedReferenceMd = `${REFERENCE_MD}\nHand-edited detail that never touched manifest.json.\n`;
+
+function handEditUpstream(fixture) {
+  writeSkillTree(fixture.skillSrc, { skillMd: editedSkillMd, referenceMd: editedReferenceMd });
 }
 
 test('ctx-receive: byte-diff import delta', async (t) => {
-  const fixture = buildFixture();
+  await t.test('first import: grouping imported, bytes match source, state written', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
 
-  await t.test('first import: grouping imported, bytes match source, state written', () => {
     const result = run(fixture);
 
     assert.match(result.stdout, /\[import\] widgets .*first import/);
@@ -161,16 +217,21 @@ test('ctx-receive: byte-diff import delta', async (t) => {
       fs.readFileSync(path.join(fixture.skillSrc, 'references', 'widgets.md')),
     );
 
+    // --docs-commit wins over the manifest's generated_from.commit.
     const state = readState(fixture);
     assert.equal(state[GROUPING].sourceHash, SOURCE_HASH);
-    assert.equal(state[GROUPING].docsCommit, 'docs-commit-1');
+    assert.equal(state[GROUPING].docsCommit, DOCS_COMMIT);
     assert.equal(state[GROUPING].importerVersion, 1);
     assert.deepEqual(state[GROUPING].affects, ['examples']);
   });
 
-  const stateAfterFirstImport = readState(fixture);
+  await t.test('identical re-dispatch: no changes reported, no import', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
 
-  await t.test('identical re-dispatch: no changes reported, no import', () => {
+    run(fixture);
+    const stateAfterFirstImport = readState(fixture);
+
     const result = run(fixture);
 
     assert.match(result.stdout, /\[skip\] widgets: surface identical/);
@@ -179,26 +240,32 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     assert.deepEqual(readState(fixture), stateAfterFirstImport);
   });
 
-  // The docs#801 shape: SKILL.md and a references/*.md file are hand-edited upstream, but
-  // manifest.json (and its generation.source_hash) is never touched.
-  const editedSkillMd = SKILL_MD + '\n<!-- hand edit: docs#801 shape -->\n';
-  const editedReferenceMd = `${REFERENCE_MD}\nHand-edited detail that never touched manifest.json.\n`;
+  await t.test('hand edit, --dry-run: reports import, writes nothing', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
 
-  await t.test('hand edit, --dry-run: reports import, writes nothing', () => {
-    writeSkillTree(fixture.skillSrc, { skillMd: editedSkillMd, referenceMd: editedReferenceMd });
+    run(fixture);
+    const stateAfterFirstImport = readState(fixture);
+    handEditUpstream(fixture);
 
-    const result = run(fixture, ['--dry-run']);
+    const result = run(fixture, { args: ['--dry-run'] });
 
     assert.match(result.stdout, /\[import\] widgets .*surface differs, source_hash unchanged/);
     assert.deepEqual(result.changed, [GROUPING]);
     assert.equal(result.changedCount, 1);
 
     // Dry-run reports the delta but must not touch skills/ or state.json.
-    assert.notDeepEqual(readSkillBytes(fixture, 'SKILL.md'), Buffer.from(editedSkillMd));
+    assert.deepEqual(readSkillBytes(fixture, 'SKILL.md'), Buffer.from(SKILL_MD));
     assert.deepEqual(readState(fixture), stateAfterFirstImport);
   });
 
-  await t.test('hand edit propagates: grouping changed, edit lands in skills/, state updated', () => {
+  await t.test('hand edit propagates: grouping changed, edit lands in skills/, state updated', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    handEditUpstream(fixture);
+
     const result = run(fixture);
 
     assert.match(result.stdout, /\[import\] widgets .*surface differs, source_hash unchanged/);
@@ -215,6 +282,4 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     const state = readState(fixture);
     assert.equal(state[GROUPING].sourceHash, SOURCE_HASH);
   });
-
-  fs.rmSync(fixture.root, { recursive: true, force: true });
 });

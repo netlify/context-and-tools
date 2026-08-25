@@ -7,7 +7,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@netlify/database": "^1.1.0",
+    "@netlify/database": "^2.0.0",
     "drizzle-orm": "^0.45.0"
   },
   "devDependencies": {

@@ -16,13 +16,19 @@ AXIS scenarios.)
 ## Pieces
 
 - **`config.json`** — which docs groupings we consume and the local skill each
-  maps to (`functions` → `netlify-functions`), plus `importerVersion` (bump to
-  force a re-import when the import logic itself changes).
-- **`state.json`** — the delta cache. Per grouping we record the
-  `manifest.generation.source_hash` we last imported. Unchanged hash → skip, so
-  repeated notifications for the same docs commit are no-ops.
+  maps to (`functions` → `netlify-functions`).
+- **`state.json`** — a provenance log, never consulted for the skip decision.
+  Per grouping we record the `manifest.generation.source_hash` and docs commit
+  last imported, plus `affects` and `intermediateHash` (sha256 of the
+  grouping's `context.md` + `system.md`, the inputs the skill is generated
+  from). The delta itself is a byte comparison of
+  `agent-context/<grouping>/skill/**` against `skills/<name>/**` (path set +
+  bytes + executable bit; symlinks unsupported), so repeated dispatches of
+  identical content are no-ops and upstream hand edits that never touch the
+  manifest still propagate. When `intermediateHash` moves while `skill/` is
+  identical, the run warns and imports nothing.
 - **`../scripts/ctx-receive.mjs`** — reads the two files above against a docs
-  checkout, imports changed groupings, updates the cache.
+  checkout, imports changed groupings, records provenance in `state.json`.
 - **`../.github/workflows/ctx-pipeline-receive.yml`** — resolves the docs ref,
   checks out docs, runs the importer, and opens or updates a single rolling
   draft PR when something changed. That PR runs the existing `validate-skills`

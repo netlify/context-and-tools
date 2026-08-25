@@ -49,10 +49,23 @@ receiver logs `[skip] frameworks: unchanged` and delivers nothing.
 
 - New helper `treeDiffers(srcDir, destDir)` → boolean. Recursive
   relative-path listing (files only) of both trees; differ when the path sets
-  differ or any file's bytes differ. Missing `destDir` → true.
+  differ, any file's bytes differ, or any file's executable bit differs (the
+  only mode bit git tracks — `cpSync` copies modes, so the gate must see
+  them). Missing `destDir`, or a `destDir` that exists but is not a directory
+  → true (the import's `rmSync` + `cpSync` repairs it). Symlinks and other
+  non-regular entries in either tree fail the run loudly — `cpSync` would
+  copy them but the gate can't compare them, so they are declared
+  unsupported rather than silently skipped.
 - `changed` ⟺ `treeDiffers(...)`. The state entry (`sourceHash`,
-  `docsCommit`, `importerVersion`, `affects`) is still written on import —
-  provenance only, never consulted for skipping.
+  `docsCommit`, `affects`) is still written on import — provenance only,
+  never consulted for skipping. `importerVersion` is removed (config, state,
+  README): with a faithful byte copy there is no import logic whose change
+  could alter output, and a forced re-import of identical bytes would only
+  recreate the empty-commit failure.
+- A grouping whose `skill/SKILL.md` is missing is skipped with a warning
+  (same as a missing manifest) rather than failing the run — one unfinished
+  grouping must not block the other twelve. (Review amendment, 2026-08-25:
+  the first run made this check a hard `fail()`.)
 - Known accepted edge (document in the header comment): a regeneration whose
   output is byte-identical imports nothing and writes no state, so
   `state.json` provenance may lag the newest `source_hash`. Harmless — and it

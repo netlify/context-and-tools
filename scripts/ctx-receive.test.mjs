@@ -103,7 +103,6 @@ function buildFixture(groupings = DEFAULT_GROUPINGS) {
     JSON.stringify(
       {
         source: { agentContextDir: 'agent-context' },
-        importerVersion: 1,
         groupings,
       },
       null,
@@ -217,12 +216,23 @@ test('ctx-receive: byte-diff import delta', async (t) => {
       fs.readFileSync(path.join(fixture.skillSrc, 'references', 'widgets.md')),
     );
 
-    // --docs-commit wins over the manifest's generated_from.commit.
-    const state = readState(fixture);
-    assert.equal(state[GROUPING].sourceHash, SOURCE_HASH);
-    assert.equal(state[GROUPING].docsCommit, DOCS_COMMIT);
-    assert.equal(state[GROUPING].importerVersion, 1);
-    assert.deepEqual(state[GROUPING].affects, ['examples']);
+    // Exact shape: provenance only, and --docs-commit wins over the manifest's
+    // generated_from.commit.
+    assert.deepEqual(readState(fixture), {
+      [GROUPING]: { sourceHash: SOURCE_HASH, docsCommit: DOCS_COMMIT, affects: ['examples'] },
+    });
+  });
+
+  await t.test('--docs-commit omitted: docsCommit falls back to the manifest commit', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    // An earlier version crashed on `.slice()` of null here; pin that it stays fixed.
+    const result = run(fixture, { docsCommit: null });
+
+    assert.match(result.stdout, /\[import\] widgets .*first import/);
+    assert.equal(result.changedCount, 1);
+    assert.equal(readState(fixture)[GROUPING].docsCommit, MANIFEST_COMMIT);
   });
 
   await t.test('identical re-dispatch: no changes reported, no import', (t) => {
@@ -281,5 +291,83 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     // Provenance is rewritten even though source_hash didn't move — it's informational only.
     const state = readState(fixture);
     assert.equal(state[GROUPING].sourceHash, SOURCE_HASH);
+  });
+
+  await t.test('path-set change: an added upstream file imports, and its removal propagates', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+
+    const extraSrc = path.join(fixture.skillSrc, 'references', 'extra.md');
+    fs.writeFileSync(extraSrc, '# Extra\n');
+    const added = run(fixture);
+    assert.match(added.stdout, /\[import\] widgets /);
+    assert.equal(added.changedCount, 1);
+    assert.deepEqual(readSkillBytes(fixture, 'references', 'extra.md'), Buffer.from('# Extra\n'));
+
+    fs.rmSync(extraSrc);
+    const removed = run(fixture);
+    assert.match(removed.stdout, /\[import\] widgets /);
+    assert.equal(removed.changedCount, 1);
+    assert.equal(fs.existsSync(skillFile(fixture, 'references', 'extra.md')), false);
+  });
+
+  await t.test('missing skill/SKILL.md skips only that grouping', (t) => {
+    const other = { grouping: 'gadgets', skill: 'netlify-gadgets' };
+    const fixture = buildFixture([...DEFAULT_GROUPINGS, other]);
+    t.after(() => removeFixture(fixture));
+
+    fs.rmSync(path.join(fixture.docsDir, 'agent-context', other.grouping, 'skill', 'SKILL.md'));
+
+    const result = run(fixture);
+
+    assert.match(result.stdout, /\[skip\] gadgets: .*SKILL\.md is missing/);
+    assert.match(result.stdout, /\[import\] widgets .*first import/);
+    assert.deepEqual(result.changed, [GROUPING]);
+    assert.equal(result.changedCount, 1);
+    assert.equal(fs.existsSync(skillFile(fixture, 'SKILL.md')), true);
+    assert.equal(fs.existsSync(path.join(fixture.skillsDir, other.skill)), false);
+  });
+
+  await t.test('symlink in the source tree: run fails loudly', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    fs.symlinkSync('widgets.md', path.join(fixture.skillSrc, 'references', 'link.md'));
+
+    const result = runExpectFailure(fixture);
+
+    assert.match(result.stderr, /link\.md: symlinks and other non-regular entries are not supported/);
+  });
+
+  await t.test('executable bit: a chmod upstream imports and the mode is copied', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    assert.equal(fs.statSync(skillFile(fixture, 'SKILL.md')).mode & 0o111, 0);
+
+    fs.chmodSync(path.join(fixture.skillSrc, 'SKILL.md'), 0o755);
+    const result = run(fixture);
+
+    assert.match(result.stdout, /\[import\] widgets /);
+    assert.equal(result.changedCount, 1);
+    assert.notEqual(fs.statSync(skillFile(fixture, 'SKILL.md')).mode & 0o111, 0);
+  });
+
+  await t.test('destination is a regular file: replaced by the imported tree', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    fs.writeFileSync(path.join(fixture.skillsDir, SKILL_NAME), 'not a directory\n');
+
+    const result = run(fixture);
+
+    assert.match(result.stdout, /\[import\] widgets /);
+    assert.equal(result.changedCount, 1);
+    assert.equal(fs.statSync(path.join(fixture.skillsDir, SKILL_NAME)).isDirectory(), true);
+    assert.deepEqual(readSkillBytes(fixture, 'SKILL.md'), Buffer.from(SKILL_MD));
   });
 });

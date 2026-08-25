@@ -2,7 +2,6 @@
   "functions": {
     "sourceHash": "a2c1b272355b04685b89a8b51a7bbfe0747c93d36c982c035ad01d4904c7e5b4",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -17,7 +16,6 @@
   "forms": {
     "sourceHash": "e9238e4279d3cd87a88b715f87e36d4de6afbac3640e3b5ae1cbc9569374f3a9",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -32,7 +30,6 @@
   "edge-functions": {
     "sourceHash": "6aefbe078cf6e2ad07f2825f043393143fd45ce202071399dc1b6e54ca555f53",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -47,7 +44,6 @@
   "image-cdn": {
     "sourceHash": "4dffab1264df9f62a5ec9823657c860f6f7570c0bd8cd3a7f764fb86df669462",
     "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
-    "importerVersion": 1,
     "affects": [
       "api",
       "configuration",
@@ -60,7 +56,6 @@
   "caching": {
     "sourceHash": "d66b80cad3ae85bd3b9c44eedf7b7b51968e8f976880d6ec959e91a4af52a2ee",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "configuration",
@@ -70,7 +65,6 @@
   "blobs": {
     "sourceHash": "78dc00056a00c9f711ca4c8b2fcdf9af2d76070db339594c8d3b243ffecaf4d8",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -85,7 +79,6 @@
   "database": {
     "sourceHash": "21eb58e3c2a11a65af5fc473c08fd724ca130cb4dc4379a692344bcdbcb29c94",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -100,7 +93,6 @@
   "deploy": {
     "sourceHash": "f6973145efb21d3f6c11b37b75171005ec888b8778c57ad0a703218150f62912",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -115,7 +107,6 @@
   "ai-gateway": {
     "sourceHash": "30dce37711d783b0f5d0cd0f2396f159ecc22a5ad716a2e8caa5f8d64d776f57",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -130,7 +121,6 @@
   "frameworks": {
     "sourceHash": "17f8bfb84634504f7491f3f715e47adbdeef439c1574b0fadd6ace4174336b1f",
     "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
-    "importerVersion": 1,
     "affects": [
       "authoring",
       "compat",
@@ -144,7 +134,6 @@
   "identity": {
     "sourceHash": "03af265ab2cf40f3ea3ec2f2460c324d77c895364438a47823dc9bbfe17e7a61",
     "docsCommit": "8bebff3c3bbbbdcf93166c758d630c3379210eeb",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -159,7 +148,6 @@
   "access-control": {
     "sourceHash": "1827f0ee8f9c66beb4d6b53a199d6adbda4852c110609ce2a3b3a49418a2f307",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",
@@ -174,7 +162,6 @@
   "config": {
     "sourceHash": "30e8f6cc0b0482a0f4ea69506b3e7462e3fecaab4f5ef48142a06fbebae52908",
     "docsCommit": "e33a7260cd1ab02c53b80420d047044454a29833",
-    "importerVersion": 1,
     "affects": [
       "api",
       "authoring",

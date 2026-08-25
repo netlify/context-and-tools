@@ -10,9 +10,13 @@
 //
 // Delta: a grouping is "changed" iff `agent-context/<grouping>/skill/**` (in
 // the docs checkout) differs from `skills/<skill>/**` in this repo — the
-// relative-path set plus file bytes, computed by treeDiffers() below. A
-// missing destination directory counts as changed. manifest.generation
-// .source_hash, docsCommit, and importerVersion are still written to
+// relative-path set, file bytes, and the executable bit (the only mode bit
+// git tracks; cpSync copies modes, so the gate must see them), computed by
+// treeDiffers() below. A missing destination, or one that exists but is not
+// a directory, counts as changed and is replaced. Symlinks and other
+// non-regular entries in either tree are unsupported and fail the run loudly:
+// cpSync would copy them, but the gate can't compare them. manifest
+// .generation.source_hash, docsCommit, and affects are still written to
 // state.json on import, but purely as provenance — they are never consulted
 // to decide skip vs. import.
 //
@@ -98,8 +102,11 @@ function unionAffects(changes) {
 }
 
 // Relative POSIX-style paths of every regular file under `dir`, recursive,
-// sorted. Symlinks and empty directories are not represented — only files
-// matter for the delta.
+// sorted. Empty directories are not represented — only files matter for the
+// delta. Anything that is neither a regular file nor a directory fails
+// loudly: cpSync would copy it, but the delta can't compare it, so ignoring
+// it here would skip a new or retargeted symlink forever. (readdirSync with
+// withFileTypes reports a symlink as a symlink, never as its target.)
 function listFiles(dir) {
   const out = [];
   (function walk(current, prefix) {
@@ -110,17 +117,27 @@ function listFiles(dir) {
         walk(abs, rel);
       } else if (entry.isFile()) {
         out.push(rel);
+      } else {
+        fail(`${abs}: symlinks and other non-regular entries are not supported in skill trees`);
       }
     }
   })(dir, '');
   return out.sort();
 }
 
+// The only mode bit git tracks (100644 vs 100755).
+function isExecutable(file) {
+  return Boolean(fs.statSync(file).mode & 0o111);
+}
+
 // True iff `srcDir` and `destDir` differ: a different relative-path set of
-// files, or any shared-path file with different bytes. A missing `destDir`
-// counts as different (e.g. first import).
+// files, or any shared-path file with different bytes or a different
+// executable bit. A missing `destDir` (e.g. first import), or one that is
+// not a directory (a stray file or symlink at `skills/<name>`), counts as
+// different — the caller's rmSync + cpSync then replaces it.
 function treeDiffers(srcDir, destDir) {
-  if (!fs.existsSync(destDir)) return true;
+  const destStat = fs.lstatSync(destDir, { throwIfNoEntry: false });
+  if (!destStat?.isDirectory()) return true;
 
   const srcFiles = listFiles(srcDir);
   const destFiles = listFiles(destDir);
@@ -128,9 +145,10 @@ function treeDiffers(srcDir, destDir) {
 
   for (let i = 0; i < srcFiles.length; i++) {
     if (srcFiles[i] !== destFiles[i]) return true;
-    const a = fs.readFileSync(path.join(srcDir, srcFiles[i]));
-    const b = fs.readFileSync(path.join(destDir, destFiles[i]));
-    if (!a.equals(b)) return true;
+    const src = path.join(srcDir, srcFiles[i]);
+    const dest = path.join(destDir, destFiles[i]);
+    if (!fs.readFileSync(src).equals(fs.readFileSync(dest))) return true;
+    if (isExecutable(src) !== isExecutable(dest)) return true;
   }
   return false;
 }
@@ -139,7 +157,6 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   const config = readJson(opts.config);
   const agentContextDir = config.source?.agentContextDir || 'agent-context';
-  const importerVersion = config.importerVersion ?? 1;
 
   const state = fs.existsSync(opts.state) ? readJson(opts.state) : {};
   const changed = [];
@@ -159,7 +176,10 @@ function main() {
 
     const skillSrc = path.join(groupingDir, 'skill');
     if (!fs.existsSync(path.join(skillSrc, 'SKILL.md'))) {
-      fail(`${grouping}: ${skillSrc}/SKILL.md is missing`);
+      // Same forward-compatibility as the manifest check: one unfinished
+      // grouping must not block the others.
+      console.log(`[skip] ${grouping}: ${skillSrc}/SKILL.md is missing`);
+      continue;
     }
 
     const prev = state[grouping];
@@ -196,7 +216,6 @@ function main() {
       state[grouping] = {
         sourceHash,
         docsCommit: opts.docsCommit || manifest.generated_from?.commit || null,
-        importerVersion,
         affects,
       };
     }

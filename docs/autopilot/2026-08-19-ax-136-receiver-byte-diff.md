@@ -17,9 +17,11 @@ receiver logs `[skip] frameworks: unchanged` and delivers nothing.
 - In: delta logic in `scripts/ctx-receive.mjs`; a zero-dependency test script;
   a CI step running it in `.github/workflows/validate-skills.yml`; the header
   "Delta:" comment updated to describe the new rule.
-- Out: docs-side detection or refusal machinery; notifications (AX-138);
-  consumer staleness monitoring (AX-143); the receive workflow's PR mechanics
-  (`ctx-pipeline-receive.yml` is untouched); any content change under `skills/`.
+- Out: docs-side refusal machinery (the receiver warns on intermediate drift —
+  see Program design — but a hard check that `skill/` is regenerated belongs
+  in docs CI); notifications (AX-138); consumer staleness monitoring (AX-143);
+  the receive workflow's PR mechanics (`ctx-pipeline-receive.yml` is
+  untouched); any content change under `skills/`.
 
 ## Plan
 
@@ -69,6 +71,16 @@ receiver logs `[skip] frameworks: unchanged` and delivers nothing.
   upstream deletion must not leave a stale skill in place silently. (Review
   amendment, 2026-08-25: the first run made this check a hard `fail()`;
   narrowed the same day on local review.)
+- `hashIntermediates(groupingDir)` → sha256 over `context.md` + `system.md`
+  (the docs-side inputs the skill is generated from; `null` when neither
+  exists), remembered per grouping as `intermediateHash` in `state.json`. When
+  it moves while `skill/**` is byte-identical, the run prints `[warn]` (plus a
+  `::warning` annotation under GitHub Actions), stores the new hash so the
+  warning fires once per upstream change rather than every run, and imports
+  nothing. A legacy entry with no `intermediateHash` is seeded silently —
+  there is no baseline to compare against. Decision (2026-08-25, Sean): warn,
+  never fail — this repo must not fail on no-ops, and the receiver can't tell
+  "forgot to regenerate" from "regeneration was a no-op".
 - Known accepted edge (document in the header comment): a regeneration whose
   output is byte-identical imports nothing and writes no state, so
   `state.json` provenance may lag the newest `source_hash`. Harmless — and it
@@ -83,8 +95,8 @@ receiver logs `[skip] frameworks: unchanged` and delivers nothing.
 
 ## Done-signal
 
-- `npm test` exits 0 and the suite includes the hand-edit-propagates case and
-  the identical-re-dispatch-no-op case.
+- `npm test` exits 0 and the suite includes the hand-edit-propagates case,
+  the identical-re-dispatch-no-op case, and the intermediate-drift-warns case.
 - `rg -n "prev.sourceHash === sourceHash && prev.importerVersion" scripts/ctx-receive.mjs`
   → 0 hits. (Amended mid-run by the orchestrator: the original blunter grep —
   any `prev.sourceHash === sourceHash` — caught a benign log-only comparison

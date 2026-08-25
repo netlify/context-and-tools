@@ -19,11 +19,14 @@ AXIS scenarios.)
   maps to (`functions` → `netlify-functions`).
 - **`state.json`** — a provenance log, never consulted for the skip decision.
   Per grouping we record the `manifest.generation.source_hash` and docs commit
-  last imported, plus `affects`. The delta itself is a byte comparison of
+  last imported, plus `affects` and `intermediateHash` (sha256 of the
+  grouping's `context.md` + `system.md`, the inputs the skill is generated
+  from). The delta itself is a byte comparison of
   `agent-context/<grouping>/skill/**` against `skills/<name>/**` (path set +
   bytes + executable bit; symlinks unsupported), so repeated dispatches of
   identical content are no-ops and upstream hand edits that never touch the
-  manifest still propagate.
+  manifest still propagate. When `intermediateHash` moves while `skill/` is
+  identical, the run warns and imports nothing.
 - **`../scripts/ctx-receive.mjs`** — reads the two files above against a docs
   checkout, imports changed groupings, records provenance in `state.json`.
 - **`../.github/workflows/ctx-pipeline-receive.yml`** — resolves the docs ref,

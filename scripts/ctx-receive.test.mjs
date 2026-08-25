@@ -339,6 +339,34 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     assert.match(result.stderr, /link\.md: symlinks and other non-regular entries are not supported/);
   });
 
+  // The first-import path short-circuits on a missing destination; the source tree must
+  // still be validated before that, or cpSync would copy the symlink into skills/.
+  await t.test('symlink in the source tree on first import: fails, nothing copied', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    fs.symlinkSync('widgets.md', path.join(fixture.skillSrc, 'references', 'link.md'));
+
+    const result = runExpectFailure(fixture);
+
+    assert.match(result.stderr, /link\.md: .*not supported/);
+    assert.equal(fs.existsSync(path.join(fixture.skillsDir, SKILL_NAME)), false);
+  });
+
+  await t.test('skill/ itself is a symlink: fails even though SKILL.md resolves', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    const realDir = path.join(fixture.root, 'real-skill');
+    fs.renameSync(fixture.skillSrc, realDir);
+    fs.symlinkSync(realDir, fixture.skillSrc, 'dir');
+
+    const result = runExpectFailure(fixture);
+
+    assert.match(result.stderr, /skill: not a directory .*not supported/);
+    assert.equal(fs.existsSync(path.join(fixture.skillsDir, SKILL_NAME)), false);
+  });
+
   await t.test('executable bit: a chmod upstream imports and the mode is copied', (t) => {
     const fixture = buildFixture();
     t.after(() => removeFixture(fixture));

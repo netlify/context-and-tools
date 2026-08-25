@@ -106,8 +106,15 @@ function unionAffects(changes) {
 // delta. Anything that is neither a regular file nor a directory fails
 // loudly: cpSync would copy it, but the delta can't compare it, so ignoring
 // it here would skip a new or retargeted symlink forever. (readdirSync with
-// withFileTypes reports a symlink as a symlink, never as its target.)
+// withFileTypes reports a symlink as a symlink, never as its target.) The
+// root gets the same treatment: existsSync on `skill/SKILL.md` happily
+// follows a symlinked `skill/`, so the check has to happen here.
 function listFiles(dir) {
+  const rootStat = fs.lstatSync(dir, { throwIfNoEntry: false });
+  if (!rootStat?.isDirectory()) {
+    fail(`${dir}: not a directory (symlinked or missing skill trees are not supported)`);
+  }
+
   const out = [];
   (function walk(current, prefix) {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
@@ -134,12 +141,15 @@ function isExecutable(file) {
 // files, or any shared-path file with different bytes or a different
 // executable bit. A missing `destDir` (e.g. first import), or one that is
 // not a directory (a stray file or symlink at `skills/<name>`), counts as
-// different — the caller's rmSync + cpSync then replaces it.
+// different — the caller's rmSync + cpSync then replaces it. The source tree
+// is listed (and so validated) before that short-circuit: otherwise a first
+// import would never see an unsupported entry, and cpSync would copy it.
 function treeDiffers(srcDir, destDir) {
+  const srcFiles = listFiles(srcDir);
+
   const destStat = fs.lstatSync(destDir, { throwIfNoEntry: false });
   if (!destStat?.isDirectory()) return true;
 
-  const srcFiles = listFiles(srcDir);
   const destFiles = listFiles(destDir);
   if (srcFiles.length !== destFiles.length) return true;
 

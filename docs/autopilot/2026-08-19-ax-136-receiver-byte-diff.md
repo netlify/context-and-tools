@@ -63,9 +63,12 @@ receiver logs `[skip] frameworks: unchanged` and delivers nothing.
   could alter output, and a forced re-import of identical bytes would only
   recreate the empty-commit failure.
 - A grouping whose `skill/SKILL.md` is missing is skipped with a warning
-  (same as a missing manifest) rather than failing the run — one unfinished
-  grouping must not block the other twelve. (Review amendment, 2026-08-25:
-  the first run made this check a hard `fail()`.)
+  (same as a missing manifest) only when it has never been imported — no
+  state entry and no `skills/<name>` on disk — so one not-yet-onboarded
+  grouping does not block the other twelve. Otherwise the run fails: an
+  upstream deletion must not leave a stale skill in place silently. (Review
+  amendment, 2026-08-25: the first run made this check a hard `fail()`;
+  narrowed the same day on local review.)
 - Known accepted edge (document in the header comment): a regeneration whose
   output is byte-identical imports nothing and writes no state, so
   `state.json` provenance may lag the newest `source_hash`. Harmless — and it

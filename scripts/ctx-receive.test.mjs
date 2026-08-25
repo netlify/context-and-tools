@@ -327,6 +327,33 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     assert.equal(fs.existsSync(path.join(fixture.skillsDir, other.skill)), false);
   });
 
+  // The skip above is only for a grouping that was never imported. Once one has been, an
+  // upstream deletion of SKILL.md must fail the run, not go green with a stale skills/<name>.
+  await t.test('missing skill/SKILL.md after a prior import: fails, stale skill left untouched', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    fs.rmSync(path.join(fixture.skillSrc, 'SKILL.md'));
+
+    const result = runExpectFailure(fixture);
+
+    assert.match(result.stderr, /imported before/);
+    assert.deepEqual(readSkillBytes(fixture, 'SKILL.md'), Buffer.from(SKILL_MD));
+  });
+
+  await t.test('missing skill/SKILL.md with skills/<name> on disk but no state entry: fails', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    writeSkillTree(path.join(fixture.skillsDir, SKILL_NAME));
+    fs.rmSync(path.join(fixture.skillSrc, 'SKILL.md'));
+
+    const result = runExpectFailure(fixture);
+
+    assert.match(result.stderr, /imported before/);
+  });
+
   await t.test('symlink in the source tree: run fails loudly', (t) => {
     const fixture = buildFixture();
     t.after(() => removeFixture(fixture));

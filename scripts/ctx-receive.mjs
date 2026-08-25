@@ -18,7 +18,9 @@
 // cpSync would copy them, but the gate can't compare them. manifest
 // .generation.source_hash, docsCommit, and affects are still written to
 // state.json on import, but purely as provenance — they are never consulted
-// to decide skip vs. import.
+// to decide skip vs. import. A grouping with no `skill/SKILL.md` is skipped
+// only if it was never imported; once imported, its disappearance fails the
+// run rather than leaving a stale skill behind.
 //
 // Accepted edge: a regeneration whose output is byte-identical to what's
 // already imported imports nothing and writes no state entry, so state.json
@@ -185,15 +187,18 @@ function main() {
     if (!sourceHash) fail(`${manifestPath}: missing generation.source_hash`);
 
     const skillSrc = path.join(groupingDir, 'skill');
+    const prev = state[grouping];
+    const dest = path.join(opts.skillsDir, skill);
+
     if (!fs.existsSync(path.join(skillSrc, 'SKILL.md'))) {
-      // Same forward-compatibility as the manifest check: one unfinished
-      // grouping must not block the others.
+      if (prev || fs.lstatSync(dest, { throwIfNoEntry: false })) {
+        fail(`${grouping}: ${skillSrc}/SKILL.md is missing but this grouping was imported before (state entry or ${dest} exists) — refusing to leave a stale skill in place`);
+      }
+      // Never imported: same forward-compatibility as the manifest check —
+      // one not-yet-onboarded grouping must not block the others.
       console.log(`[skip] ${grouping}: ${skillSrc}/SKILL.md is missing`);
       continue;
     }
-
-    const prev = state[grouping];
-    const dest = path.join(opts.skillsDir, skill);
 
     if (!treeDiffers(skillSrc, dest)) {
       console.log(`[skip] ${grouping}: surface identical (source_hash ${sourceHash.slice(0, 12)})`);

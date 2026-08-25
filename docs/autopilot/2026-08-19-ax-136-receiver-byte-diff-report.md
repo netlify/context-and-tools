@@ -85,5 +85,34 @@ still copy a symlink — source is now listed (and its root `lstat`ed) first,
 two first-import tests added (`7ed6a67`); `test-receiver` gets an explicit
 `contents: read` token (`ec61f34`). Tests 13/13.
 
+## Iteration 2 — 2026-08-25 (local review)
+
+Input: a local review of the branch (three findings) plus Sean's decision on
+scope.
+
+- Medium, fixed — a previously imported grouping losing `skill/SKILL.md`
+  was skipped like an unonboarded one, leaving a stale skill on a green run.
+  Skip now applies only when never imported (no state entry, no
+  `skills/<name>`); otherwise the run fails. `55cfe8a`.
+- High, scope — AX-136's done-when covers `context.md`/`system.md`, which the
+  receiver never imports. Options put to Sean: narrow the issue + docs-side
+  follow-up (my recommendation), broaden and fail, broaden and warn.
+  **Decision: broaden and warn — this repo must not fail on no-ops.**
+  `hashIntermediates()` (sha256 of the two files) is stored per grouping as
+  `intermediateHash`; when it moves while `skill/` is byte-identical the run
+  prints `[warn]` (+ `::warning::` on Actions) once per upstream change and
+  imports nothing. Legacy entries seed silently. `6643f68`, `11b1738`,
+  `b74cec5` (null — both intermediates deleted — counts as a move).
+- #110's description said the ordering key was introduced here — rewritten.
+
+Audit (round 2 of 3): security clean. Simplicity 2 medium — (1) warn-once
+persistence is discarded by the workflow until #110's `state_changed` gate:
+**rejected**, that gate is #110's by decision and the persistence is correct
+the moment it lands, documented in code; (2) `if (prev && intermediateHash)`
+ignored a hash→null transition: **accepted**, `b74cec5`.
+
+Gate: `npm test` 22/22; old skip conjunction 0; `treeDiffers` 3; `npm test`
+in CI 2. Human-verify item still pending.
+
 Gate re-run: `npm test` 11/11; old skip conjunction 0 hits; `treeDiffers`
 3; `npm test` in CI 2. Human-verify item unchanged (pending).

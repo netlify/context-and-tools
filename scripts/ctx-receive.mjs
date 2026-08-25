@@ -132,6 +132,11 @@ function hashIntermediates(groupingDir) {
   return found ? hash.digest('hex') : null;
 }
 
+// For log lines: a hash → its first 12 chars, null → "none".
+function shortHash(hash) {
+  return typeof hash === 'string' ? hash.slice(0, 12) : 'none';
+}
+
 // Relative POSIX-style paths of every regular file under `dir`, recursive,
 // sorted. Empty directories are not represented — only files matter for the
 // delta. Anything that is neither a regular file nor a directory fails
@@ -232,12 +237,15 @@ function main() {
     const intermediateHash = hashIntermediates(groupingDir);
 
     if (!treeDiffers(skillSrc, dest)) {
-      if (prev && intermediateHash) {
-        if (typeof prev.intermediateHash !== 'string') {
-          // Legacy entry, predates the field: seed silently — no baseline to compare.
+      if (prev) {
+        if (!('intermediateHash' in prev)) {
+          // Legacy entry, predates the field: seed silently (possibly with
+          // null) — no baseline to compare.
           prev.intermediateHash = intermediateHash;
         } else if (prev.intermediateHash !== intermediateHash) {
-          const msg = `${grouping}: context.md/system.md changed upstream (${prev.intermediateHash.slice(0, 12)} → ${intermediateHash.slice(0, 12)}) but skill/ is byte-identical — skill may not have been regenerated; nothing imported`;
+          // null is a real value here: both intermediates deleted upstream
+          // with the skill untouched is drift too.
+          const msg = `${grouping}: context.md/system.md changed upstream (${shortHash(prev.intermediateHash)} → ${shortHash(intermediateHash)}) but skill/ is byte-identical — skill may not have been regenerated; nothing imported`;
           console.log(`[warn] ${msg}`);
           if (process.env.GITHUB_ACTIONS) console.log(`::warning title=ctx-receive::${msg}`);
           // Remember the new hash so this fires once per upstream change, not every run.

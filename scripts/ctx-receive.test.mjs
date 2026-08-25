@@ -71,6 +71,11 @@ function writeIntermediates(groupingDir, { contextMd = CONTEXT_MD, systemMd = SY
   fs.writeFileSync(path.join(groupingDir, 'system.md'), systemMd);
 }
 
+function removeIntermediates(groupingDir) {
+  fs.rmSync(path.join(groupingDir, 'context.md'));
+  fs.rmSync(path.join(groupingDir, 'system.md'));
+}
+
 // Mirrors hashIntermediates() in the script — the state.json field is a contract, so the
 // scheme is pinned here rather than imported.
 function expectedIntermediateHash({ contextMd = CONTEXT_MD, systemMd = SYSTEM_MD } = {}) {
@@ -551,5 +556,43 @@ test('ctx-receive: byte-diff import delta', async (t) => {
 
     assert.match(result.stdout, /\[warn\] widgets: /);
     assert.match(result.stdout, /::warning title=ctx-receive::widgets: context\.md\/system\.md changed upstream/);
+  });
+
+  // hashIntermediates() returns null when neither file exists; a stored hash moving to null
+  // is drift too, and null → null is not a move.
+  await t.test('both intermediates deleted upstream, identical skill: warns once, hash null', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    removeIntermediates(fixture.groupingDir);
+
+    const drift = run(fixture);
+    assert.match(
+      drift.stdout,
+      /\[warn\] widgets: context\.md\/system\.md changed upstream \([0-9a-f]{12} → none\)/,
+    );
+    assert.equal(drift.changedCount, 0);
+    assert.equal(readState(fixture)[GROUPING].intermediateHash, null);
+
+    const again = run(fixture);
+    assert.doesNotMatch(again.stdout, /\[warn\]/);
+    assert.equal(again.changedCount, 0);
+  });
+
+  await t.test('no intermediates from the start: imports with a null hash, never warns', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    removeIntermediates(fixture.groupingDir);
+
+    const first = run(fixture);
+    assert.match(first.stdout, /\[import\] widgets .*first import/);
+    assert.equal(first.changedCount, 1);
+    assert.equal(readState(fixture)[GROUPING].intermediateHash, null);
+
+    const again = run(fixture);
+    assert.doesNotMatch(again.stdout, /\[warn\]/);
+    assert.equal(again.changedCount, 0);
   });
 });

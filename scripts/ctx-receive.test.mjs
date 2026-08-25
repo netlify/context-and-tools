@@ -9,14 +9,16 @@
 //
 // Covers the docs#801 shape this fixes: a hand edit to skill/SKILL.md and
 // skill/references/*.md that does NOT touch manifest.json must still import — the delta is
-// treeDiffers(), never source_hash.
+// treeDiffers(), never source_hash. Also covers the inverse: context.md/system.md move
+// upstream while skill/** is byte-identical → a [warn], fired once, never a failure.
 //
-// Zero dependencies, Node 18+ (node:test, node:assert/strict, node:child_process).
+// Zero dependencies, Node 18+ (node:test, node:assert/strict, node:child_process, node:crypto).
 //
 // Usage: node scripts/ctx-receive.test.mjs   (also wired as `npm test`)
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -53,6 +55,35 @@ const REFERENCE_MD = `# Widgets reference
 Some reference detail.
 `;
 
+// The docs-side intermediates the skill is generated from. Never imported; only hashed.
+const CONTEXT_MD = `# Widgets context
+
+Distilled docs the skill is generated from.
+`;
+
+const SYSTEM_MD = `# Widgets system
+
+Generation instructions for the widgets skill.
+`;
+
+function writeIntermediates(groupingDir, { contextMd = CONTEXT_MD, systemMd = SYSTEM_MD } = {}) {
+  fs.writeFileSync(path.join(groupingDir, 'context.md'), contextMd);
+  fs.writeFileSync(path.join(groupingDir, 'system.md'), systemMd);
+}
+
+// Mirrors hashIntermediates() in the script — the state.json field is a contract, so the
+// scheme is pinned here rather than imported.
+function expectedIntermediateHash({ contextMd = CONTEXT_MD, systemMd = SYSTEM_MD } = {}) {
+  const hash = crypto.createHash('sha256');
+  hash.update('context.md\0');
+  hash.update(contextMd);
+  hash.update('\0');
+  hash.update('system.md\0');
+  hash.update(systemMd);
+  hash.update('\0');
+  return hash.digest('hex');
+}
+
 function writeSkillTree(
   skillDir,
   { skillName = SKILL_NAME, skillMd = skillMdFor(skillName), referenceMd = REFERENCE_MD } = {},
@@ -80,8 +111,8 @@ function writeManifest(manifestPath, { sourceHash = SOURCE_HASH, commit = MANIFE
 // Builds a fresh fixture: a fake docs checkout (docsDir) + a fake consumer repo (repoDir),
 // wired together via config.json, matching the shape ctx-receive.mjs expects. `groupings`
 // is the config.json mapping list; every entry gets a manifest and a skill tree whose
-// SKILL.md declares the mapped name. `skillSrc` points at the first entry's skill tree —
-// the one every single-grouping case edits.
+// SKILL.md declares the mapped name, plus context.md/system.md intermediates. `groupingDir`
+// and `skillSrc` point at the first entry — the one every single-grouping case edits.
 function buildFixture(groupings = DEFAULT_GROUPINGS) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-receive-test-'));
   const docsDir = path.join(root, 'docs');
@@ -90,6 +121,7 @@ function buildFixture(groupings = DEFAULT_GROUPINGS) {
   for (const { grouping, skill } of groupings) {
     const dir = path.join(docsDir, 'agent-context', grouping);
     writeSkillTree(path.join(dir, 'skill'), { skillName: skill });
+    writeIntermediates(dir);
     writeManifest(path.join(dir, 'manifest.json'));
   }
 
@@ -111,8 +143,9 @@ function buildFixture(groupings = DEFAULT_GROUPINGS) {
   );
   fs.writeFileSync(statePath, '{}\n');
 
-  const skillSrc = path.join(docsDir, 'agent-context', groupings[0].grouping, 'skill');
-  return { root, docsDir, configPath, statePath, skillsDir, skillSrc };
+  const groupingDir = path.join(docsDir, 'agent-context', groupings[0].grouping);
+  const skillSrc = path.join(groupingDir, 'skill');
+  return { root, docsDir, configPath, statePath, skillsDir, groupingDir, skillSrc };
 }
 
 function removeFixture(fixture) {
@@ -122,8 +155,8 @@ function removeFixture(fixture) {
 // Spawns ctx-receive.mjs against a fixture with a fresh GITHUB_OUTPUT file (one per fixture
 // root; truncated on every invocation). Never throws on a non-zero exit — run() and
 // runExpectFailure() decide what status they expect. `docsCommit: null` omits the
-// --docs-commit flag entirely.
-function invoke(fixture, { docsCommit = DOCS_COMMIT, args = [] } = {}) {
+// --docs-commit flag entirely; `env` is merged over process.env.
+function invoke(fixture, { docsCommit = DOCS_COMMIT, args = [], env = {} } = {}) {
   const outputPath = path.join(fixture.root, 'github-output');
   fs.writeFileSync(outputPath, '');
 
@@ -137,7 +170,7 @@ function invoke(fixture, { docsCommit = DOCS_COMMIT, args = [] } = {}) {
     ...args,
   ];
   const { status, stdout, stderr } = spawnSync('node', argv, {
-    env: { ...process.env, GITHUB_OUTPUT: outputPath },
+    env: { ...process.env, ...env, GITHUB_OUTPUT: outputPath },
     encoding: 'utf8',
   });
   return { status, stdout, stderr, outputPath };
@@ -215,8 +248,15 @@ test('ctx-receive: byte-diff import delta', async (t) => {
 
     // Exact shape: provenance only, and --docs-commit wins over the manifest's
     // generated_from.commit.
-    assert.deepEqual(readState(fixture), {
-      [GROUPING]: { sourceHash: SOURCE_HASH, docsCommit: DOCS_COMMIT, affects: ['examples'] },
+    const state = readState(fixture);
+    assert.match(state[GROUPING].intermediateHash, /^[0-9a-f]{64}$/);
+    assert.deepEqual(state, {
+      [GROUPING]: {
+        sourceHash: SOURCE_HASH,
+        docsCommit: DOCS_COMMIT,
+        affects: ['examples'],
+        intermediateHash: expectedIntermediateHash(),
+      },
     });
   });
 
@@ -421,5 +461,95 @@ test('ctx-receive: byte-diff import delta', async (t) => {
     assert.equal(result.changedCount, 1);
     assert.equal(fs.statSync(path.join(fixture.skillsDir, SKILL_NAME)).isDirectory(), true);
     assert.deepEqual(readSkillBytes(fixture, 'SKILL.md'), Buffer.from(SKILL_MD));
+  });
+
+  // Intermediates moved upstream but skill/ did not: the skill may not have been
+  // regenerated. Warn once, import nothing, never fail.
+  const editedContextMd = `${CONTEXT_MD}\nEdited upstream without regenerating the skill.\n`;
+
+  await t.test('intermediate drift, identical skill: warns once, imports nothing, hash updated', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    writeIntermediates(fixture.groupingDir, { contextMd: editedContextMd });
+
+    const drift = run(fixture);
+    assert.match(drift.stdout, /\[warn\] widgets: context\.md\/system\.md changed upstream/);
+    assert.match(drift.stdout, /\[skip\] widgets: surface identical/);
+    assert.deepEqual(drift.changed, []);
+    assert.equal(drift.changedCount, 0);
+    assert.equal(
+      readState(fixture)[GROUPING].intermediateHash,
+      expectedIntermediateHash({ contextMd: editedContextMd }),
+    );
+
+    // Nothing moved since: the warning must not repeat.
+    const again = run(fixture);
+    assert.doesNotMatch(again.stdout, /\[warn\]/);
+    assert.equal(again.changedCount, 0);
+  });
+
+  await t.test('intermediate drift with a skill edit: imports, no warning, hash updated', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    writeIntermediates(fixture.groupingDir, { contextMd: editedContextMd });
+    handEditUpstream(fixture);
+
+    const result = run(fixture);
+
+    assert.match(result.stdout, /\[import\] widgets /);
+    assert.doesNotMatch(result.stdout, /\[warn\]/);
+    assert.equal(result.changedCount, 1);
+    assert.equal(
+      readState(fixture)[GROUPING].intermediateHash,
+      expectedIntermediateHash({ contextMd: editedContextMd }),
+    );
+  });
+
+  await t.test('legacy state entry without intermediateHash: seeded silently, no warning', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    const legacy = readState(fixture);
+    delete legacy[GROUPING].intermediateHash;
+    fs.writeFileSync(fixture.statePath, JSON.stringify(legacy, null, 2) + '\n');
+
+    const result = run(fixture);
+
+    assert.doesNotMatch(result.stdout, /\[warn\]/);
+    assert.equal(result.changedCount, 0);
+    assert.equal(readState(fixture)[GROUPING].intermediateHash, expectedIntermediateHash());
+  });
+
+  await t.test('intermediate drift, --dry-run: warns, state file untouched', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    const stateBytes = fs.readFileSync(fixture.statePath);
+    writeIntermediates(fixture.groupingDir, { systemMd: `${SYSTEM_MD}\nEdited.\n` });
+
+    const result = run(fixture, { args: ['--dry-run'] });
+
+    assert.match(result.stdout, /\[warn\] widgets: context\.md\/system\.md changed upstream/);
+    assert.equal(result.changedCount, 0);
+    assert.deepEqual(fs.readFileSync(fixture.statePath), stateBytes);
+  });
+
+  await t.test('intermediate drift under GITHUB_ACTIONS: also emits a run annotation', (t) => {
+    const fixture = buildFixture();
+    t.after(() => removeFixture(fixture));
+
+    run(fixture);
+    writeIntermediates(fixture.groupingDir, { contextMd: editedContextMd });
+
+    const result = run(fixture, { env: { GITHUB_ACTIONS: 'true' } });
+
+    assert.match(result.stdout, /\[warn\] widgets: /);
+    assert.match(result.stdout, /::warning title=ctx-receive::widgets: context\.md\/system\.md changed upstream/);
   });
 });

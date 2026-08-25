@@ -22,9 +22,17 @@
 // only if it was never imported; once imported, its disappearance fails the
 // run rather than leaving a stale skill behind.
 //
+// Intermediates: `agent-context/<grouping>/context.md` and `system.md` are
+// the docs-side inputs the skill is generated from. They are never imported;
+// their sha256 is remembered in state.json (intermediateHash) as provenance.
+// If it moves while `skill/**` stays byte-identical, the run warns once and
+// imports nothing — it never fails. The receiver can't tell "forgot to
+// regenerate" from "regeneration was a no-op", which is why this is a
+// warning; the real check belongs in docs CI.
+//
 // Accepted edge: a regeneration whose output is byte-identical to what's
-// already imported imports nothing and writes no state entry, so state.json
-// provenance can lag the newest source_hash. Harmless, and it guarantees
+// already imported imports nothing and leaves the entry's source_hash alone,
+// so state.json provenance can lag the newest source_hash. Harmless, and it guarantees
 // changed_count > 0 always implies a real git diff — previously, re-importing
 // byte-identical content could make the workflow's `git commit` fail on an
 // empty stage.
@@ -44,6 +52,7 @@
 //
 // When GITHUB_OUTPUT is set, writes `changed=<csv>` and `changed_count=<n>`.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -101,6 +110,26 @@ function unionAffects(changes) {
   const set = new Set();
   for (const c of changes || []) for (const a of c.affects || []) set.add(a);
   return [...set].sort();
+}
+
+// sha256 over the grouping's intermediates — context.md then system.md, the
+// docs-side inputs the skill is generated from. The receiver never imports
+// them; it only remembers their hash so "intermediate edited, skill not
+// regenerated" is visible instead of silent. Each file contributes
+// `${name}\0` + bytes + `\0` only if it exists as a regular file; null when
+// neither does.
+function hashIntermediates(groupingDir) {
+  const hash = crypto.createHash('sha256');
+  let found = false;
+  for (const name of ['context.md', 'system.md']) {
+    const file = path.join(groupingDir, name);
+    if (!fs.lstatSync(file, { throwIfNoEntry: false })?.isFile()) continue;
+    hash.update(`${name}\0`);
+    hash.update(fs.readFileSync(file));
+    hash.update('\0');
+    found = true;
+  }
+  return found ? hash.digest('hex') : null;
 }
 
 // Relative POSIX-style paths of every regular file under `dir`, recursive,
@@ -200,7 +229,21 @@ function main() {
       continue;
     }
 
+    const intermediateHash = hashIntermediates(groupingDir);
+
     if (!treeDiffers(skillSrc, dest)) {
+      if (prev && intermediateHash) {
+        if (typeof prev.intermediateHash !== 'string') {
+          // Legacy entry, predates the field: seed silently — no baseline to compare.
+          prev.intermediateHash = intermediateHash;
+        } else if (prev.intermediateHash !== intermediateHash) {
+          const msg = `${grouping}: context.md/system.md changed upstream (${prev.intermediateHash.slice(0, 12)} → ${intermediateHash.slice(0, 12)}) but skill/ is byte-identical — skill may not have been regenerated; nothing imported`;
+          console.log(`[warn] ${msg}`);
+          if (process.env.GITHUB_ACTIONS) console.log(`::warning title=ctx-receive::${msg}`);
+          // Remember the new hash so this fires once per upstream change, not every run.
+          prev.intermediateHash = intermediateHash;
+        }
+      }
       console.log(`[skip] ${grouping}: surface identical (source_hash ${sourceHash.slice(0, 12)})`);
       continue;
     }
@@ -232,13 +275,22 @@ function main() {
         sourceHash,
         docsCommit: opts.docsCommit || manifest.generated_from?.commit || null,
         affects,
+        intermediateHash,
       };
     }
     changed.push(grouping);
   }
 
-  if (!opts.dryRun && changed.length) {
-    fs.writeFileSync(opts.state, JSON.stringify(state, null, 2) + '\n');
+  // Written whenever the serialized state moved — an import, or a seeded /
+  // updated intermediateHash with zero imports. The receive workflow still
+  // commits only when changed_count != 0, so a hash-only update is discarded
+  // on the runner until #110's state_changed gate lands; until then the
+  // warning repeats each run until an import or #110. Acceptable.
+  if (!opts.dryRun) {
+    const nextState = JSON.stringify(state, null, 2) + '\n';
+    const current = fs.existsSync(opts.state) ? fs.readFileSync(opts.state, 'utf8') : null;
+    const stateChanged = current !== nextState;
+    if (stateChanged) fs.writeFileSync(opts.state, nextState);
   }
 
   console.log(changed.length ? `\nChanged: ${changed.join(', ')}` : '\nNo changes.');

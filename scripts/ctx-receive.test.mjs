@@ -80,7 +80,7 @@ function writeManifest(manifestPath, { sourceHash = SOURCE_HASH, commit = MANIFE
 // Builds a fresh fixture: a fake docs checkout (docsDir) + a fake consumer repo (repoDir),
 // wired together via config.json, matching the shape ctx-receive.mjs expects. `groupings`
 // is the config.json mapping list; every entry gets a manifest and a skill tree whose
-// SKILL.md declares the mapped name. `groupingDir`/`skillSrc` point at the first entry —
+// SKILL.md declares the mapped name. `skillSrc` points at the first entry's skill tree —
 // the one every single-grouping case edits.
 function buildFixture(groupings = DEFAULT_GROUPINGS) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-receive-test-'));
@@ -111,23 +111,20 @@ function buildFixture(groupings = DEFAULT_GROUPINGS) {
   );
   fs.writeFileSync(statePath, '{}\n');
 
-  const groupingDir = path.join(docsDir, 'agent-context', groupings[0].grouping);
-  const skillSrc = path.join(groupingDir, 'skill');
-  return { root, docsDir, repoDir, configPath, statePath, skillsDir, groupingDir, skillSrc };
+  const skillSrc = path.join(docsDir, 'agent-context', groupings[0].grouping, 'skill');
+  return { root, docsDir, configPath, statePath, skillsDir, skillSrc };
 }
 
 function removeFixture(fixture) {
   fs.rmSync(fixture.root, { recursive: true, force: true });
 }
 
-let runCount = 0;
-
-// Spawns ctx-receive.mjs against a fixture with a fresh GITHUB_OUTPUT file. Never throws on
-// a non-zero exit — run() and runExpectFailure() decide what status they expect.
-// `docsCommit: null` omits the --docs-commit flag entirely.
+// Spawns ctx-receive.mjs against a fixture with a fresh GITHUB_OUTPUT file (one per fixture
+// root; truncated on every invocation). Never throws on a non-zero exit — run() and
+// runExpectFailure() decide what status they expect. `docsCommit: null` omits the
+// --docs-commit flag entirely.
 function invoke(fixture, { docsCommit = DOCS_COMMIT, args = [] } = {}) {
-  runCount += 1;
-  const outputPath = path.join(fixture.root, `github-output-${runCount}`);
+  const outputPath = path.join(fixture.root, 'github-output');
   fs.writeFileSync(outputPath, '');
 
   const argv = [
@@ -165,14 +162,14 @@ function run(fixture, opts) {
   const changed = changedLine.slice('changed='.length).split(',').filter(Boolean);
   const changedCount = Number(countLine.slice('changed_count='.length));
 
-  return { stdout: result.stdout, raw, changed, changedCount };
+  return { stdout: result.stdout, changed, changedCount };
 }
 
-// Runs ctx-receive.mjs expecting the fail() exit code. Returns { status, stdout, stderr }.
+// Runs ctx-receive.mjs expecting the fail() exit code. Returns { stdout, stderr }.
 function runExpectFailure(fixture, opts) {
   const { status, stdout, stderr } = invoke(fixture, opts);
   assert.equal(status, 1, `expected ctx-receive to exit 1: ${describeRun({ status, stdout, stderr })}`);
-  return { status, stdout, stderr };
+  return { stdout, stderr };
 }
 
 function readState(fixture) {

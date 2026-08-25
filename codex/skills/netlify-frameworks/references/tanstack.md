@@ -54,7 +54,7 @@ const getItems = createServerFn({ method: "GET" }).handler(async () => {
 npm run dev    # vite dev — full Netlify platform emulation
 ```
 
-The plugin emulates the production Netlify platform locally, exposing Functions, Edge Functions, Blobs, the Cache API, Image CDN, redirects, rewrites, headers, and environment variables — without needing `netlify dev`.
+The plugin emulates the production Netlify platform locally, exposing Functions, Edge Functions, Blobs, Database, the Cache API, Image CDN, redirects, rewrites, headers, environment variables, and AI Gateway — without needing `netlify dev`.
 
 ## Build and Deploy
 

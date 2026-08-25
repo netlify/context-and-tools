@@ -3,7 +3,6 @@
     "repo": "netlify/docs",
     "agentContextDir": "agent-context"
   },
-  "importerVersion": 1,
   "groupings": [
     {
       "grouping": "functions",

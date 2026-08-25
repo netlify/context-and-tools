@@ -41,6 +41,25 @@ module.exports = nextConfig;
 
 Remote image patterns in `next.config.js` are automatically mapped to Netlify Image CDN's `remote_images` configuration.
 
+### Skew protection
+
+Opt-in. Set `NETLIFY_NEXT_SKEW_PROTECTION` to `true`, then redeploy — env values are injected at build time, so the live deploy is unchanged until a new build runs.
+
+On Next.js **earlier than 14.1.4** the env var is not sufficient on its own; add the deployment-id flags too:
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    useDeploymentId: true,
+    // only needed when using Server Actions
+    useDeploymentIdServerActions: true,
+  },
+};
+```
+
+Client `fetch` calls are never covered automatically — Next.js does not attach the deployment identifier to them, so those requests always hit the current deploy. Send it yourself with `x-deployment-id: process.env.NEXT_DEPLOYMENT_ID`.
+
 ## API Routes
 
 Next.js API routes work automatically — they are deployed as Netlify Functions:

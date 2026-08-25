@@ -112,7 +112,7 @@ export default async (req: Request, context: Context) => {
 ```
 
 - `admin.listUsers()` — array of users.
-- `admin.updateUser()` — update a user (e.g. roles). Full API: https://github.com/netlify/identity#admin-operations
+- `admin.updateUser()` — update a user (e.g. roles). Full API: https://www.npmjs.com/package/@netlify/identity
 
 ### Session cookies
 JWT stored in cookie `nf_jwt`, sent automatically. Server-side `login`/`signup`/`logout` read/write `nf_jwt` and `nf_refresh` via the runtime, so the browser gets the session in the response.

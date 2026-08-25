@@ -154,6 +154,16 @@ test('fail closed: recorded commit is absent from the docs checkout', () => {
   assert.equal(r.output, '');
 });
 
+test('fail closed: incoming commit is unresolvable (merge-base error branch)', () => {
+  // cat-file -e only validates the recorded commit, so a bad --incoming
+  // reaches merge-base and must land in the status!=0/1 fail-closed branch —
+  // the silent-bypass shape this guard exists to prevent.
+  const r = runGuard({ state: { lastImportedCommit: docs.a }, incoming: '0'.repeat(40) });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /merge-base failed with status/);
+  assert.equal(r.output, '');
+});
+
 test('fail closed: state is not valid JSON', () => {
   const r = runGuard({ state: 'not json{', incoming: docs.b });
   assert.equal(r.status, 1);

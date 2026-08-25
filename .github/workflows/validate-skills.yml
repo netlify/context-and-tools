@@ -5,6 +5,9 @@ on:
       - "skills/**"
       - "scripts/ctx-ordering-guard.mjs"
       - "scripts/ctx-ordering-guard.test.mjs"
+      - "scripts/ctx-receive.mjs"
+      - "scripts/ctx-receive-ordering.test.mjs"
+      - "package.json"
       - ".github/workflows/validate-skills.yml"
 
 jobs:

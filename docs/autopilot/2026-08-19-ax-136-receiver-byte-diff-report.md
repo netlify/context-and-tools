@@ -47,7 +47,37 @@ recorded in the spec's Done-signal section.
 - `rg "prev.sourceHash === sourceHash && prev.importerVersion"` → 0 hits.
 - `rg -c "treeDiffers"` → 3 (≥ 2).
 - `rg -c "npm test" .github/workflows/validate-skills.yml` → 2 (≥ 1).
-- human-verify (for Sean): after netlify/docs#801 merges, the next receive
-  run's rolling sync PR must contain the Next.js fetch-skew qualification.
+- human-verify (for Sean) — **pending, needs a live run**: after
+  netlify/docs#801 merges, the next receive run's rolling sync PR must contain
+  the Next.js fetch-skew qualification.
 
-No unmet items; no deferred findings beyond the rejected CI-job fold above.
+All machine-checkable items met; the human-verify item above is the one
+open item. No deferred findings beyond the rejected CI-job fold above.
+
+## Iteration 1 — 2026-08-25 (PR review)
+
+Input: domitriusclark's review on #115 (6 inline + 2 top-level) plus two
+CodeRabbit findings. All validated against the branch head `f3cae6a`.
+
+Dispositions:
+
+- Fixed — null `docsCommit` crash (test pins the manifest fallback);
+  missing `SKILL.md` warns and continues instead of failing the run; symlinks
+  and other non-regular entries fail loudly, executable bit compared (the
+  only mode bit git tracks); non-directory destination counts as changed and
+  is replaced; `importerVersion` removed from script, config, state, README
+  (with a faithful copy no bump can change output); tests isolated per
+  fixture; CI path filter includes `package.json`, `setup-node` pinned at
+  Node 18; README describes `state.json` as provenance. Commits `ace7e5f`,
+  `a701fb9`, `e22e3b4`, `1d9ae10`, `eb3f515`.
+- Moved — `lastImportedCommit` / `state_changed` had no consumer in this PR;
+  the consumer is #110 (`ctx-receiver-monotonic`). Reverted out of #115
+  (`1a0b93e`); the writer ships in #110 so that PR is self-contained.
+- Spec amended first (Program design): symlink/exec-bit policy,
+  `importerVersion` removal, warn-not-fail on missing `SKILL.md`.
+
+Audit (round 1 of 3): security clean; simplicity 1 low (test-helper state
+and unused returns) — accepted, fixed in `eb3f515`.
+
+Gate re-run: `npm test` 11/11; old skip conjunction 0 hits; `treeDiffers`
+3; `npm test` in CI 2. Human-verify item unchanged (pending).

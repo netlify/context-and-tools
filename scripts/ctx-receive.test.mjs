@@ -251,8 +251,9 @@ test('ctx-receive: byte-diff import delta', async (t) => {
       fs.readFileSync(path.join(fixture.skillSrc, 'references', 'widgets.md')),
     );
 
-    // Exact shape: provenance only, and --docs-commit wins over the manifest's
-    // generated_from.commit.
+    // Exact shape: per-grouping provenance plus the top-level ordering key
+    // (lastImportedCommit, covered in ctx-receive-ordering.test.mjs), and
+    // --docs-commit wins over the manifest's generated_from.commit.
     const state = readState(fixture);
     assert.match(state[GROUPING].intermediateHash, /^[0-9a-f]{64}$/);
     assert.deepEqual(state, {
@@ -262,6 +263,7 @@ test('ctx-receive: byte-diff import delta', async (t) => {
         affects: ['examples'],
         intermediateHash: expectedIntermediateHash(),
       },
+      lastImportedCommit: DOCS_COMMIT,
     });
   });
 

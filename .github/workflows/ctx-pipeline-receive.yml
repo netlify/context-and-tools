@@ -33,6 +33,11 @@ on:
         description: "netlify/docs ref (branch or SHA) to pull; defaults to main"
         required: false
         default: main
+      skip_guard:
+        description: "Bypass the monotonicity guard (manual recovery only, e.g. after a docs history rewrite or a corrupt state.json)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -92,19 +97,81 @@ jobs:
           token: ${{ secrets.DOCS_READ_TOKEN }}
           path: .docs-src
           persist-credentials: false
+          # Full history: the monotonicity guard below needs ancestry.
+          fetch-depth: 0
 
       - name: Resolve docs commit
         id: docs
         run: echo "sha=$(git -C .docs-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      # The last import usually lives on the unmerged rolling branch, not main:
+      # the PR step below force-pushes ctx-pipeline/agent-context-sync and main
+      # only learns of an import when a human merges. Guarding against main's
+      # copy alone would let two dispatches minutes apart both see the same
+      # stale baseline — exactly the race the guard exists for.
+      - name: Resolve import baseline
+        id: baseline
+        run: |
+          branch="ctx-pipeline/agent-context-sync"
+          ref="HEAD"
+          if git fetch -q origin "$branch" 2>/dev/null; then
+            ref="FETCH_HEAD"
+            echo "baseline: rolling branch $branch"
+          else
+            echo "baseline: default branch (no rolling branch)"
+          fi
+          # Read the blob via git show, never the working tree: a symlink at
+          # this path shows as its target text and a directory as a tree
+          # listing — both fail JSON parsing in the guard, i.e. fail closed.
+          if git cat-file -e "$ref:.ctx-gen/state.json" 2>/dev/null; then
+            git show "$ref:.ctx-gen/state.json" > "$RUNNER_TEMP/baseline-state.json"
+            echo "state=$RUNNER_TEMP/baseline-state.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "no state.json on the baseline ref — bootstrap"
+            echo "state=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Reject out-of-order deliveries: an older dispatch arriving after a
+      # newer import must not roll skills back. Ordering comes from the
+      # top-level `lastImportedCommit` in state.json (written by
+      # ctx-receive.mjs; per-grouping docsCommit entries are provenance and
+      # legitimately disagree). Fail-closed: a position that exists but cannot
+      # be validated fails the run; a state predating the ordering key is
+      # bootstrap. Logic + decision table live in scripts/ctx-ordering-guard.mjs,
+      # tested by scripts/ctx-ordering-guard.test.mjs (runs in validate-skills).
+      - name: Monotonicity guard
+        id: guard
+        env:
+          BYPASS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_guard }}
+          STATE: ${{ steps.baseline.outputs.state }}
+          INCOMING: ${{ steps.docs.outputs.sha }}
+        run: |
+          if [ "$BYPASS" = "true" ]; then
+            echo "::warning::monotonicity guard bypassed via skip_guard (manual run) — importing without an ordering check"
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$STATE" ]; then
+            echo "no prior import state — bootstrap import proceeds"
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/ctx-ordering-guard.mjs --docs .docs-src --incoming "$INCOMING" --state "$STATE"
+
       - name: Import changed skills
         id: import
+        if: steps.guard.outputs.skip != '1'
         run: node scripts/ctx-receive.mjs --docs .docs-src --docs-commit "${{ steps.docs.outputs.sha }}"
 
       - name: Open or update the rolling sync PR
-        # success() guard: an explicit `if` drops the implicit one, so without it
-        # this step would run (and commit a partial import) after a failed import.
-        if: success() && steps.import.outputs.changed_count != '0'
+        # Gated on the guard too: when the import is skipped, changed_count is
+        # empty ('' != '0' is true) and success() still holds, so without the
+        # skip clause a stale delivery would reach `git commit` with nothing
+        # staged and fail the run. state_changed covers an ordering-only
+        # advance (no skill bytes changed but lastImportedCommit moved) so the
+        # guard's baseline doesn't go stale; it is unset on older ctx-receive
+        # versions, which is fine — they only write state alongside changes.
+        if: success() && steps.guard.outputs.skip != '1' && (steps.import.outputs.changed_count != '0' || steps.import.outputs.state_changed == 'true')
         env:
           GH_TOKEN: ${{ secrets.CTX_PIPELINE_PR_TOKEN }}
           CHANGED: ${{ steps.import.outputs.changed }}
@@ -112,6 +179,9 @@ jobs:
         run: |
           branch="ctx-pipeline/agent-context-sync"
           sha="$DOCS_SHA"
+          # Empty CHANGED means an ordering-only advance: state.json moved,
+          # no skill bytes did.
+          changed_label="${CHANGED:-none (import ordering advanced)}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -122,14 +192,14 @@ jobs:
           # racing on the same skill dirs and state.json.
           git checkout -B "$branch"
           git add skills/ .ctx-gen/state.json
-          git commit -m "chore(context): import agent-context updates (${CHANGED})"
+          git commit -m "chore(context): import agent-context updates (${changed_label})"
           git push --force origin "$branch"
 
           {
             echo "Rolling import of generated skills from \`netlify/docs\`, updated in place as new context lands."
             echo
             echo "Latest docs commit: \`${sha}\`"
-            echo "Groupings updated: **${CHANGED}**"
+            echo "Groupings updated: **${changed_label}**"
             echo
             echo "These skills are generated and AXIS-tested upstream, then imported here byte-for-byte — no content changes on this side. \`validate-skills\` and \`build-generated-outputs\` (cursor/codex parity) run on this PR. Review the latest diff and merge; rollback = revert."
             echo

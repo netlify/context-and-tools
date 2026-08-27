@@ -11,7 +11,8 @@
 // Covers: first import writes the key; a same-commit re-dispatch is a byte-level
 // no-op; a newer-commit re-dispatch advances the key while per-grouping
 // provenance lags; no --docs-commit leaves the key unwritten; --dry-run writes
-// nothing; a grouping named after the key is rejected.
+// nothing; a malformed --docs-commit (short/non-hex/uppercase SHA) is rejected
+// before anything is written; a grouping named after the key is rejected.
 //
 // Zero dependencies, Node 18+ (node:test, node:assert/strict, node:child_process).
 //
@@ -168,6 +169,31 @@ test('--dry-run at a newer commit writes nothing and reports state_changed=false
     assert.equal(r.output, 'changed=\nchanged_count=0\nstate_changed=false\n');
     assert.equal(fx.stateBytes(), before);
     assert.equal(fx.readState().lastImportedCommit, COMMIT_A);
+  });
+});
+
+test('--docs-commit with a short SHA is rejected before anything is written', () => {
+  // A manual local run with an abbreviated SHA used to write a malformed
+  // lastImportedCommit, wedging every subsequent CI run (the guard fails
+  // closed on it). Rejected up front instead.
+  withFixture({}, (fx) => {
+    const r = runReceive(fx, '--docs-commit', COMMIT_A.slice(0, 12));
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--docs-commit must be a full 40-char lowercase commit SHA/);
+    assert.equal(r.output, '');
+    assert.equal(fx.stateBytes(), '{}\n');
+    assert.equal(fs.existsSync(path.join(fx.skillsDir, 'netlify-widgets')), false);
+  });
+});
+
+test('--docs-commit with non-hex or uppercase characters is rejected', () => {
+  withFixture({}, (fx) => {
+    for (const bad of ['G'.repeat(40), COMMIT_A.toUpperCase(), 'main']) {
+      const r = runReceive(fx, '--docs-commit', bad);
+      assert.equal(r.status, 1, `expected rejection of ${JSON.stringify(bad)}`);
+      assert.match(r.stderr, /full 40-char lowercase commit SHA/);
+    }
+    assert.equal(fx.stateBytes(), '{}\n');
   });
 });
 

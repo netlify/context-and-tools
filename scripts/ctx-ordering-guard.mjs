@@ -7,12 +7,20 @@
 //
 //   proceed  incoming descends from the last imported commit (or nothing has
 //            been imported yet — bootstrap)
-//   skip     incoming does not descend from the last imported commit
-//            (stale or unrelated delivery); exit 0 with skip=1
+//   skip     incoming is an ANCESTOR of the last imported commit (a stale
+//            delivery — a newer dispatch already imported past it). Exit 0
+//            with skip=1; self-healing, since the next on-line delivery
+//            proceeds. On Actions the skip is surfaced as a ::warning
+//            annotation and a GITHUB_STEP_SUMMARY entry (AX-159), not just a
+//            green log line.
 //   fail     the recorded position exists but cannot be validated — malformed
 //            JSON, a malformed ordering key, or a recorded commit the docs
-//            checkout cannot resolve. Fail-closed: silence here is how
-//            rollbacks happen. Exit 1.
+//            checkout cannot resolve. ALSO when incoming and the recorded
+//            position have DIVERGED (neither descends from the other, e.g.
+//            after a docs history rewrite where the old commit still
+//            resolves): no future delivery on that line can ever descend from
+//            the recorded position, so skipping green would recur forever.
+//            Fail-closed: silence here is how rollbacks happen. Exit 1.
 //
 // Ordering comes from the top-level `lastImportedCommit` key in state.json —
 // the ordering AUTHORITY written by ctx-receive.mjs on every run. Per-grouping
@@ -69,6 +77,21 @@ function emit(skip, msg) {
   }
 }
 
+// A skipped delivery must be visible from the run list, not only inside the
+// step log — a stale dispatch is expected noise, but a pattern of skips is
+// how an ordering problem first shows up (AX-159).
+function surfaceSkip(msg) {
+  if (process.env.GITHUB_ACTIONS) {
+    console.log(`::warning title=ctx-ordering-guard::${msg}`);
+  }
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    fs.appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `### ctx-ordering-guard: delivery skipped\n\n${msg}\n`,
+    );
+  }
+}
+
 // git plumbing against the docs checkout; returns the exit status rather than
 // throwing, so "no" (1) is distinguishable from "broken" (anything else).
 function git(docs, args) {
@@ -118,7 +141,22 @@ function main() {
   if (rc === 0) {
     emit(false, `incoming ${opts.incoming} descends from last imported ${last} — proceeding`);
   } else if (rc === 1) {
-    emit(true, `incoming ${opts.incoming} does not descend from last imported ${last} — skipping this delivery`);
+    // Non-descent splits two ways. A stale delivery (incoming is an ancestor
+    // of the position) self-heals: the next on-line dispatch proceeds. A
+    // DIVERGED history (neither is an ancestor of the other — a docs history
+    // rewrite where the recorded commit still resolves, or a foreign branch)
+    // never self-heals: every future delivery on that line would skip green
+    // forever, so it fails closed instead.
+    const reverse = git(opts.docs, ['merge-base', '--is-ancestor', opts.incoming, last]);
+    if (reverse === 0) {
+      const msg = `incoming ${opts.incoming} is an ancestor of last imported ${last} — stale delivery, skipping`;
+      surfaceSkip(msg);
+      emit(true, msg);
+    } else if (reverse === 1) {
+      fail(`incoming ${opts.incoming} and last imported ${last} have diverged — no delivery on this line can ever descend from the recorded position (docs history rewrite?); failing closed. If the divergence is expected, re-run manually with skip_guard to reset the ordering baseline`);
+    } else {
+      fail(`merge-base failed with status ${reverse} — cannot establish ordering; failing closed`);
+    }
   } else {
     fail(`merge-base failed with status ${rc} — cannot establish ordering; failing closed`);
   }

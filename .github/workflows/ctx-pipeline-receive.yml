@@ -135,8 +135,11 @@ jobs:
       # newer import must not roll skills back. Ordering comes from the
       # top-level `lastImportedCommit` in state.json (written by
       # ctx-receive.mjs; per-grouping docsCommit entries are provenance and
-      # legitimately disagree). Fail-closed: a position that exists but cannot
-      # be validated fails the run; a state predating the ordering key is
+      # legitimately disagree). A stale delivery skips with a ::warning and a
+      # step-summary entry (AX-159). Fail-closed: a position that exists but
+      # cannot be validated fails the run, as does a DIVERGED history (e.g. a
+      # docs rewrite) that would otherwise skip green forever — recover with
+      # skip_guard; a state predating the ordering key is
       # bootstrap. Logic + decision table live in scripts/ctx-ordering-guard.mjs,
       # tested by scripts/ctx-ordering-guard.test.mjs (runs in validate-skills).
       - name: Monotonicity guard

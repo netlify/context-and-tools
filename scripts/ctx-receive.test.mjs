@@ -32,9 +32,10 @@ const GROUPING = 'widgets';
 const SKILL_NAME = 'netlify-widgets';
 const DEFAULT_GROUPINGS = [{ grouping: GROUPING, skill: SKILL_NAME }];
 const SOURCE_HASH = 'a'.repeat(64);
-// Kept distinct so a test can tell which one landed in state.json.
-const DOCS_COMMIT = 'docs-commit-1';
-const MANIFEST_COMMIT = 'manifest-commit-1';
+// Kept distinct so a test can tell which one landed in state.json. Full hex
+// SHAs: --docs-commit is validated against /^[0-9a-f]{40}$/.
+const DOCS_COMMIT = 'd0c5'.padEnd(40, '0');
+const MANIFEST_COMMIT = 'a1fe5'.padEnd(40, '0');
 
 function skillMdFor(skillName) {
   return `---

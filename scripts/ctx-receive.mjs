@@ -58,7 +58,9 @@
 //
 // Options:
 //   --docs <path>          Path to a netlify/docs checkout (required)
-//   --docs-commit <sha>    Commit the docs checkout resolves to (provenance)
+//   --docs-commit <sha>    Commit the docs checkout resolves to (provenance;
+//                          must be a full 40-hex SHA — it is written verbatim
+//                          as the ordering key the guard validates)
 //   --config <path>        Default: .ctx-gen/config.json
 //   --state <path>         Default: .ctx-gen/state.json
 //   --skills-dir <path>    Default: skills
@@ -98,6 +100,12 @@ function parseArgs(argv) {
     }
   }
   if (!opts.docs) fail('--docs <path> is required');
+  // The value becomes the ordering authority (`lastImportedCommit`) verbatim,
+  // and the guard fails closed on anything that isn't a full SHA — so a manual
+  // run with a short SHA would wedge every subsequent CI run. Reject it here.
+  if (opts.docsCommit !== null && !/^[0-9a-f]{40}$/.test(opts.docsCommit)) {
+    fail(`--docs-commit must be a full 40-char lowercase commit SHA (got ${JSON.stringify(opts.docsCommit)})`);
+  }
   return opts;
 }
 

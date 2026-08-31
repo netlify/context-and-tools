@@ -9,7 +9,9 @@
 //
 // The fixture matrix mirrors the decision table in the guard's header:
 // bootstrap (no file / no key / empty object) proceeds, descent proceeds,
-// non-descent skips, and anything unvalidatable fails closed.
+// a stale delivery (incoming is an ancestor of the position) skips — with a
+// ::warning and step-summary entry on Actions (AX-159) — and anything
+// unvalidatable, including a diverged history, fails closed.
 //
 // Zero dependencies, Node 18+ (node:test, node:assert/strict, node:child_process;
 // requires git on PATH, as in CI).
@@ -61,21 +63,34 @@ function makeDocsRepo() {
 const docs = makeDocsRepo();
 
 // Run the guard against a state fixture. `state` is the JSON value to write,
-// the literal string to write raw, or undefined for "no state file".
-function runGuard({ state, incoming }) {
+// the literal string to write raw, or undefined for "no state file". Actions
+// observability (`::warning`, step summary) is opt-in via `actions` so
+// assertions are deterministic whether or not the suite itself runs in CI;
+// the summary file always exists so "wrote nothing" is assertable too.
+function runGuard({ state, incoming, actions = false }) {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-guard-run-'));
   const statePath = path.join(workDir, 'state.json');
   if (typeof state === 'string') fs.writeFileSync(statePath, state);
   else if (state !== undefined) fs.writeFileSync(statePath, JSON.stringify(state, null, 2) + '\n');
   const outputPath = path.join(workDir, 'github-output');
   fs.writeFileSync(outputPath, '');
+  const summaryPath = path.join(workDir, 'github-step-summary');
+  fs.writeFileSync(summaryPath, '');
+
+  const env = { ...process.env, GITHUB_OUTPUT: outputPath, GITHUB_STEP_SUMMARY: summaryPath };
+  if (actions) env.GITHUB_ACTIONS = 'true';
+  else delete env.GITHUB_ACTIONS;
 
   const res = spawnSync(
     process.execPath,
     [SCRIPT, '--docs', docs.dir, '--incoming', incoming, '--state', statePath],
-    { encoding: 'utf8', env: { ...process.env, GITHUB_OUTPUT: outputPath } },
+    { encoding: 'utf8', env },
   );
-  return { ...res, output: fs.readFileSync(outputPath, 'utf8') };
+  return {
+    ...res,
+    output: fs.readFileSync(outputPath, 'utf8'),
+    summary: fs.readFileSync(summaryPath, 'utf8'),
+  };
 }
 
 test('bootstrap: no state file proceeds', () => {
@@ -123,15 +138,48 @@ test('proceed: re-delivery of the last imported commit itself', () => {
 test('skip: incoming is older than last imported', () => {
   const r = runGuard({ state: { lastImportedCommit: docs.b }, incoming: docs.a });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /does not descend from last imported/);
+  assert.match(r.stdout, /stale delivery, skipping/);
   assert.equal(r.output, 'skip=1\n');
 });
 
-test('skip: incoming is unrelated to last imported', () => {
-  const r = runGuard({ state: { lastImportedCommit: docs.a }, incoming: docs.u });
+test('skip on Actions: stale delivery emits a ::warning and a step-summary entry (AX-159)', () => {
+  const r = runGuard({ state: { lastImportedCommit: docs.b }, incoming: docs.a, actions: true });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /does not descend from last imported/);
   assert.equal(r.output, 'skip=1\n');
+  assert.match(r.stdout, /::warning title=ctx-ordering-guard::.*stale delivery, skipping/);
+  assert.match(r.summary, /ctx-ordering-guard: delivery skipped/);
+  assert.match(r.summary, new RegExp(`incoming ${docs.a} is an ancestor of last imported ${docs.b}`));
+});
+
+test('skip off Actions: no ::warning annotation, but the step summary still records the skip', () => {
+  // GITHUB_STEP_SUMMARY is only ever set by the runner, so writing to it when
+  // present is safe regardless of GITHUB_ACTIONS; the ::warning line would be
+  // plain noise outside Actions.
+  const r = runGuard({ state: { lastImportedCommit: docs.b }, incoming: docs.a });
+  assert.equal(r.status, 0);
+  assert.doesNotMatch(r.stdout, /::warning/);
+  assert.match(r.summary, /delivery skipped/);
+});
+
+test('proceed and fail paths write nothing to the step summary', () => {
+  const ok = runGuard({ state: { lastImportedCommit: docs.a }, incoming: docs.b, actions: true });
+  assert.equal(ok.status, 0);
+  assert.equal(ok.summary, '');
+  const bad = runGuard({ state: { lastImportedCommit: 'f'.repeat(40) }, incoming: docs.b, actions: true });
+  assert.equal(bad.status, 1);
+  assert.equal(bad.summary, '');
+});
+
+test('fail closed: incoming is unrelated to last imported (diverged history never self-heals)', () => {
+  // The non-self-healing shape: after a docs history rewrite the recorded
+  // commit still resolves but nothing on the new line will ever descend from
+  // it — a green skip here would recur on every future delivery.
+  const r = runGuard({ state: { lastImportedCommit: docs.a }, incoming: docs.u, actions: true });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /have diverged/);
+  assert.match(r.stderr, /skip_guard/);
+  assert.equal(r.output, '');
+  assert.equal(r.summary, '');
 });
 
 test('fail closed: ordering key is not a full SHA', () => {

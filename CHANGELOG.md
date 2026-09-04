@@ -4,6 +4,15 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.3.1](https://github.com/netlify/context-and-tools/compare/v1.3.0...v1.3.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **ctx-pipeline:** surface guard skips, fail closed on divergence, validate --docs-commit ([#117](https://github.com/netlify/context-and-tools/issues/117)) ([ee5dd6e](https://github.com/netlify/context-and-tools/commit/ee5dd6e5fa0edf8204b8b5e4937fedac61ffe3bf))
+* **ctx-receive:** reject out-of-order deliveries ([#110](https://github.com/netlify/context-and-tools/issues/110)) ([4645e4c](https://github.com/netlify/context-and-tools/commit/4645e4c47ae4a42a3955c96c1389bbc16f10d457))
+* import agent-context skills on byte difference, not manifest hash ([#115](https://github.com/netlify/context-and-tools/issues/115)) ([bacaa0d](https://github.com/netlify/context-and-tools/commit/bacaa0daa1cfd4a5467335d716d2907e4c796c2f))
+
 ## [1.3.0](https://github.com/netlify/context-and-tools/compare/v1.2.1...v1.3.0) (2026-08-21)
 
 

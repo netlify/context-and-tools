@@ -148,6 +148,10 @@ test('red: docs checkout failure carries the requested ref when known', () => {
   assert.match(cls.detail, /netlify\/docs at deadbeef/);
   const bare = classifyRun(run({ conclusion: 'failure' }), jobs, null);
   assert.match(bare.detail, /at the requested ref/);
+  // docs_ref echoes the dispatch payload: Slack markup must not survive.
+  const hostile = classifyRun(run({ conclusion: 'failure' }), jobs, { docs_ref: '<!channel> ' + 'x'.repeat(100) });
+  assert.doesNotMatch(hostile.detail, /<!channel>/);
+  assert.match(hostile.detail, /&lt;!channel&gt; x+…/);
 });
 
 test('red: import step failure', () => {

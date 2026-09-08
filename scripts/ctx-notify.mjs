@@ -3,11 +3,8 @@
 // one-line status to #notify-context-pipeline (EX-3057).
 //
 // Called by .github/workflows/ctx-pipeline-notify.yml (a workflow_run
-// watcher). The docs-side merge pipeline already reports to this channel, but
-// its dispatch to us is fire-and-forget: docs goes green the moment the
-// dispatch is accepted, so a receive failure here was invisible while Slack
-// kept saying "delivered". This closes the loop so "the docs run succeeded"
-// stops being mistaken for "the skills landed".
+// watcher). The docs-side notifier reports delivery when its dispatch is
+// accepted; this one reports whether the import actually landed.
 //
 // One message per receive run, five shapes:
 //   📥 IMPORTED      skills (or the ordering position) changed; the rolling
@@ -108,14 +105,17 @@ function failureDetail(step, outcome) {
   const name = step?.name ?? '';
   if (name.startsWith(STEP.preflight))
     return 'receiver not configured — DOCS_READ_TOKEN and/or CTX_PIPELINE_PR_TOKEN missing (see run)';
-  if (name.startsWith(STEP.checkoutDocs))
-    return `could not check out netlify/docs at ${outcome?.docs_ref || 'the requested ref'} — DOCS_READ_TOKEN expired, or the ref no longer exists (docs history rewrite?)`;
+  if (name.startsWith(STEP.checkoutDocs)) {
+    // docs_ref echoes the dispatch payload — untrusted, so it must not carry
+    // Slack markup (<!channel>) into the message.
+    const ref = outcome?.docs_ref ? slackEscape(truncate(outcome.docs_ref, 60)) : 'the requested ref';
+    return `could not check out netlify/docs at ${ref} — DOCS_READ_TOKEN expired, or the ref no longer exists (docs history rewrite?)`;
+  }
   if (name.startsWith(STEP.guard))
     return 'monotonicity guard failed closed — docs history diverged from lastImportedCommit, or state.json is unreadable. Every later dispatch fails the same way until a manual run with skip_guard resets the baseline';
   if (name.startsWith(STEP.import))
     return 'import failed — a previously imported grouping vanished upstream, or an unsupported entry (symlink) in the skill tree; see run';
   if (name.startsWith(STEP.pr))
-    // The worst red: skills imported, PR never surfaced. Say so.
     return `skills imported but the rolling sync PR was NOT pushed/opened (check CTX_PIPELINE_PR_TOKEN) — ${groupings(outcome)}`;
   return `receive failed at "${name || 'unknown step'}"`;
 }
@@ -223,6 +223,10 @@ async function main() {
   const repo = args.repo || process.env.GITHUB_REPOSITORY;
   if (!args.runId || !repo) {
     console.error('usage: ctx-notify.mjs --run-id <id> [--repo owner/name] [--dry-run]');
+    process.exit(2);
+  }
+  if (!/^\d+$/.test(args.runId)) {
+    console.error(`--run-id must be numeric, got ${JSON.stringify(args.runId)}`);
     process.exit(2);
   }
   const run = ghJson(['api', `repos/${repo}/actions/runs/${args.runId}`]);

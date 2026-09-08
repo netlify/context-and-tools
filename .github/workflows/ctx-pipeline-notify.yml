@@ -1,10 +1,8 @@
 name: ctx-pipeline notify
 
-# EX-3057: docs dispatches to us fire-and-forget, so the docs-side notifier
-# (AX-138) posts "delivered" the moment the dispatch is accepted — a receive
-# failure here was invisible while Slack kept reporting success. This watcher
-# posts every receive outcome to the same channel, #notify-context-pipeline,
-# so both halves of the pipeline report in one place.
+# EX-3057: post every "Receive agent-context" outcome to
+# #notify-context-pipeline, the channel the docs-side notifier (AX-138)
+# already reports to. Why it exists: see the header of scripts/ctx-notify.mjs.
 #
 # A separate workflow_run watcher, not notify steps inside the receiver: it
 # fires on every terminal state — including runs that die at checkout,

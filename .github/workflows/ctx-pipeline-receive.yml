@@ -23,6 +23,12 @@ name: Receive agent-context
 #                          GITHUB_TOKEN would not trigger them)
 # One token with both scopes may back both secrets. The dispatch trigger also
 # requires the CTX_PIPELINE repo variable = 'true'; manual runs never do.
+#
+# Outcomes are posted to #notify-context-pipeline by ctx-pipeline-notify.yml,
+# a workflow_run watcher (EX-3057). It classifies from this job's step
+# conclusions and enriches from the small `ctx-receive-outcome` artifact the
+# last two steps upload on every terminal state (docs sha, groupings, PR URL).
+# Keep step names stable: scripts/ctx-notify.mjs matches them by prefix.
 
 on:
   repository_dispatch:
@@ -167,6 +173,7 @@ jobs:
         run: node scripts/ctx-receive.mjs --docs .docs-src --docs-commit "${{ steps.docs.outputs.sha }}"
 
       - name: Open or update the rolling sync PR
+        id: pr
         # Gated on the guard too: when the import is skipped, changed_count is
         # empty ('' != '0' is true) and success() still holds, so without the
         # skip clause a stale delivery would reach `git commit` with nothing
@@ -217,3 +224,46 @@ jobs:
               --title "chore(context): sync skills from netlify/docs" \
               --body-file "$RUNNER_TEMP/pr-body.md"
           fi
+          echo "url=$(gh pr view "$branch" --json url --jq '.url')" >> "$GITHUB_OUTPUT"
+
+      # What happened, for the Slack notifier (EX-3057). Step outputs are not
+      # visible through the Actions API, so the docs sha, groupings and PR URL
+      # travel as a tiny artifact; the notifier reads the outcome itself
+      # (success / skip / which step failed) from job step conclusions and only
+      # decorates with this. always(): a run that dies mid-way still records
+      # what it resolved (e.g. the docs ref it could not check out). Fields are
+      # strings, possibly empty, exactly as Actions outputs are.
+      - name: Record receive outcome
+        if: always()
+        # Notifier plumbing must never redden the receiver: a failure here
+        # only costs the Slack line its docs sha / groupings / PR link.
+        continue-on-error: true
+        env:
+          DOCS_REF: ${{ steps.ref.outputs.ref }}
+          DOCS_SHA: ${{ steps.docs.outputs.sha }}
+          GUARD_SKIP: ${{ steps.guard.outputs.skip }}
+          GUARD_BYPASSED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_guard }}
+          CHANGED: ${{ steps.import.outputs.changed }}
+          CHANGED_COUNT: ${{ steps.import.outputs.changed_count }}
+          STATE_CHANGED: ${{ steps.import.outputs.state_changed }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/receive-outcome"
+          node -e '
+            const keys = ["DOCS_REF","DOCS_SHA","GUARD_SKIP","GUARD_BYPASSED","CHANGED","CHANGED_COUNT","STATE_CHANGED","PR_URL"];
+            const out = Object.fromEntries(keys.map((k) => [k.toLowerCase(), process.env[k] ?? ""]));
+            require("fs").writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
+          ' "$RUNNER_TEMP/receive-outcome/outcome.json"
+          cat "$RUNNER_TEMP/receive-outcome/outcome.json"
+
+      - name: Upload receive outcome
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ctx-receive-outcome
+          path: ${{ runner.temp }}/receive-outcome/
+          retention-days: 30
+          # workflow_run fires per attempt and the notifier reads the latest;
+          # a re-run must be able to replace attempt 1's artifact.
+          overwrite: true

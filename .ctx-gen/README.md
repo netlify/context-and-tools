@@ -34,6 +34,13 @@ AXIS scenarios.)
   draft PR when something changed. That PR runs the existing `validate-skills`
   and `build-generated-outputs` (cursor/codex parity) gates; a human reviews
   and merges. Rollback = revert.
+- **`../.github/workflows/ctx-pipeline-notify.yml`** — a `workflow_run`
+  watcher that posts every receiver outcome (imported / no-op / stale skip /
+  failed) to `#notify-context-pipeline`, the same channel the docs side
+  reports to. docs' dispatch is fire-and-forget, so without this a failed
+  import was invisible while Slack kept saying "delivered" (EX-3057). Logic in
+  `../scripts/ctx-notify.mjs`; inert until `SLACK_WEBHOOK_URL` exists in the
+  `ctx-pipeline` environment.
 
 ## Triggers
 

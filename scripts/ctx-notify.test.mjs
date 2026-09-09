@@ -20,7 +20,7 @@ import {
   classifyRun,
   formatMessage,
   parseOutcome,
-  slackEscape,
+  stripMarkup,
 } from './ctx-notify.mjs';
 
 // Step names exactly as .github/workflows/ctx-pipeline-receive.yml declares
@@ -84,11 +84,12 @@ const OUTCOME = {
 
 // ── shapes ──
 
-test('imported: PR step green → 📥 with groupings and PR link', () => {
+test('imported: PR step green → 📥 with groupings; the PR URL rides on its own line', () => {
   const cls = classifyRun(run(), [receiveJob()], OUTCOME);
   assert.equal(cls.shape, 'imported');
-  assert.match(cls.detail, /groupings: functions forms/);
-  assert.match(cls.detail, /PR <https:\/\/github\.com\/netlify\/context-and-tools\/pull\/123\|#123>/);
+  assert.equal(cls.detail, 'groupings: functions forms');
+  const msg = formatMessage(cls, run(), OUTCOME);
+  assert.equal(msg.split('\n').pop(), 'PR: https://github.com/netlify/context-and-tools/pull/123');
 });
 
 test('imported: ordering-only advance names itself rather than listing groupings', () => {
@@ -101,7 +102,7 @@ test('imported: no outcome artifact degrades the detail, not the shape', () => {
   const cls = classifyRun(run(), [receiveJob()], null);
   assert.equal(cls.shape, 'imported');
   assert.match(cls.detail, /groupings unknown/);
-  assert.match(cls.detail, /PR n\/a/);
+  assert.doesNotMatch(formatMessage(cls, run(), null), /^PR:/m);
 });
 
 test('noop: import green, PR skipped → 💤', () => {
@@ -150,8 +151,8 @@ test('red: docs checkout failure carries the requested ref when known', () => {
   assert.match(bare.detail, /at the requested ref/);
   // docs_ref echoes the dispatch payload: Slack markup must not survive.
   const hostile = classifyRun(run({ conclusion: 'failure' }), jobs, { docs_ref: '<!channel> ' + 'x'.repeat(100) });
-  assert.doesNotMatch(hostile.detail, /<!channel>/);
-  assert.match(hostile.detail, /&lt;!channel&gt; x+…/);
+  assert.doesNotMatch(hostile.detail, /[<>]/);
+  assert.match(hostile.detail, /!channel x+…/);
 });
 
 test('red: import step failure', () => {
@@ -212,34 +213,38 @@ test('unclassified: green run with a step layout the classifier does not know', 
   assert.equal(classifyRun(run(), [], null).shape, 'unclassified');
 });
 
-// ── message grammar: shape · run · docs sha · trigger · detail ──
+// ── message layout: status / docs+trigger / detail / run URL / PR URL ──
 
-test('formatMessage: five fields in contract order, docs sha shortened to 9', () => {
+test('formatMessage: one field per line in contract order, docs sha shortened to 9, plain-text only', () => {
   const msg = formatMessage(classifyRun(run(), [receiveJob()], OUTCOME), run(), OUTCOME);
-  const fields = msg.split(' · ');
-  assert.equal(fields[0], '📥 ctx-pipeline receive IMPORTED');
-  assert.equal(fields[1], '<https://github.com/netlify/context-and-tools/actions/runs/32073913019|run 32073913019>');
-  assert.equal(fields[2], `docs ${DOCS_SHA.slice(0, 9)}`);
-  assert.equal(fields[3], 'dispatch');
-  assert.ok(fields.slice(4).join(' · ').startsWith('groupings: functions forms'));
+  assert.deepEqual(msg.split('\n'), [
+    '📥 ctx-pipeline receive IMPORTED',
+    `docs ${DOCS_SHA.slice(0, 9)} · dispatch`,
+    'groupings: functions forms',
+    'run: https://github.com/netlify/context-and-tools/actions/runs/32073913019',
+    'PR: https://github.com/netlify/context-and-tools/pull/123',
+  ]);
+  // Workflow Builder renders the variable as plain text: no mrkdwn links, no entities.
+  assert.doesNotMatch(msg, /[<>]|&amp;/);
 });
 
-test('formatMessage: docs n/a without an artifact; attempt number on re-runs', () => {
+test('formatMessage: docs n/a without an artifact; attempt number on re-runs; no PR line', () => {
   const r = run({ run_attempt: 2 });
-  const msg = formatMessage(classifyRun(r, [receiveJob()], null), r, null);
-  assert.match(msg, /run 32073913019> \(attempt 2\) · docs n\/a · dispatch ·/);
+  const lines = formatMessage(classifyRun(r, [receiveJob()], null), r, null).split('\n');
+  assert.equal(lines[1], 'docs n/a · dispatch (attempt 2)');
+  assert.equal(lines.length, 4);
 });
 
 test('formatMessage: manual runs say so, and skip_guard bypasses are flagged', () => {
   const r = run({ event: 'workflow_dispatch' });
-  assert.match(formatMessage(classifyRun(r, [receiveJob()], OUTCOME), r, OUTCOME), / · manual · /);
+  assert.equal(formatMessage(classifyRun(r, [receiveJob()], OUTCOME), r, OUTCOME).split('\n')[1], `docs ${DOCS_SHA.slice(0, 9)} · manual`);
   const bypass = { ...OUTCOME, guard_bypassed: 'true' };
-  assert.match(formatMessage(classifyRun(r, [receiveJob()], bypass), r, bypass), / · manual \(skip_guard\) · /);
+  assert.equal(formatMessage(classifyRun(r, [receiveJob()], bypass), r, bypass).split('\n')[1], `docs ${DOCS_SHA.slice(0, 9)} · manual (skip_guard)`);
 });
 
 test('formatMessage: detail is capped at 300 chars', () => {
   const msg = formatMessage({ shape: 'red', detail: 'x'.repeat(500) }, run(), null);
-  const detail = msg.split(' · ').pop();
+  const detail = msg.split('\n')[2];
   assert.equal(detail.length, 300);
   assert.ok(detail.endsWith('…'));
 });
@@ -253,6 +258,6 @@ test('parseOutcome: object passes; garbage, arrays and null are absent', () => {
   assert.equal(parseOutcome('null'), null);
 });
 
-test('slackEscape escapes the three mrkdwn control characters', () => {
-  assert.equal(slackEscape('a<b>&c'), 'a&lt;b&gt;&amp;c');
+test('stripMarkup removes angle brackets and leaves everything else alone', () => {
+  assert.equal(stripMarkup('a<b>&c'), 'ab&c');
 });

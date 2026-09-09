@@ -19,10 +19,23 @@
 //   ⚠️ UNCLASSIFIED  cancelled / timed out / unrecognized job layout
 // Runs with conclusion "skipped" (CTX_PIPELINE off) post nothing.
 //
-// Field order is a contract shared with the docs-side notifier (the channel
-// is scraped as well as read): shape · run link · docs sha · trigger · detail.
+// Message layout, one field per line (the channel is scraped as well as
+// read, so the order is a contract):
+//   <emoji> ctx-pipeline receive <SHAPE>
+//   docs <sha9|n/a> · <trigger>[ (attempt N)]
+//   <detail>
+//   run: <url>
+//   PR: <url>            (only when the rolling PR was opened or updated)
 // The docs sha is the correlation key: it matches the sha in the docs-side
 // 📦 DELIVERED line for the same delivery.
+//
+// The channel's webhook is a Slack Workflow Builder trigger (EX-3065), which
+// drops `text` into a template as PLAIN text: mrkdwn is not interpreted, so
+// <url|label> links render as literal brackets and &amp; shows as-is. Bare
+// URLs auto-link and newlines break lines, so the message uses only those.
+// The one payload-derived field (docs_ref) has angle brackets stripped: moot
+// in plain-text mode, and the right guard if the trigger ever becomes a
+// classic incoming webhook that does parse mrkdwn.
 //
 // Classification reads GitHub's own job/step conclusions, so it works even
 // for runs that die before checkout. The receive workflow additionally
@@ -67,8 +80,8 @@ const STEP = {
   pr: 'Open or update the rolling sync PR',
 };
 
-export function slackEscape(s) {
-  return String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+export function stripMarkup(s) {
+  return String(s).replaceAll('<', '').replaceAll('>', '');
 }
 
 function truncate(s, max) {
@@ -94,13 +107,6 @@ function groupings(outcome) {
   return 'groupings unknown (no outcome artifact)';
 }
 
-function prLink(outcome) {
-  const url = outcome?.pr_url;
-  if (!url) return 'PR n/a';
-  const m = /\/pull\/(\d+)$/.exec(url);
-  return m ? `PR <${url}|#${m[1]}>` : `PR <${url}>`;
-}
-
 function failureDetail(step, outcome) {
   const name = step?.name ?? '';
   if (name.startsWith(STEP.preflight))
@@ -108,7 +114,7 @@ function failureDetail(step, outcome) {
   if (name.startsWith(STEP.checkoutDocs)) {
     // docs_ref echoes the dispatch payload — untrusted, so it must not carry
     // Slack markup (<!channel>) into the message.
-    const ref = outcome?.docs_ref ? slackEscape(truncate(outcome.docs_ref, 60)) : 'the requested ref';
+    const ref = outcome?.docs_ref ? stripMarkup(truncate(outcome.docs_ref, 60)) : 'the requested ref';
     return `could not check out netlify/docs at ${ref} — DOCS_READ_TOKEN expired, or the ref no longer exists (docs history rewrite?)`;
   }
   if (name.startsWith(STEP.guard))
@@ -144,8 +150,7 @@ export function classifyRun(run, jobs, outcome = null) {
     const guard = step(STEP.guard);
     const imp = step(STEP.import);
     const pr = step(STEP.pr);
-    if (pr?.conclusion === 'success')
-      return { shape: 'imported', detail: `${groupings(outcome)} · ${prLink(outcome)}` };
+    if (pr?.conclusion === 'success') return { shape: 'imported', detail: groupings(outcome) };
     // The import step is gated only on the guard's skip output, so "guard
     // green, import skipped" is a stale delivery and nothing else.
     if (guard?.conclusion === 'success' && imp?.conclusion === 'skipped')
@@ -176,16 +181,20 @@ export function formatMessage(cls, run, outcome = null) {
   if (!cls) return null;
   const { emoji, label } = SHAPES[cls.shape];
   const docsSha = (outcome?.docs_sha || '').slice(0, 9);
-  return [
+  // workflow_run fires per attempt: a re-run posts a second message for the
+  // same run ID, deliberately (a re-run that goes green must post 📥) — the
+  // attempt number keeps the duplicate legible.
+  const attempt = run.run_attempt > 1 ? ` (attempt ${run.run_attempt})` : '';
+  const lines = [
     `${emoji} ctx-pipeline receive ${label}`,
-    // workflow_run fires per attempt: a re-run posts a second line for the
-    // same run ID, deliberately (a re-run that goes green must post 📥) —
-    // the attempt number keeps the duplicate legible.
-    `<${run.html_url}|run ${run.id}>${run.run_attempt > 1 ? ` (attempt ${run.run_attempt})` : ''}`,
-    docsSha ? `docs ${docsSha}` : 'docs n/a',
-    slackEscape(trigger(run, outcome)),
+    `${docsSha ? `docs ${docsSha}` : 'docs n/a'} · ${trigger(run, outcome)}${attempt}`,
     truncate(cls.detail, 300),
-  ].join(' · ');
+    `run: ${run.html_url}`,
+  ];
+  // pr_url is only written when the PR step succeeded, so its presence is
+  // the signal — no shape check needed.
+  if (outcome?.pr_url) lines.push(`PR: ${outcome.pr_url}`);
+  return lines.join('\n');
 }
 
 // ── I/O below: nothing above this line shells out or reads the network ──

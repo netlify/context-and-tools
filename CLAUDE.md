@@ -36,3 +36,5 @@ Skills should be factual and platform-focused — not opinionated about framewor
 Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content.
 
 **Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/`, `codex/`, or `agent-plugin/skills/` — they are overwritten by CI.
+
+**Don't commit contributor-only skills.** `npx skills add netlify/context-and-tools` discovers any `SKILL.md` in the repo (including `.claude/skills/`) and installs it for users. Contributor tooling comes in as a plugin instead: `.claude/settings.json` enables Anthropic's `skill-creator` plugin, and Claude Code prompts you to install it when you trust this folder. Use it when creating or editing a skill.

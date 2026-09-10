@@ -230,7 +230,7 @@ jobs:
       - name: Record receive outcome
         if: always()
         # Notifier plumbing must never redden the receiver: a failure here
-        # only costs the Slack line its docs sha / groupings / PR link.
+        # only costs the Slack message its docs sha / groupings / PR link.
         continue-on-error: true
         env:
           DOCS_REF: ${{ steps.ref.outputs.ref }}

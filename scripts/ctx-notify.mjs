@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ctx-notify — classify a finished "Receive agent-context" run and post a
-// one-line status to #notify-context-pipeline (EX-3057).
+// short status to #notify-context-pipeline (EX-3057).
 //
 // Called by .github/workflows/ctx-pipeline-notify.yml (a workflow_run
 // watcher). The docs-side notifier reports delivery when its dispatch is
@@ -79,6 +79,8 @@ const STEP = {
   import: 'Import changed skills',
   pr: 'Open or update the rolling sync PR',
 };
+
+const PULL_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/;
 
 export function stripMarkup(s) {
   return String(s).replaceAll('<', '').replaceAll('>', '');
@@ -191,9 +193,10 @@ export function formatMessage(cls, run, outcome = null) {
     truncate(cls.detail, 300),
     `run: ${run.html_url}`,
   ];
-  // pr_url is only written when the PR step succeeded, so its presence is
-  // the signal — no shape check needed.
-  if (outcome?.pr_url) lines.push(`PR: ${outcome.pr_url}`);
+  // The receive workflow only writes pr_url when the PR step succeeded, but
+  // the header promises this line appears on IMPORTED alone, so the shape
+  // and the URL's form are checked here rather than trusted from the artifact.
+  if (cls.shape === 'imported' && PULL_URL.test(outcome?.pr_url || '')) lines.push(`PR: ${outcome.pr_url}`);
   return lines.join('\n');
 }
 

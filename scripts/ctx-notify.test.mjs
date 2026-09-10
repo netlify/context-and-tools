@@ -228,6 +228,28 @@ test('formatMessage: one field per line in contract order, docs sha shortened to
   assert.doesNotMatch(msg, /[<>]|&amp;/);
 });
 
+test('formatMessage: a populated pr_url never produces a PR line on a non-imported shape', () => {
+  const failed = run({ conclusion: 'failure' });
+  const cases = [
+    ['noop', run(), [receiveJob({ 'Open or update the rolling sync PR': 'skipped' })]],
+    ['stale', run(), [receiveJob({ 'Import changed skills': 'skipped', 'Open or update the rolling sync PR': 'skipped' })]],
+    ['red', failed, [receiveJob({ 'Open or update the rolling sync PR': 'failure' })]],
+    ['unclassified', run({ conclusion: 'cancelled' }), [receiveJob()]],
+  ];
+  for (const [shape, r, jobs] of cases) {
+    const cls = classifyRun(r, jobs, OUTCOME);
+    assert.equal(cls.shape, shape);
+    assert.doesNotMatch(formatMessage(cls, r, OUTCOME), /^PR:/m, shape);
+  }
+});
+
+test('formatMessage: PR line requires a GitHub pull URL, not whatever the artifact says', () => {
+  for (const bad of ['', 'not a url', 'https://example.com/pull/1', 'https://github.com/netlify/context-and-tools/pull/12 <!channel>']) {
+    const msg = formatMessage(classifyRun(run(), [receiveJob()], { ...OUTCOME, pr_url: bad }), run(), { ...OUTCOME, pr_url: bad });
+    assert.doesNotMatch(msg, /^PR:/m, JSON.stringify(bad));
+  }
+});
+
 test('formatMessage: docs n/a without an artifact; attempt number on re-runs; no PR line', () => {
   const r = run({ run_attempt: 2 });
   const lines = formatMessage(classifyRun(r, [receiveJob()], null), r, null).split('\n');

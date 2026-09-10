@@ -45,10 +45,22 @@ permissions:
 
 jobs:
   notify:
-    # A dispatch that arrived with CTX_PIPELINE off skips the receive job and
-    # the run concludes "skipped" — nothing to report, so don't spin up a
-    # runner to decide silence. Every other outcome is a message shape.
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'skipped'
+    # Trust boundary first: workflow_run matches by workflow NAME, so a fork PR
+    # that adds a pull_request trigger to the receive workflow (or ships a
+    # same-named file) would complete a run this watcher fires on — with the
+    # webhook secret, reading the fork's step names and artifact. Only runs
+    # from this repository on the receive workflow's two legitimate triggers
+    # get a runner; ctx-notify.mjs re-checks the same rule before posting.
+    # Then: a dispatch that arrived with CTX_PIPELINE off skips the receive job
+    # and the run concludes "skipped" — nothing to report, so no runner for
+    # that either. Every other outcome is a message shape.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        contains(fromJSON('["repository_dispatch","workflow_dispatch"]'), github.event.workflow_run.event) &&
+        github.event.workflow_run.conclusion != 'skipped'
+      )
     runs-on: ubuntu-latest
     environment: ctx-pipeline
     steps:

@@ -10,6 +10,9 @@ on:
       - "scripts/ctx-ordering-guard.test.mjs"
       - "scripts/ctx-notify.mjs"
       - "scripts/ctx-notify.test.mjs"
+      # ctx-notify.test.mjs parses these: a step rename must run the suite.
+      - ".github/workflows/ctx-pipeline-receive.yml"
+      - ".github/workflows/ctx-pipeline-notify.yml"
       - "package.json"
       - ".github/workflows/validate-skills.yml"
 

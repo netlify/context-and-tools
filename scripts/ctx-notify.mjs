@@ -19,8 +19,8 @@
 //   ⚠️ UNCLASSIFIED  cancelled / timed out / unrecognized job layout
 // Runs with conclusion "skipped" (CTX_PIPELINE off) post nothing.
 //
-// Message layout, one field per line (the channel is scraped as well as
-// read, so the order is a contract):
+// Message layout, one field per line, in a fixed order so a reader can pair
+// it with the docs-side line at a glance:
 //   <emoji> ctx-pipeline receive <SHAPE>
 //   docs <sha9|n/a> · <trigger>[ (attempt N)]
 //   <detail>
@@ -37,12 +37,28 @@
 // in plain-text mode, and the right guard if the trigger ever becomes a
 // classic incoming webhook that does parse mrkdwn.
 //
+// Trust boundary: workflow_run matches the watched workflow by NAME and fires
+// for any completed run of that name, including one a fork PR produced by
+// adding a pull_request trigger (or a same-named file) — and this watcher
+// runs on main with the webhook secret. So only runs from this repository
+// triggered by repository_dispatch or workflow_dispatch (the receive
+// workflow's only legitimate triggers) are classified; anything else is
+// refused before its steps or artifact are read. The notify workflow's job
+// `if:` enforces the same rule so a foreign run never starts a runner.
+//
 // Classification reads GitHub's own job/step conclusions, so it works even
 // for runs that die before checkout. The receive workflow additionally
 // uploads a small `ctx-receive-outcome` artifact (docs sha, groupings, PR
 // URL) that only enriches the message — its absence degrades to "docs n/a",
-// never to a wrong shape. Anything unrecognized posts ⚠️ loudly rather than
-// a confident guess.
+// never to a wrong shape. The artifact carries the run_attempt that wrote
+// it; a re-run that dies before uploading leaves the previous attempt's file
+// behind, and that one is ignored rather than attached to the new message.
+// Anything unrecognized posts ⚠️ loudly rather than a confident guess.
+//
+// GitHub API reads and the Slack POST retry three times with backoff and a
+// 10s timeout each. If Slack is still down after that the notify run goes
+// red; a persistent Slack outage cannot be reported through Slack, and the
+// red run is the floor (same as the docs side).
 //
 // Inert until SLACK_WEBHOOK_URL exists (ctx-pipeline environment): without it
 // the message prints as a dry run and the step exits 0. A failed Slack POST
@@ -71,8 +87,9 @@ const SHAPES = {
 };
 
 // Step names as the receive workflow declares them; matched by prefix so a
-// trailing clarification in the workflow doesn't silently break a match.
-const STEP = {
+// trailing clarification in the workflow doesn't silently break a match. The
+// test suite parses the workflow and fails if any prefix stops matching.
+export const STEP = {
   preflight: 'Preflight',
   checkoutDocs: 'Checkout netlify/docs',
   guard: 'Monotonicity guard',
@@ -81,6 +98,24 @@ const STEP = {
 };
 
 const PULL_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/;
+
+export const TRUSTED_EVENTS = ['repository_dispatch', 'workflow_dispatch'];
+
+// Returns null when the run may be classified, else the reason it may not.
+// run: {event, head_repository: {full_name}}
+export function untrustedReason(run, repo) {
+  const head = run.head_repository?.full_name;
+  if (head !== repo) return `run belongs to ${head ?? 'an unknown repository'}, not ${repo} (fork?)`;
+  if (!TRUSTED_EVENTS.includes(run.event))
+    return `run was triggered by ${run.event ?? 'an unknown event'}; the receive workflow only runs on ${TRUSTED_EVENTS.join(' / ')}`;
+  return null;
+}
+
+// The artifact is only trusted for the attempt that wrote it (see header).
+export function outcomeForAttempt(outcome, run) {
+  if (!outcome) return null;
+  return outcome.run_attempt === String(run.run_attempt) ? outcome : null;
+}
 
 export function stripMarkup(s) {
   return String(s).replaceAll('<', '').replaceAll('>', '');
@@ -122,7 +157,7 @@ function failureDetail(step, outcome) {
   if (name.startsWith(STEP.guard))
     return 'monotonicity guard failed closed — docs history diverged from lastImportedCommit, or state.json is unreadable. Every later dispatch fails the same way until a manual run with skip_guard resets the baseline';
   if (name.startsWith(STEP.import))
-    return 'import failed — a previously imported grouping vanished upstream, or an unsupported entry (symlink) in the skill tree; see run';
+    return 'import failed — ctx-receive exited non-zero; the run log names the cause';
   if (name.startsWith(STEP.pr))
     return `skills imported but the rolling sync PR was NOT pushed/opened (check CTX_PIPELINE_PR_TOKEN) — ${groupings(outcome)}`;
   return `receive failed at "${name || 'unknown step'}"`;
@@ -202,18 +237,33 @@ export function formatMessage(cls, run, outcome = null) {
 
 // ── I/O below: nothing above this line shells out or reads the network ──
 
-function gh(args) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-}
-function ghJson(args) {
-  return JSON.parse(gh(args));
+const RETRY_DELAYS_MS = [2000, 5000];
+const HTTP_TIMEOUT_MS = 10_000;
+
+async function withRetry(label, fn) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= RETRY_DELAYS_MS.length) throw err;
+      console.error(`${label} failed (${err.message.split('\n')[0]}); retrying in ${RETRY_DELAYS_MS[attempt] / 1000}s`);
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+    }
+  }
 }
 
-function loadOutcome(repo, runId) {
+function gh(args) {
+  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: HTTP_TIMEOUT_MS });
+}
+function ghJson(args) {
+  return withRetry(`gh ${args[0]} ${args[1]}`, async () => JSON.parse(gh(args)));
+}
+
+function loadOutcome(repo, run) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-notify-'));
   try {
-    gh(['run', 'download', String(runId), '-R', repo, '-n', OUTCOME_ARTIFACT, '-D', dir]);
-    return parseOutcome(fs.readFileSync(path.join(dir, 'outcome.json'), 'utf8'));
+    gh(['run', 'download', String(run.id), '-R', repo, '-n', OUTCOME_ARTIFACT, '-D', dir]);
+    return outcomeForAttempt(parseOutcome(fs.readFileSync(path.join(dir, 'outcome.json'), 'utf8')), run);
   } catch {
     return null;
   }
@@ -241,9 +291,14 @@ async function main() {
     console.error(`--run-id must be numeric, got ${JSON.stringify(args.runId)}`);
     process.exit(2);
   }
-  const run = ghJson(['api', `repos/${repo}/actions/runs/${args.runId}`]);
-  const { jobs } = ghJson(['api', `repos/${repo}/actions/runs/${args.runId}/jobs?per_page=100`]);
-  const outcome = run.conclusion === 'skipped' ? null : loadOutcome(repo, args.runId);
+  const run = await ghJson(['api', `repos/${repo}/actions/runs/${args.runId}`]);
+  const refused = untrustedReason(run, repo);
+  if (refused) {
+    console.log(`refusing to classify run ${run.id}: ${refused}`);
+    return;
+  }
+  const { jobs } = await ghJson(['api', `repos/${repo}/actions/runs/${args.runId}/jobs?per_page=100`]);
+  const outcome = run.conclusion === 'skipped' ? null : loadOutcome(repo, run);
 
   const message = formatMessage(classifyRun(run, jobs, outcome), run, outcome);
   if (!message) {
@@ -257,15 +312,15 @@ async function main() {
     console.log(`notify (dry-run): ${message}`);
     return;
   }
-  const res = await fetch(webhook, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ text: message }),
+  await withRetry('Slack POST', async () => {
+    const res = await fetch(webhook, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: message }),
+      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Slack webhook returned ${res.status}: ${await res.text()}`);
   });
-  if (!res.ok) {
-    console.error(`Slack webhook returned ${res.status}: ${await res.text()}`);
-    process.exit(1);
-  }
   console.log(`posted: ${message}`);
 }
 

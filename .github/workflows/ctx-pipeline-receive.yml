@@ -241,10 +241,14 @@ jobs:
           CHANGED_COUNT: ${{ steps.import.outputs.changed_count }}
           STATE_CHANGED: ${{ steps.import.outputs.state_changed }}
           PR_URL: ${{ steps.pr.outputs.url }}
+          # Binds the file to this attempt: a re-run that dies before the
+          # upload leaves the previous attempt's artifact, which the notifier
+          # must ignore rather than attach to the new message.
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           mkdir -p "$RUNNER_TEMP/receive-outcome"
           node -e '
-            const keys = ["DOCS_REF","DOCS_SHA","GUARD_SKIP","GUARD_BYPASSED","CHANGED","CHANGED_COUNT","STATE_CHANGED","PR_URL"];
+            const keys = ["DOCS_REF","DOCS_SHA","GUARD_SKIP","GUARD_BYPASSED","CHANGED","CHANGED_COUNT","STATE_CHANGED","PR_URL","RUN_ATTEMPT"];
             const out = Object.fromEntries(keys.map((k) => [k.toLowerCase(), process.env[k] ?? ""]));
             require("fs").writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
           ' "$RUNNER_TEMP/receive-outcome/outcome.json"

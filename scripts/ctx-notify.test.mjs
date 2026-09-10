@@ -14,32 +14,33 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   RECEIVE_WORKFLOW,
+  STEP,
+  TRUSTED_EVENTS,
   classifyRun,
   formatMessage,
+  outcomeForAttempt,
   parseOutcome,
   stripMarkup,
+  untrustedReason,
 } from './ctx-notify.mjs';
 
-// Step names exactly as .github/workflows/ctx-pipeline-receive.yml declares
-// them (and as the jobs API reports them, em dash included).
-const STEPS = [
-  'Set up job',
-  'Preflight — required secrets',
-  'Resolve docs ref',
-  'Checkout context-and-tools',
-  'Checkout netlify/docs at ref',
-  'Resolve docs commit',
-  'Resolve import baseline',
-  'Monotonicity guard',
-  'Import changed skills',
-  'Open or update the rolling sync PR',
-  'Record receive outcome',
-  'Upload receive outcome',
-  'Complete job',
-];
+const WORKFLOWS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows');
+const RECEIVE_YML = fs.readFileSync(path.join(WORKFLOWS, 'ctx-pipeline-receive.yml'), 'utf8');
+const NOTIFY_YML = fs.readFileSync(path.join(WORKFLOWS, 'ctx-pipeline-notify.yml'), 'utf8');
+
+// Step names are read from the receive workflow itself, not copied by hand,
+// so a rename there fails here. The jobs API wraps them in the two runner
+// steps; the classifier never looks at those.
+const WORKFLOW_STEPS = RECEIVE_YML.split('\n')
+  .filter((l) => /^      - name: /.test(l))
+  .map((l) => l.replace(/^      - name: /, '').trim());
+const STEPS = ['Set up job', ...WORKFLOW_STEPS, 'Complete job'];
 
 // Build a receive job where every step is green except those named in
 // `overrides` (step name → conclusion). Steps after the first failure are
@@ -80,7 +81,51 @@ const OUTCOME = {
   changed_count: '2',
   state_changed: 'true',
   pr_url: 'https://github.com/netlify/context-and-tools/pull/123',
+  run_attempt: '1',
 };
+const OUTCOME_WITH_ATTEMPT_2 = { ...OUTCOME, run_attempt: '2' };
+
+// ── coupling to the workflows: names the classifier keys on must exist ──
+
+test('every STEP prefix matches exactly one step in ctx-pipeline-receive.yml', () => {
+  assert.ok(WORKFLOW_STEPS.length >= 5, 'parsed too few steps from the receive workflow');
+  for (const [key, prefix] of Object.entries(STEP)) {
+    const hits = WORKFLOW_STEPS.filter((s) => s.startsWith(prefix));
+    assert.equal(hits.length, 1, `STEP.${key} (${JSON.stringify(prefix)}) matched ${hits.length} steps: ${JSON.stringify(hits)}`);
+  }
+});
+
+test('the receive workflow name and the notify trigger both equal RECEIVE_WORKFLOW', () => {
+  assert.match(RECEIVE_YML, new RegExp(`^name: ${RECEIVE_WORKFLOW}$`, 'm'));
+  assert.match(NOTIFY_YML, new RegExp(`workflows: \\["${RECEIVE_WORKFLOW}"\\]`));
+});
+
+test('the receive workflow has no triggers beyond TRUSTED_EVENTS', () => {
+  const on = RECEIVE_YML.slice(RECEIVE_YML.indexOf('\non:\n') + 5, RECEIVE_YML.indexOf('\npermissions:'));
+  const triggers = on.split('\n').filter((l) => /^  \w/.test(l)).map((l) => l.trim().replace(/:$/, ''));
+  assert.deepEqual(triggers.sort(), [...TRUSTED_EVENTS].sort());
+});
+
+// ── trust boundary ──
+
+test('untrustedReason: same-repo dispatch runs pass; forks and other events are refused', () => {
+  const repo = 'netlify/context-and-tools';
+  const ok = { event: 'repository_dispatch', head_repository: { full_name: repo } };
+  assert.equal(untrustedReason(ok, repo), null);
+  assert.equal(untrustedReason({ ...ok, event: 'workflow_dispatch' }, repo), null);
+  assert.match(untrustedReason({ ...ok, head_repository: { full_name: 'attacker/context-and-tools' } }, repo), /attacker\/context-and-tools.*fork/);
+  assert.match(untrustedReason({ ...ok, head_repository: undefined }, repo), /unknown repository/);
+  assert.match(untrustedReason({ ...ok, event: 'pull_request' }, repo), /pull_request/);
+  assert.match(untrustedReason({ ...ok, event: 'push' }, repo), /push/);
+});
+
+test('outcomeForAttempt: the artifact only counts for the attempt that wrote it', () => {
+  const r = run({ run_attempt: 2 });
+  assert.deepEqual(outcomeForAttempt({ ...OUTCOME, run_attempt: '2' }, r), OUTCOME_WITH_ATTEMPT_2);
+  assert.equal(outcomeForAttempt({ ...OUTCOME, run_attempt: '1' }, r), null);
+  assert.equal(outcomeForAttempt({ ...OUTCOME }, r), null, 'an artifact without run_attempt predates the check and is not trusted');
+  assert.equal(outcomeForAttempt(null, r), null);
+});
 
 // ── shapes ──
 
@@ -155,11 +200,11 @@ test('red: docs checkout failure carries the requested ref when known', () => {
   assert.match(hostile.detail, /!channel x+…/);
 });
 
-test('red: import step failure', () => {
+test('red: import step failure points at the run log rather than guessing a cause', () => {
   const jobs = [receiveJob({ 'Import changed skills': 'failure' })];
   const cls = classifyRun(run({ conclusion: 'failure' }), jobs, OUTCOME);
   assert.equal(cls.shape, 'red');
-  assert.match(cls.detail, /^import failed/);
+  assert.match(cls.detail, /^import failed — ctx-receive exited non-zero/);
 });
 
 test('red: PR step failure says skills imported but PR not surfaced, with groupings', () => {

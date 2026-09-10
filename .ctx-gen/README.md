@@ -36,7 +36,7 @@ AXIS scenarios.)
   and merges. Rollback = revert.
 - **`../.github/workflows/ctx-pipeline-notify.yml`** — a `workflow_run`
   watcher that posts every receiver outcome (imported / no-op / stale skip /
-  failed) to `#notify-context-pipeline`, the same channel the docs side
+  failed / unclassified) to `#notify-context-pipeline`, the same channel the docs side
   reports to. docs' dispatch is fire-and-forget, so without this a failed
   import was invisible while Slack kept saying "delivered" (EX-3057). Logic in
   `../scripts/ctx-notify.mjs`; inert until `SLACK_WEBHOOK_URL` exists in the

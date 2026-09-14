@@ -8,6 +8,11 @@ on:
       - "scripts/ctx-receive-ordering.test.mjs"
       - "scripts/ctx-ordering-guard.mjs"
       - "scripts/ctx-ordering-guard.test.mjs"
+      - "scripts/ctx-notify.mjs"
+      - "scripts/ctx-notify.test.mjs"
+      # ctx-notify.test.mjs parses these: a step rename must run the suite.
+      - ".github/workflows/ctx-pipeline-receive.yml"
+      - ".github/workflows/ctx-pipeline-notify.yml"
       - "package.json"
       - ".github/workflows/validate-skills.yml"
 
@@ -65,7 +70,8 @@ jobs:
 
   test-receiver:
     # Zero-dependency script tests for the Stage 2 receiver pipeline
-    # (scripts/ctx-receive.mjs, scripts/ctx-ordering-guard.mjs); `npm test`
+    # (scripts/ctx-receive.mjs, scripts/ctx-ordering-guard.mjs,
+    # scripts/ctx-notify.mjs); `npm test`
     # runs every scripts/*.test.mjs. No npm install: the package has no
     # dependencies, so `npm test` runs as-is.
     permissions:

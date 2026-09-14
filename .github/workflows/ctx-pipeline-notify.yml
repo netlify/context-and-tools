@@ -1,0 +1,79 @@
+name: ctx-pipeline notify
+
+# EX-3057: post every "Receive agent-context" outcome to
+# #notify-context-pipeline, the channel the docs-side notifier (AX-138)
+# already reports to. Why it exists: see the header of scripts/ctx-notify.mjs.
+#
+# A separate workflow_run watcher, not notify steps inside the receiver: it
+# fires on every terminal state — including runs that die at checkout,
+# cancels, and timeouts — and a bug here can never redden the receiver
+# itself. All logic lives in scripts/ctx-notify.mjs (thin-caller rule); the
+# five message shapes are documented there and tested by
+# scripts/ctx-notify.test.mjs (runs in validate-skills).
+#
+# workflow_run and workflow_dispatch both run this file's copy on the default
+# branch, so neither trigger works before merge. To test pre-merge, replay a
+# historical run locally:
+#   node scripts/ctx-notify.mjs --run-id <id> --repo netlify/context-and-tools --dry-run
+# After merge, workflow_dispatch replays any run ID — dry_run prints the exact
+# message instead of posting.
+#
+# Inert until SLACK_WEBHOOK_URL exists in the ctx-pipeline environment. It is
+# the same Slack webhook the docs side posts through (docs keeps its copy in
+# its ctx-gen environment); environment scoping means the secret only injects
+# into jobs that declare the environment, which matters in a public repo.
+# Without the secret, ctx-notify.mjs prints the message as a dry run and
+# exits 0.
+
+on:
+  workflow_run:
+    workflows: ["Receive agent-context"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Run ID of a Receive agent-context run to classify (replay)"
+        required: true
+      dry_run:
+        description: "Print the message instead of posting to Slack"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read # run metadata + the ctx-receive-outcome artifact
+
+jobs:
+  notify:
+    # Trust boundary first: workflow_run matches by workflow NAME, so a fork PR
+    # that adds a pull_request trigger to the receive workflow (or ships a
+    # same-named file) would complete a run this watcher fires on — with the
+    # webhook secret, reading the fork's step names and artifact. Only runs
+    # from this repository on the receive workflow's two legitimate triggers
+    # get a runner; ctx-notify.mjs re-checks the same rule before posting.
+    # Then: a dispatch that arrived with CTX_PIPELINE off skips the receive job
+    # and the run concludes "skipped" — nothing to report, so no runner for
+    # that either. Every other outcome is a message shape.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        contains(fromJSON('["repository_dispatch","workflow_dispatch"]'), github.event.workflow_run.event) &&
+        github.event.workflow_run.conclusion != 'skipped'
+      )
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Classify run and post to Slack
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          # env indirection: dispatch inputs are attacker-shaped and must reach
+          # the shell as data, never interpolated into command text.
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+        run: node scripts/ctx-notify.mjs --run-id "$RUN_ID"

@@ -2,18 +2,21 @@
   "name": "netlify-skills",
   "version": "1.3.2",
   "skills": [
-    "skills/netlify-functions",
-    "skills/netlify-edge-functions",
+    "skills/netlify-access-control",
+    "skills/netlify-agent-runner",
+    "skills/netlify-ai-gateway",
     "skills/netlify-blobs",
-    "skills/netlify-database",
-    "skills/netlify-image-cdn",
-    "skills/netlify-forms",
-    "skills/netlify-frameworks",
     "skills/netlify-caching",
     "skills/netlify-config",
+    "skills/netlify-database",
     "skills/netlify-deploy",
-    "skills/netlify-ai-gateway",
-    "skills/netlify-identity"
+    "skills/netlify-edge-functions",
+    "skills/netlify-forms",
+    "skills/netlify-frameworks",
+    "skills/netlify-functions",
+    "skills/netlify-identity",
+    "skills/netlify-image-cdn",
+    "skills/netlify-mcp-servers"
   ],
   "mcpServers": {
     "netlify": {

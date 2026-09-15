@@ -160,4 +160,8 @@ The `cursor/rules/` and `codex/` directories are auto-generated from `skills/` b
 ```bash
 bash scripts/build-cursor-rules.sh
 bash scripts/build-codex-skills.sh
+bash scripts/build-agent-plugin.sh
+bash scripts/build-gemini-extension.sh
 ```
+
+The same workflow also rewrites the `skills` array in `gemini-extension.json` from `skills/`, so don't hand-edit that list either.

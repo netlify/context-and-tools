@@ -4,6 +4,13 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.4.0](https://github.com/netlify/context-and-tools/compare/v1.3.2...v1.4.0) (2026-09-14)
+
+
+### Features
+
+* **ctx-pipeline:** post receive outcomes to Slack (EX-3057) ([#120](https://github.com/netlify/context-and-tools/issues/120)) ([5851a0e](https://github.com/netlify/context-and-tools/commit/5851a0e75f2065395efe5f242b4f0c6763911412))
+
 ## [1.3.2](https://github.com/netlify/context-and-tools/compare/v1.3.1...v1.3.2) (2026-09-10)
 
 

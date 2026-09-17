@@ -1,6 +1,6 @@
 {
   "name": "netlify-skills",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "skills": [
     "skills/netlify-access-control",
     "skills/netlify-agent-runner",

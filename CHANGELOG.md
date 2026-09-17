@@ -4,6 +4,13 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.4.1](https://github.com/netlify/context-and-tools/compare/v1.4.0...v1.4.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **gemini:** derive the extension skill list from skills/ ([#125](https://github.com/netlify/context-and-tools/issues/125)) ([c1f66d6](https://github.com/netlify/context-and-tools/commit/c1f66d6d2f8a716bd609c9e78d723f6352a4304a))
+
 ## [1.4.0](https://github.com/netlify/context-and-tools/compare/v1.3.2...v1.4.0) (2026-09-14)
 
 

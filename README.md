@@ -18,6 +18,9 @@ Public Netlify skills for AI coding agents. Each skill is a focused, factual ref
 | [netlify-ai-gateway](skills/netlify-ai-gateway/SKILL.md) | AI Gateway proxy for OpenAI, Anthropic, and Google SDKs |
 | [netlify-identity](skills/netlify-identity/SKILL.md) | User authentication — signups, logins, OAuth, role-based access control |
 | [netlify-deploy](skills/netlify-deploy/SKILL.md) | CLI install/auth, site linking, Git-based and manual deploys, CI deploys, deploy troubleshooting |
+| [netlify-access-control](skills/netlify-access-control/SKILL.md) | Protecting sites and previews — password protection, team-only access, visibility defaults, SSO |
+| [netlify-agent-runner](skills/netlify-agent-runner/SKILL.md) | Running Claude, Codex, or Gemini agent tasks remotely against a site's repo |
+| [netlify-mcp-servers](skills/netlify-mcp-servers/SKILL.md) | MCP servers on Netlify Functions — transport, authentication, connecting clients |
 
 ### References
 
@@ -153,9 +156,9 @@ Keep skills focused on Netlify platform primitives. Each skill should answer "ho
 
 Follow the existing format: YAML frontmatter with `name` and `description`, markdown body, code examples with TypeScript where applicable. Use `references/` subdirectories for content that would push a SKILL.md past 500 lines.
 
-### Cursor rules and Codex skills are generated — do not edit them directly
+### Generated outputs — do not edit them directly
 
-The `cursor/rules/` and `codex/` directories are auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/`. On same-repo PRs and on every push to `main` that changes `skills/`, the workflow rebuilds the mirrors and commits them alongside your change — you don't need to run the build yourself. (Fork PRs can't be committed to automatically; include the regenerated output in your PR, or a maintainer will regenerate it.) To preview locally:
+The `cursor/rules/`, `codex/`, and `agent-plugin/skills/` directories, and the `skills` array in `gemini-extension.json`, are auto-generated from `skills/` by a GitHub Actions workflow. Always edit the source files in `skills/`. On same-repo PRs and on every push to `main` that changes `skills/`, the workflow rebuilds all of them and commits them alongside your change — you don't need to run the build yourself. (Fork PRs can't be committed to automatically; include the regenerated output in your PR, or a maintainer will regenerate it.) To preview locally:
 
 ```bash
 bash scripts/build-cursor-rules.sh
@@ -163,5 +166,3 @@ bash scripts/build-codex-skills.sh
 bash scripts/build-agent-plugin.sh
 bash scripts/build-gemini-extension.sh
 ```
-
-The same workflow also rewrites the `skills` array in `gemini-extension.json` from `skills/`, so don't hand-edit that list either.

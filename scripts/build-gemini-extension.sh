@@ -16,13 +16,14 @@ MANIFEST="$REPO_ROOT/gemini-extension.json"
 
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
 
-# Each immediate child of skills/ with a SKILL.md, as a repo-relative path.
+# Each skills/netlify-*/ directory with a SKILL.md, as a repo-relative path —
+# the same set the Cursor, Codex, and agent-plugin builds take.
 # LC_ALL=C so the order doesn't depend on the runner's locale collation.
 skill_paths=()
 while IFS= read -r skill_dir; do
   [ -f "$skill_dir/SKILL.md" ] || continue
   skill_paths+=("skills/$(basename "$skill_dir")")
-done < <(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
+done < <(find "$SKILLS_DIR" -mindepth 1 -maxdepth 1 -type d -name 'netlify-*' | LC_ALL=C sort)
 
 tmp="$(mktemp)"
 jq --indent 2 '.skills = $ARGS.positional' "$MANIFEST" --args "${skill_paths[@]}" > "$tmp"

@@ -67,10 +67,12 @@ jobs:
       # (including whatever commit the release-please PR tags). One job / one
       # push means the builds can't race each other.
       #
-      # No [skip ci]: the path filters above already exclude the generated
-      # trees, so this generated-only commit won't retrigger the build — and
-      # dropping the skip token lets the normal PR checks evaluate the actual
-      # head commit instead of being skipped on it.
+      # No [skip ci]. gemini-extension.json is in the path filters above, so
+      # this commit can match them, but it won't retrigger the build: pushes
+      # made with the default GITHUB_TOKEN don't start new workflow runs, and a
+      # rerun would find nothing to commit. Leaving the skip token off lets the
+      # normal PR checks evaluate the actual head commit instead of being
+      # skipped on it.
       - name: Commit regenerated outputs
         if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |

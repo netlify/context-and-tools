@@ -58,7 +58,10 @@ const nextConfig = {
 };
 ```
 
-Client `fetch` calls are never covered automatically — Next.js does not attach the deployment identifier to them, so those requests always hit the current deploy. Send it yourself with `x-deployment-id: process.env.NEXT_DEPLOYMENT_ID`.
+Client `fetch` calls are not covered automatically by default, so those requests hit the current deploy. Two ways to change that:
+
+1. **Experimental, Next.js 15.4+.** Set `experimental.useSkewCookie` in `next.config.js`. Next.js then carries the deployment identifier in a cookie instead of on asset request URLs, so it rides along on client `fetch` calls with no per-call code. Netlify supports this flag, but it is not production-ready, and the cookie keeps visitors on the older deploy until the identifier stops being accepted or the session cookie clears.
+2. **Manual, any version.** Send the identifier on the calls that need it with `x-deployment-id: process.env.NEXT_DEPLOYMENT_ID`. Netlify rewrites the request to that deployment.
 
 ## API Routes
 

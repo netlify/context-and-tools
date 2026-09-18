@@ -142,6 +142,8 @@ Header matching uses an `[edge_functions.header]` sub-table.
 ### Execution order
 Config-file declarations run before inline; framework-generated before user; non-cached before cached. Within `netlify.toml`: top-to-bottom. Within inline: **alphabetical by file name**. To control order, prefer `netlify.toml`. If the same function is declared both inline and in toml, they merge and inline fields win.
 
+**Two-pass loop:** Netlify runs the whole declaration order **twice** — the first pass runs only edge functions **not** configured for caching, the second pass runs the ones **with** caching configured. So a cached function always runs after every non-cached one on the same path, regardless of declaration position — that's why a cached function declared between two non-cached ones still runs after both.
+
 Caveats: a function on the **target** of a static rewrite does **not** run for rewritten requests. If a function returns a `Response`, redirects for that path are skipped.
 
 ## Response caching (opt-in)
@@ -221,7 +223,7 @@ netlify dev      # runs edge functions on local requests at :8888
 ```
 - Geo mocking: `--geo=mock` (San Francisco) or `--geo=mock --country=XX`. Debug: `--edge-inspect` / `--edge-inspect-brk`.
 - Manual deploys require CLI **12.2.8+** (older versions error). Deploys are atomic.
-- Logs: **Logs & Metrics > Edge Functions** in the UI; each `console` log names the emitting function. Filter by name/path (glob) and time. Retention ≥24h (7 days on some plans).
+- Logs: **Cloud compute > Edge functions** in the UI; each `console` log names the emitting function. Filter by name/path (glob) and time. Retention ≥24h (7 days on some plans).
 
 ## Feature limitations
 
@@ -257,3 +259,8 @@ by the skills maintainer.
 5. Cache headers on an edge response do nothing without `cache: "manual"` in
    config — it's both or neither. Setting `Cache-Control` on the returned
    `Response` has no effect unless the function also opts in.
+6. When explaining declaration processing order, state the two-pass loop,
+   not just the ordering: Netlify runs the whole declaration order TWICE —
+   first pass runs only edge functions not configured for caching, second
+   pass runs the ones with caching configured. "Non-cached before cached"
+   without the loop framing is an incomplete answer.

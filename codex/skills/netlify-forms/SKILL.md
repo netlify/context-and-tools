@@ -120,7 +120,7 @@ All submissions are filtered by Akismet. Passed → **Verified submissions**; fl
 
 ## Email notifications & subject line
 
-Default sender: `formresponses@netlify.com`. Set subject via a hidden `subject` input **or** the Netlify UI (Configuration > Notifications) — **not both; the HTML value always overrides the UI.**
+Default sender: `formresponses@netlify.com`. Set subject via a hidden `subject` input **or** the Netlify UI (Forms > Submission notifications) — **not both; the HTML value always overrides the UI.**
 
 ```html
 <input type="hidden" name="subject" value="New lead from %{formName} (%{submissionId})" />
@@ -128,7 +128,7 @@ Default sender: `formresponses@netlify.com`. Set subject via a hidden `subject` 
 
 Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before **May 5, 2023** carry a `[Netlify]` subject prefix — remove it by adding the `data-remove-prefix` attribute to the `subject` input.
 
-Set up notifications (email/webhook/Slack) in the UI: Configuration > Notifications > Form submission notifications > **Add notification**.
+Set up notifications (email/webhook/Slack) in the UI: Forms > Submission notifications > **Add notification**.
 
 ## Reading submissions via the API
 
@@ -150,7 +150,7 @@ Field order in the HTML affects what appears in the summary.
 
 - **First suspect: Akismet false positive.** A missing legitimate submission is usually spam-flagged — check the **Spam** list (or API `?state=spam`) and mark it verified. Do NOT build a custom recovery function or disable spam filtering as a first resort.
 - Test submissions get flagged as spam: use a real email (not `test@test.com`), write full sentences, don't hammer from one IP.
-- No submissions at all: confirm form detection is enabled and redeploy.
+- No submissions at all: confirm form detection is enabled (Forms > Form detection) and redeploy.
 - SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
 - Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
 
@@ -160,6 +160,8 @@ Field order in the HTML affects what appears in the summary.
 - Submitted code is sanitized (`<script>` → escaped entities).
 - For PII, export and delete data regularly.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
+
+<!-- Forms usage now at Forms > Usage; form detection at Forms > Form detection — UI paths updated per manifest commit a28cd46. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

@@ -234,7 +234,7 @@ netlify dev
 ```
 Manual: `npm install @netlify/database`, write a migration under `netlify/database/migrations/`, write a function, `netlify dev`, deploy.
 
-**If `@netlify/database` is NOT installed, Netlify will NOT auto-provision a database** — you'd have to create one manually from the UI **Database** menu. Install the package.
+**If `@netlify/database` is NOT installed, Netlify will NOT auto-provision a database** — you'd have to create one manually from the UI **Data & Storage** > **Database** menu. Install the package.
 
 ## CLI reference (`netlify database`)
 

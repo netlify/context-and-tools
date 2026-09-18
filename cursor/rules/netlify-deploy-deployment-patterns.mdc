@@ -110,4 +110,4 @@ When a failure isn't resolved by the deploy log, report the exact error, the log
 
 - Netlify CLI Documentation: https://docs.netlify.com/cli/get-started/
 - Framework Integration Guides: https://docs.netlify.com/frameworks/
-- Build Configuration: https://docs.netlify.com/configure-builds/
+- Build Configuration: https://docs.netlify.com/build/configure-builds/overview/

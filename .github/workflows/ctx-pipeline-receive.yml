@@ -214,12 +214,20 @@ jobs:
             echo "Ref: AX-97."
           } > "$RUNNER_TEMP/pr-body.md"
 
+          # `fix(...)`, not `chore(...)`: the repo squash-merges with the PR
+          # TITLE as the whole commit message (body discarded), and release-
+          # please treats chore as unreleasable. Titled chore, every skill sync
+          # landed on main without ever cutting a version, so anyone installing
+          # a published version stayed behind main indefinitely. The title is
+          # also re-applied on the edit path, so a PR opened before this change
+          # is corrected rather than left unreleasable for its whole life.
+          title="fix(context): sync skills from netlify/docs"
           if [ "$(gh pr view "$branch" --json state --jq '.state' 2>/dev/null)" = "OPEN" ]; then
-            gh pr edit "$branch" --body-file "$RUNNER_TEMP/pr-body.md"
+            gh pr edit "$branch" --title "$title" --body-file "$RUNNER_TEMP/pr-body.md"
             echo "Updated the existing sync PR."
           else
             gh pr create --draft --base main --head "$branch" \
-              --title "chore(context): sync skills from netlify/docs" \
+              --title "$title" \
               --body-file "$RUNNER_TEMP/pr-body.md"
           fi
           echo "url=$(gh pr view "$branch" --json url --jq '.url')" >> "$GITHUB_OUTPUT"

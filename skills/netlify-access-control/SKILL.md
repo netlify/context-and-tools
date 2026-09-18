@@ -35,7 +35,7 @@ Sessions are separate. The same provider (e.g. Google) can appear twice unrelate
 
 - **Private** already requires Netlify credentials — no shared password. Invite by email; recommended for team-only access.
 - **Password** = one universal shared password anyone can use (including managing team members, who must also enter it). No SSO.
-- **Team login protection** = same mechanism as Private; only **Developers, Team Owners, Billing Admins** get in. **Git Contributors cannot log in.**
+- **Team login protection** = same mechanism as Private; only **Developers, Team Owners, Billing Admins** get in. **Git Contributors cannot log in** — invite them as **Reviewers** instead, which is the documented path: unlimited and not counted toward the member count on legacy plans; Pro or higher on Credit-based plans. Never answer a Git Contributor access question by upgrading them to Developer.
 
 ## SSO-session symptom: 401s after ~1 hour
 
@@ -67,6 +67,7 @@ if (!Number.isNaN(secondsLeft) && secondsLeft < 60) {
 ## Constraints & footguns
 
 - **Site-specific Password Protection overrides team defaults.**
+- **Who can change these settings:** project visibility — Organization Owners (on certain Enterprise plans), Team Owners, and Developers with access to that project; **Internal Builders cannot publish to production, so they cannot make a project public**. Password Protection — a Developer changes it per site, a Team Owner sets the team default.
 - **Advanced Web Security runs before password/login prompts** — a blocked IP hits an error page before ever seeing the prompt. Internal order: Firewall Traffic Rules → WAF → Rate limiting.
 - **Third-party webhooks (Slack, Stripe, etc.) cannot reach a private project** — receiving webhooks requires the project to be **public**.
 - **Make public** requires at least one successful **production deploy**.

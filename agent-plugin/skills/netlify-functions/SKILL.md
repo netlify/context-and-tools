@@ -241,7 +241,7 @@ When justified — e.g. an EU-resident database:
 export const config: Config = { path: "/eu-data", region: "dub" }
 ```
 
-Airport codes (self-serve): `cmh`, `dub`, `fra`, `gru`, `iad`, `lhr`, `nrt`, `pdx`, `sfo`, `sin`, `syd`, `yul`. Support-assisted: `cdg`, `mxp`. Each function runs in exactly one region (no multi-region geo-routing). Region selection needs Pro/Enterprise. Framework-adapter-generated functions can't take `export const config` — set region at project level in the UI. After changing region, **redeploy**. Function-level region beats the site-level UI setting.
+Airport codes (self-serve): `cmh`, `dub`, `fra`, `gru`, `iad`, `lhr`, `nrt`, `pdx`, `sfo`, `sin`, `syd`, `yul`. Support-assisted: `cdg`, `mxp`. Each function runs in exactly one region (no multi-region geo-routing). Region selection needs Pro/Enterprise. Framework-adapter-generated functions can't take `export const config` — set region at project level in the UI under **Cloud compute > Functions > Region**. After changing region, **redeploy**. Function-level region beats the site-level UI setting.
 
 ## Memory / vCPU
 
@@ -280,7 +280,7 @@ JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 - Most frameworks emulate functions in their dev server. Vite frameworks (Astro, Nuxt, TanStack Start, React Router): install `@netlify/vite-plugin` and run the dev server. Next.js and anything else: use the [Netlify CLI](https://docs.netlify.com/api-and-cli-guides/cli-guides/local-development/) (`netlify dev`).
 - Scheduled functions don't fire on a schedule locally — invoke once with `netlify functions:invoke <name>`.
 - Deploy: push to Git for continuous deployment, or use the Netlify CLI/API.
-- Logs & metrics live in the Netlify UI; stream with the CLI.
+- Logs & metrics live in the Netlify UI; stream with the CLI. All deployed function versions appear under the **Functions** tab; use the search field at the top of the list to filter functions by name, and the separate filter to select a branch or enter a Deploy Preview number.
 
 ## Node runtime version
 
@@ -346,3 +346,16 @@ hand-written netlify-functions skill; owned by the skills maintainer.
 13. The body must state that `[[headers]]` in netlify.toml, `_headers`, and
     redirect header rules apply ONLY to static CDN responses — response
     headers for a function are set in code on the returned `Response`.
+14. When asked to build a function that performs specific work (generate a
+    report, process an upload, send a digest), implement the work — pick a
+    real library where one is needed and write the operation end to end.
+    Never deliver the core task as a `not implemented` stub behind finished
+    plumbing: a function whose central branch throws is not a working
+    answer, however complete its config and routing.
+15. `config.background: true` is the documented, currently-supported way to
+    make a function background (the `-background` filename suffix also still
+    works). If a locally installed bundler doesn't recognize the flag,
+    suspect version skew first: check and upgrade the local tooling, and
+    keep local-compatibility findings separate from claims about platform
+    support — never remove the docs-recommended flag from an answer based
+    solely on an older installed schema.

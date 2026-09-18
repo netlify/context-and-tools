@@ -1,154 +1,129 @@
 ---
-description: Add authentication and user management to a Netlify site with @netlify/identity — signup/login/logout, OAuth social login (Google/GitHub/GitLab/Bitbucket), server-side user verification in Functions, role-based access control (RBAC), admin user management, and Identity event hooks. Use when adding a login/signup flow, "add social login", gating content by user role, protecting a function or page behind auth, assigning roles at signup, customizing auth emails, or handling OAuth/confirmation/recovery callbacks. Not for locking an entire site to a company/team — that is netlify-access-control.
+description: Add user authentication to a Netlify site with @netlify/identity — signup/login/logout, Google/GitHub/GitLab/Bitbucket OAuth, server-side getUser() checks, role-based access control, and Identity event functions. Use it when a task involves adding a login or signup form, gating content to members or roles, "auth middleware" or verifying users in Netlify Functions or Edge Functions, handling OAuth or email-confirmation callbacks, assigning roles at signup, or customizing Identity emails. For locking a whole site to your company or employees-only access, use netlify-access-control instead.
 alwaysApply: false
 ---
 
 # Netlify Identity
 
-Auth and user management for a Netlify site without requiring visitors to be Netlify users. Package: `@netlify/identity`.
-
-**Reach for `@netlify/identity`.** Do NOT use the legacy `netlify-identity-widget` or `gotrue-js` for new work — same capabilities, simpler API, built-in server-side support.
-
-## Footguns — read first
-
-- **Identity does not work under `netlify dev`.** Test auth flows on a deploy — Deploy Previews work. Local `netlify dev` cannot exercise `/.netlify/identity/*`.
-- **Never build a from-scratch third-party OAuth flow beside Identity** — no provider app registration in code, no `client_id`/`secret` in code, no custom callback token exchange. Use `oauthLogin()` + `handleAuthCallback()`. Raw OAuth beside Identity is the single most common source of rework.
-- **Identity config has no public API — dashboard only.** Never curl `api.netlify.com` to flip/inspect Identity settings, never read tokens from `~/Library/Preferences/netlify/config.json`, never probe undocumented endpoints.
-- **RBAC redirects without a fallback = raw 404.** A visitor lacking the role gets a bare 404 with no way to log in. Always add a fallback rule.
-- **Server-side `login()`/`signup()`/`logout()` need CSRF protection.** Call `verifyRequestOrigin(req)` first, or an attacker can log a victim into the attacker's account.
-- **Site-gating** ("lock this site to my company", employees-only) → route to **netlify-access-control** first. Identity is the app-level user layer only.
-- **On failure** (callback 404s, `/.netlify/identity/*` unreachable, OAuth doesn't return): surface the error, the dashboard URL, and the setting to check — then stop. Do not invent recovery commands.
-
-## Setup
-
-Identity must be enabled in the dashboard first (no API): **Project configuration > Identity** (`https://app.netlify.com/projects/{site_name}/configuration/identity`) → **Enable Identity**.
+Use `@netlify/identity` (npm). For new projects it replaces the legacy `netlify-identity-widget` and `gotrue-js` — do not reach for those.
 
 ```bash
 npm install @netlify/identity
 ```
 
-HTTPS is required. On a custom domain, get HTTPS/SSL working before integrating Identity.
+Framework examples (Next.js/Astro/Remix/SvelteKit) and the full API reference are in the [`@netlify/identity` README on npm](https://www.npmjs.com/package/@netlify/identity).
 
-## Client / universal auth
+> **Identity does not run under `netlify dev`.** Test all auth flows on a deploy — Deploy Previews work. Local dev will not complete signup/login/OAuth.
+
+> **Identity config is dashboard-only — there is no public API.** Never curl `api.netlify.com` to flip or read Identity settings, never read tokens from local Netlify config, never probe undocumented endpoints. Enable and configure Identity at `https://app.netlify.com/projects/{site_name}/identity`.
+
+> **Never build a from-scratch OAuth flow alongside Identity.** No provider app registration in code, no `client_id`/`secret` in source, no custom callback token exchange. Use `oauthLogin()` + `handleAuthCallback()`. Raw OAuth beside Identity is the most common source of rework.
+
+## Client auth (browser)
 
 ```ts
 import { signup, login, logout, getUser, oauthLogin, handleAuthCallback } from '@netlify/identity'
 
-// Sign up — sends a confirmation email by default (skippable via autoconfirm setting)
+// Register — confirmation email sent by default (unless autoconfirm is on)
 const user = await signup('jane@example.com', 'securepassword', { full_name: 'Jane Doe' })
 
-// Log in / log out
+// Log in / out
 await login('jane@example.com', 'securepassword')
 await logout()
 
-// Current user — null if not logged in (works in browser + server)
-const u = await getUser()
-if (u) console.log(u.email)
+// Current user or null
+const current = await getUser()
+if (current) console.log(`Logged in as ${current.email}`)
 
-// OAuth — redirects browser to provider login
-oauthLogin('github') // 'google' | 'github' | 'gitlab' | 'bitbucket'
+// External provider — redirects the browser; provider is one of
+// 'google' | 'github' | 'gitlab' | 'bitbucket'
+oauthLogin('github')
 ```
 
-**Callback handling is mandatory.** Call `handleAuthCallback()` on your landing page. It processes ALL token types in the URL hash — OAuth redirect, email confirmation, password recovery, invite. Without it, confirmation links and OAuth redirects never complete.
+> **`handleAuthCallback()` is mandatory on your landing page.** Without it, OAuth redirects, email-confirmation links, password-recovery links, and invite links never complete. Call it on page load:
 
 ```ts
 import { handleAuthCallback } from '@netlify/identity'
 
-const result = await handleAuthCallback()
-if (result) console.log(result.type, result.user.email) // may be falsy if nothing to process
+const result = await handleAuthCallback() // falsy if no token in URL hash
+if (result) console.log(result.type, result.user.email) // confirmation | invite | recovery | email change
 ```
 
-Other client functions:
-- `recoverPassword()` — complete a password reset (alternative to letting `handleAuthCallback()` handle the `recovery_token`).
-- `acceptInvite()` — complete invite acceptance (alternative to `handleAuthCallback()` handling `invite_token`).
-- `refreshSession()` — refresh token/session so newly-assigned roles take effect.
+Alternatives for a single token type: `recoverPassword()` (recovery), `acceptInvite()` (invite). Refresh a session with `refreshSession()`.
 
-**Don't hard-code which providers exist.** Call `getSettings()` at startup and render the signup form and OAuth buttons from what it returns.
+Don't hard-code which providers exist. Call `getSettings()` at startup and render the signup form and OAuth buttons from what it returns.
 
-## Server-side (Functions / Edge Functions)
+## Server-side auth (Netlify Functions & Edge Functions)
 
-Handlers are modern v2 functions: `export default async (req, context) => {}`. **v1 `export { handler }` is not supported** for `getUser()`/`login()`/`admin.*`.
+Server-side `getUser()`/`login()`/`admin.*` require modern **v2 functions** (`export default`). The v1 `export { handler }` form is not supported.
+
+`getUser()` works in both runtimes. **`admin.*` runs ONLY in Netlify Functions — not the browser, not Edge Functions.**
 
 ```ts
+// netlify/functions/me.ts — verify user
 import { getUser } from '@netlify/identity'
-import type { Context } from '@netlify/functions'      // or '@netlify/edge-functions' for Edge
+import type { Context } from '@netlify/functions'
+
+export default async (req: Request, context: Context) => {
+  const user = await getUser()
+  if (!user) return new Response('Unauthorized', { status: 401 })
+  return Response.json({ id: user.id, email: user.email })
+}
+```
+
+Edge Function form is identical but imports `Context` from `@netlify/edge-functions`.
+
+### Role checks
+
+```ts
+// netlify/functions/admin-users.ts
+import { getUser, admin } from '@netlify/identity'
+import type { Context } from '@netlify/functions'
 
 export default async (req: Request, context: Context) => {
   const user = await getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
   if (!user.roles.includes('admin')) return new Response('Forbidden', { status: 403 })
-  return Response.json({ id: user.id, email: user.email })
+  const users = await admin.listUsers()
+  return Response.json({ users })
 }
 ```
 
-`getUser()` works in browser, Netlify Functions, and Edge Functions.
+### CSRF: required for server-side auth endpoints
 
-**CSRF — always guard exposed `login`/`signup`/`logout` endpoints:**
+> Any endpoint that runs `login()`, `signup()`, or `logout()` server-side **must** call `verifyRequestOrigin(req)` at the top of the handler. It throws a 403 on origin mismatch.
 
-```ts title="netlify/functions/login.ts"
+```ts
+// netlify/functions/login.ts
 import { login, verifyRequestOrigin } from '@netlify/identity'
 import type { Context } from '@netlify/functions'
 
 export default async (req: Request, context: Context) => {
-  verifyRequestOrigin(req)   // throws 403 on Origin mismatch; supports { allowedOrigins }
+  verifyRequestOrigin(req)
   const { email, password } = await req.json()
   await login(email, password)
   return new Response(null, { status: 302, headers: { Location: '/dashboard' } })
 }
 ```
 
-### admin — Netlify Functions ONLY
-
-`admin.*` uses a short-lived admin token and runs **only in Netlify Functions** — NOT browser, NOT Edge Functions.
-
-```ts
-import { admin } from '@netlify/identity'
-import type { Context } from '@netlify/functions'
-
-export default async (req: Request, context: Context) => {
-  const users = await admin.listUsers()   // array of users
-  return Response.json({ total: users.length })
-}
-```
-
-- `admin.listUsers()` — array of users.
-- `admin.updateUser()` — update a user (e.g. roles). Full API: https://www.npmjs.com/package/@netlify/identity
-
-### Session cookies
-JWT stored in cookie `nf_jwt`, sent automatically. Server-side `login`/`signup`/`logout` read/write `nf_jwt` and `nf_refresh` via the runtime, so the browser gets the session in the response.
-
-### The `User` object
-`id`, `email`, `roles` (array from `app_metadata.roles`, included in the JWT).
-
 ## Identity event functions
 
-Functions the platform invokes automatically on Identity events (you don't call them).
+The platform calls your handler when an Identity event occurs. Export a default object with a method per event. File: `netlify/functions/identity.mts`.
 
-**Modern typed-handler syntax** — export a default object with a method per event. Typed handlers require `@netlify/functions` ≥ 5.2.0.
-
-```typescript title="netlify/functions/identity.mts"
-import type { UserSignupEvent } from "@netlify/functions"
-
-export default {
-  userSignup(event: UserSignupEvent) {
-    console.log(`New signup: ${event.user.email}`)
-  },
-}
-```
-
-Handlers and triggers:
+> Typed handlers (`UserSignupEvent`, `event.deny()`) require `@netlify/functions` ≥ 5.2.0. Older installs must use the legacy filename convention (`identity-signup.ts`, etc.) — see `references/authorization-and-sessions.md`.
 
 | Handler | Fires when |
 |---|---|
-| `userValidate` | User attempts signup, before account creation — block by email domain, rate-limit, custom validation. |
-| `userSignup` | Signup completes (email or external). Fires *after* email confirmation if confirmation is enabled. Assign roles, sync, notify. |
-| `userLogin` | User logs in — track logins, sync, block a user. |
+| `userValidate` | Signup attempt, before account creation. Block bad signups here. |
+| `userSignup` | Signup completes (after email confirmation if enabled). Assign roles, sync, welcome. |
+| `userLogin` | User logs in. Track/last-seen/block. |
 | `userModified` | Profile updated. |
 | `userDeleted` | User deleted (notification only). |
 
-**Deny an action:** call `event.deny()` from `userValidate`/`userSignup`/`userLogin`/`userModified` (NOT `userDeleted`). User gets a `401`; no observability error. With multiple subscribers, the first `event.deny()` aborts the chain.
+Event `user` fields are camelCase (`appMetadata`, `userMetadata`, `confirmedAt`).
 
-```typescript title="netlify/functions/identity.mts"
+```typescript
+// netlify/functions/identity.mts — deny a signup
 import type { UserValidateEvent } from "@netlify/functions"
 
 export default {
@@ -158,62 +133,46 @@ export default {
 }
 ```
 
-**Assign roles at signup** — return `{ user: {...} }` to mutate the persisted record. Payload fields are **camelCase** (`appMetadata`, `userMetadata`, `confirmedAt`).
-
-```typescript title="netlify/functions/identity.mts"
+```typescript
+// netlify/functions/identity.mts — assign roles at signup
 import type { UserSignupEvent } from "@netlify/functions"
 
 export default {
   userSignup(event: UserSignupEvent) {
-    return {
-      user: { ...event.user, appMetadata: { ...event.user.appMetadata, roles: ["member"] } },
-    }
+    return { user: { ...event.user, appMetadata: { ...event.user.appMetadata, roles: ["member"] } } }
   },
 }
 ```
 
-**Background mode** — action completes immediately, handler runs async:
+- `event.deny()` — rejects the action; end user gets `401`, no observability error. First handler to call it aborts the chain; later subscribers are not invoked. (Legacy filename functions signal denial with a non-2xx `Response` instead.)
+- Return `{ user: {...} }` to modify the record before persistence (canonical way to set roles at signup).
+- Background mode: `export const config: Config = { background: true }` — action completes immediately, handler runs async.
 
-```typescript title="netlify/functions/identity.mts"
-import type { Config, UserLoginEvent } from "@netlify/functions"
+## Roles & the JWT
 
-export default { userLogin(event: UserLoginEvent) { /* async tracking */ } }
-export const config: Config = { background: true }
+- `user.roles` is read from `app_metadata.roles`, carried in the JWT (cookie `nf_jwt`; refresh via `nf_refresh`).
+- `user_metadata` — user-editable profile (`full_name`, `email`). `app_metadata` — app data incl. `roles`, not user-editable.
+
+> **Role changes are NOT immediate.** They take effect on next login or token refresh. Changing roles does not invalidate the current JWT. Force it with `refreshSession()`.
+
+Set roles for existing users via `admin.updateUser()` in a Netlify Function; at signup via the `userSignup` event handler above.
+
+Deep guides for SSR/session hydration and authorization live in `references/advanced-patterns.md` and `references/authorization-and-sessions.md`.
+
+## CDN-edge RBAC (redirect rules)
+
+Enforced at the edge with no origin round trip. A mismatched role gets a 404 unless you add a fallback — **always pair a role-gated rule with a fallback.**
+
+`_redirects`:
 ```
-
-Event types from `@netlify/functions`: `UserValidateEvent`, `UserSignupEvent`, `UserLoginEvent`, `UserModifiedEvent`, `UserDeletedEvent`, `Config`.
-
-## Registration & providers (dashboard)
-
-- **Registration preferences** — **Open** (default: any visitor signs up via `signup()`) or **Invite only** (all new users, including external-provider logins, must be invited first).
-- **Confirmation:** open registration sends a confirmation email; skip via **Emails > Confirmation template > Configure** (allow signup without verifying email / autoconfirm).
-- **External providers** — enable Google/GitHub/GitLab/Bitbucket under **Registration > External providers**. Set your own client ID/secret for branded OAuth (your app name shows on the provider screen). No email confirmation for external-provider signup, but Invite-only still requires an invite.
-- **Invitations** — **Project configuration > Identity > Users**; Netlify team users with any role can invite. Invite link carries an `invite_token` → process with `handleAuthCallback()` or `acceptInvite()`.
-
-## Roles & metadata
-
-Stored on the User object; edit in **Identity > Users > Edit settings**:
-- **Name** — user-editable: `user_metadata.full_name`.
-- **Email** — user-editable; triggers email-change confirmation; changes login credentials: `user_metadata.email`.
-- **Roles** — NOT user-editable: `app_metadata.roles`. Read via `getUser()`.
-
-Set roles: at signup via `userSignup` handler returning `{ user: {...} }`; for existing users via `admin.updateUser()` in a Function. **Role changes take effect on next login or token refresh**, not immediately (they don't invalidate the current JWT — client can `refreshSession()`).
-
-## Role-based access control (redirect rules)
-
-Enforced at the CDN edge (no origin round trip). Add a `Role` parameter to redirect rules.
-
-```
-# _redirects — ALWAYS include a fallback or non-admins get a raw 404
 /admin/*  /admin/:splat  200!  Role=admin
 /admin/*  /login         401!
-
-# multiple roles, comma-chained
-/private/* /private/:splat  200!  Role=editor,admin
+# Multiple roles chained with commas:
+/private/* /private/:splat 200! Role=editor,admin
 ```
 
+`netlify.toml`:
 ```toml
-# netlify.toml
 [[redirects]]
   from = "/admin/*"
   to = "/admin/:splat"
@@ -222,44 +181,53 @@ Enforced at the CDN edge (no origin round trip). Add a `Role` parameter to redir
   conditions = {Role = ["editor", "admin"]}
 ```
 
-Netlify Identity roles resolve at `app_metadata.roles`.
+Use redirect rules for path-based gating; use function-based `user.roles` checks for custom authorization logic.
 
-### External JWT provider (Enterprise; alternative to Identity)
-You may use Identity **OR** an external JWT provider, **not both** — you cannot authenticate third-party JWT tokens while Identity is enabled. Set the secret at **Project configuration > Access & security > Visitor access > JWT secret** (project-level overrides team-level default).
+## Configuration (dashboard-only)
 
-- Tokens must be **HS256**; header requires `"alg": "HS256"`, `"typ": "JWT"`.
-- Payload requires `exp` (future Unix Epoch); other fields optional.
-- External-provider roles resolve at `app_metadata.authorization.roles`. Different path → contact support for a custom role path (support-configured, not self-service).
+Base: `https://app.netlify.com/projects/{site_name}/identity`. Enable with **Enable Identity**. Identity requires HTTPS — set up SSL before integrating on a custom domain.
 
-## Emails (Pro+ for customization)
+- **Registration** (`?tab=registration#registration-preferences`): **Open** (default, anyone can sign up) or **Invite only** (all users, including external-provider logins, must be invited first).
+- **Confirmation / autoconfirm** (`?tab=emails#confirmation-template`): check the box to skip email verification.
+- **External providers** (`?tab=registration#external-providers`): Google/GitHub/GitLab/Bitbucket. For branded OAuth (your app name instead of "Netlify Identity"), register your app with the provider, get client ID + secret, and enter them **in the Netlify settings UI** — not in code.
+- **Invitations** (`?tab=users`): enter addresses to send invites; link carries `invite_token`.
+- **Password recovery**: user page → **Send reset password email**; link carries `recovery_token`.
 
-Default sender `no-reply@netlify.com`. Custom sender (Pro+): set SMTP hostname/port/username/password under **Emails > Outgoing email address** (use SendGrid/Mailjet/etc. for volume).
+### Emails (Pro plans or higher)
 
-Custom templates (Pro+): publish HTML to a path on your deployed project, set the path (relative to domain, starting `/`) under **Emails**. Rules: inline CSS only, absolute image links, NO `<html>`/`<head>`/`<body>` tags. Keep template variables intact — don't let your build rewrite them.
+Default sender is `no-reply@netlify.com`. Custom SMTP sender and custom templates both require **Pro plans or higher**.
 
-Go template variables: `{{ .Email }}`, `{{ .NewEmail }}` (email-change only), `{{ .SiteURL }}`, `{{ .ConfirmationURL }}`, `{{ .Token }}`. Custom link form: `{{ .SiteURL }}/path/#confirmation_token={{ .Token }}` (also `invite_token`, `recovery_token`, `email_change_token`).
+Template variables (Go syntax): `{{ .Email }}`, `{{ .NewEmail }}` (email-change only), `{{ .SiteURL }}`, `{{ .ConfirmationURL }}`, `{{ .Token }}`.
 
-## Audit log (Pro+)
+Custom-link hash fragments per action:
+```
+{{ .SiteURL }}/path/#invite_token={{ .Token }}
+{{ .SiteURL }}/path/#confirmation_token={{ .Token }}
+{{ .SiteURL }}/path/#recovery_token={{ .Token }}
+{{ .SiteURL }}/path/#email_change_token={{ .Token }}
+```
 
-**Project configuration > Identity > Identity audit log**. Search with a required scope prefix: `author:[string]` or `action:[string]`. Action names: `login`, `logout`, `user_signedup`, `user_deleted`, `user_modified`, `token_revoked`, `token_refreshed`, `user_recovery_requested`, `user_invited`.
+Custom template constraints: inline CSS only; absolute image links; **no `<html>`/`<head>`/`<body>` tags**; ensure your build doesn't alter Go template variables.
 
-## Plan gating
+### Audit log (Pro plans or higher)
 
-- Identity itself: all credit-based plans, no extra cost. Unlimited active + invite-only users, custom OAuth credentials, Functions integration — all plans.
-- **Pro+ only:** custom outgoing email, custom email templates, Identity audit log.
-- **Enterprise only:** external JWT providers.
+`?tab=audit-log`. Search with a scoped term: `author:[string]` or `action:[string]`. Action names: `login`, `logout`, `user_signedup`, `user_deleted`, `user_modified`, `token_revoked`, `token_refreshed`, `user_recovery_requested`, `user_invited`.
 
-## Deep guides
+## External JWT providers (Enterprise)
 
-- `references/advanced-patterns.md` — SSR / session hydration.
-- `references/authorization-and-sessions.md`.
+Available on **Enterprise plans**. You may use Netlify Identity OR an external JWT provider — **not both at once**; you cannot authenticate third-party JWTs while Netlify Identity is enabled.
 
-## Legacy (avoid for new work)
+- Roles path: Netlify Identity `app_metadata.roles`; external provider `app_metadata.authorization.roles`. Custom path → contact support.
+- JWT header must be `{"alg": "HS256", "typ": "JWT"}` (HS256 required). Payload `exp` is required and must be a future Unix Epoch time.
+- Set the JWT secret at `Project configuration > General > Visitor access > JWT secret`. Project-level overrides team-level defaults.
 
-- `netlify-identity-widget` / `gotrue-js` — superseded by `@netlify/identity`.
-- Legacy event-function filenames (`identity-validate.ts`, `identity-signup.ts`, `identity-login.ts`, `-background` suffix) still work but prefer typed handlers. Legacy denial = return non-2xx status; new code uses `event.deny()`.
+## On failure — stop, don't guess
 
-<!-- getSettings() referenced in house rules but not documented in sources; its return shape/signature is not specified in the intermediate. -->
+If callbacks 404, `/.netlify/identity/*` is unreachable, or an OAuth flow never returns: surface the error, the dashboard URL (`https://app.netlify.com/projects/{site_name}/identity`), and the setting to check (registration preference, external provider config, confirmation/autoconfirm). Then stop. Do not invent recovery commands. Remember: Identity does not work under `netlify dev` — confirm you are testing on a deploy.
+
+Site-gating requests ("lock this site to my company", employees-only) route to the netlify-access-control skill first — Identity is the app-level user layer only.
+
+<!-- gap: getSettings() is referenced by house rules for provider discovery but its signature/return shape is not documented in the intermediate. -->
 
 <!-- system: agent-context/identity/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (identity)

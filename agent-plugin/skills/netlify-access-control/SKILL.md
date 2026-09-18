@@ -35,7 +35,7 @@ Sessions are separate. The same provider (e.g. Google) can appear twice unrelate
 
 - **Private** already requires Netlify credentials — no shared password. Invite by email; recommended for team-only access.
 - **Password** = one universal shared password anyone can use (including managing team members, who must also enter it). No SSO.
-- **Team login protection** = same mechanism as Private; only **Developers, Team Owners, Billing Admins** get in. **Git Contributors cannot log in** — invite them as **Reviewers** instead, which is the documented path: unlimited and not counted toward the member count on legacy plans; Pro or higher on Credit-based plans. Never answer a Git Contributor access question by upgrading them to Developer.
+- **Team login protection** = same mechanism as Private: a visitor must log in as a member of your Netlify team, and **Reviewers** you invite can get in too (unlimited and not counted toward the member count on legacy plans; Pro or higher on Credit-based plans). **Git Contributors cannot log in** — invite them as Reviewers rather than upgrading them to Developer.
 
 ## SSO-session symptom: 401s after ~1 hour
 
@@ -116,3 +116,21 @@ ctx-gen and never generated. Owned by the skills maintainer.
    site, token expiry/refresh — not only setup phrasing. The
    `Netlify-Site-Protection-Expires-In` guidance is unreachable if the
    skill never triggers on the symptom.
+9. Team login protection excludes Git Contributors, and the answer to that is
+   **Reviewers**, never a Developer seat. Reviewers can open team-login-
+   protected deploys: unlimited and not counted toward the member count on
+   legacy plans, Pro or higher on Credit-based plans. Every answer about Git
+   Contributor access must name the Reviewer path — recommending an upgrade to
+   Developer sells a paid seat per person to solve something the product
+   already solves for free. Stating the exclusion without the remedy is the
+   failure mode this rule exists to prevent; it has happened. Never frame the
+   permitted roles as a closed list ("only X, Y and Z get in") — even with the
+   Reviewer path added after it, a closed list reads as Reviewers being shut
+   out, and agents repeat it. Naming roles is optional; the question is
+   usually only about Git Contributors.
+10. Say who can change these settings, not only how to change them. Project
+   visibility: Organization Owners (on certain Enterprise plans), Team Owners,
+   and Developers with access to that project — and Internal Builders cannot
+   make a project public, because they cannot publish to production. Password
+   Protection: a Developer per site, a Team Owner for the team default. A
+   checklist handed to someone without the role is a dead end.

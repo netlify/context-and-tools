@@ -145,7 +145,7 @@ export default {
 ```
 
 - `event.deny()` — rejects the action; end user gets `401`, no observability error. First handler to call it aborts the chain; later subscribers are not invoked. (Legacy filename functions signal denial with a non-2xx `Response` instead.)
-- Return `{ user: {...} }` to modify the record before persistence (canonical way to set roles at signup).
+- Return `{ user: {...} }` to modify the record before persistence (canonical way to set roles at signup). Roles ride in the JWT, so a role change takes effect on the user's **next login or token refresh, not immediately** — see Roles & the JWT below.
 - Background mode: `export const config: Config = { background: true }` — action completes immediately, handler runs async.
 
 ## Roles & the JWT
@@ -259,3 +259,9 @@ ctx-gen and never generated. Owned by the skills maintainer.
 8. Site-gating requests ("lock this site to my company", employees-only)
    route to the netlify-access-control skill first — Identity is the
    app-level user layer only.
+9. Any answer that assigns or changes roles — at signup, via `admin.*`, or in
+   the dashboard — must say the change takes effect on the user's next login
+   or token refresh, not immediately. Keep that sentence next to the code that
+   sets the role, not only in a separate JWT section: an agent answering a
+   signup question reads the signup example and stops, and it has shipped
+   answers that omit the delay.

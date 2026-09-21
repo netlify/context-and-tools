@@ -4,6 +4,16 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.5.1](https://github.com/netlify/context-and-tools/compare/v1.5.0...v1.5.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **context:** sync skills from netlify/docs ([#130](https://github.com/netlify/context-and-tools/issues/130)) ([8870fe1](https://github.com/netlify/context-and-tools/commit/8870fe10a340f674b6a6733aba5857985281e9df))
+* **deps:** update dependency astro to v7 ([#132](https://github.com/netlify/context-and-tools/issues/132)) ([45ea6e3](https://github.com/netlify/context-and-tools/commit/45ea6e34f5fba23be477664776559bc08ae0c0f1))
+* **deps:** update dependency next to v16 ([#134](https://github.com/netlify/context-and-tools/issues/134)) ([78b5793](https://github.com/netlify/context-and-tools/commit/78b579373b11ab2fd96825991dafffee526d02d1))
+* describe Claude plugin marketplace ([#133](https://github.com/netlify/context-and-tools/issues/133)) ([9b49822](https://github.com/netlify/context-and-tools/commit/9b498224bfe8f68eed42ca033de05dc3d7685fa3))
+
 ## [1.5.0](https://github.com/netlify/context-and-tools/compare/v1.4.1...v1.5.0) (2026-09-18)
 
 

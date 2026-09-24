@@ -98,8 +98,8 @@
     "intermediateHash": "78306ec36f71f01c6cf4cddec20db34c058cd41874b550f236aec98cb260700b"
   },
   "deploy": {
-    "sourceHash": "1989e2ce1fbcde6c2b2db2fda09e82226bd0d8644dd25caf9dbdd3b2b0cb4a08",
-    "docsCommit": "b19a078db4aa11276225dced3ae86660cc71d354",
+    "sourceHash": "739f41ea9a39843e13071df4b9c898fbbd99a318d86bc7ad717c81083a129024",
+    "docsCommit": "12192baa74025a26b9c4912f0b478a0254e29bf5",
     "affects": [
       "api",
       "authoring",
@@ -110,7 +110,7 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "40ea6871dd97245a33eb69b5137ce8e029ec4f6fc11a5299a3a6e43c36a760de"
+    "intermediateHash": "f497c414267dd9d1275b6b0ae7e061e59ce9f6cf376cb7b9a794cc58f26a9d01"
   },
   "ai-gateway": {
     "sourceHash": "64bd7eadf2e50fe2b8dac8e829d9f59bf72ebb9365491bc81905ac409cdbd8cc",
@@ -187,5 +187,5 @@
     ],
     "intermediateHash": "87fdd6ee71078bc5014bb77aef1362214b8bdc9db01cb1da3432124733788d73"
   },
-  "lastImportedCommit": "614fd46d9010b3c44191f610ea9d55cc14c67275"
+  "lastImportedCommit": "12192baa74025a26b9c4912f0b478a0254e29bf5"
 }

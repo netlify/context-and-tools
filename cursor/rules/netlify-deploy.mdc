@@ -15,7 +15,9 @@ netlify deploy --allow-anonymous   # temp project, claim within 1 hour
 npm update -g netlify-cli   # skew protection needs 23.11.0+
 ```
 
-A deploy is a versioned, **atomic** snapshot: Netlify uploads only changed files and switches the live site only after all files land — the site is never in an inconsistent state. Manual deploys (`netlify deploy`) do **not** run a build command; drag-and-drop while logged in is the only exception (framework auto-detected).
+A deploy is a versioned, **atomic** snapshot: Netlify uploads only changed files and switches the live site only after all files land — the site is never in an inconsistent state. A deploy can be a preview or a production version served at your primary domain.
+
+**Continuous deployment vs manual deploys:** Deploy with Git and the Netlify CLI support continuous deployment — a push auto-triggers a build. Drag and drop and the API create one-off manual deploys. Manual deploys (`netlify deploy`) do **not** run a build command; drag-and-drop while logged in is the only exception (framework auto-detected).
 
 **⚠ When linking or creating a site, add `.netlify` to `.gitignore`.** Every linking path writes `.netlify/state.json`, which must not be committed.
 
@@ -24,10 +26,13 @@ A deploy is a versioned, **atomic** snapshot: Netlify uploads only changed files
 - **Git CD** — connect a repo; Netlify builds and deploys on every push (OAuth2 or the Netlify GitHub App). This is the default path.
 - **CLI** — `netlify create`, `netlify deploy`, `netlify deploy --prod`.
 - **Drag and drop** — https://app.netlify.com/drop. Logged in: builds if needed. Not logged in: publishes files as-is.
-- **API** — create deploys via file digest or ZIP.
+- **API** — create deploys via file digest or ZIP (one-off manual).
 - **Deploy to Netlify button** — one-click from a public template repo.
 - **Build hooks** — unique URLs that trigger builds. (Deploys from build hooks are treated as trusted and bypass the deploy request policy.)
 - **AI agents** — Agent Runners (Claude Code, OpenAI Codex, Google Gemini) from the dashboard; every file-changing run auto-generates a Deploy Preview at `agent-<runID>--<site>.netlify.app`.
+- **Zapier / n8n** — automation integrations.
+
+Not sure which path? The Deploy Navigator gives personalized recommendations: https://docs.netlify.com/start/choose-your-path#deploy-navigator (also embedded on the create-deploys page as "Not sure where to start?").
 
 ## netlify.toml deploy contexts
 

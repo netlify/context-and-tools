@@ -1,20 +1,49 @@
 {
-  "name": "context-and-tools",
+  "name": "@netlify/skills",
   "version": "1.5.1",
   "description": "Public Netlify skills for AI coding agents. Each skill is a focused, factual reference for a Netlify platform primitive — designed to help agents build correctly on Netlify without needing to search docs.",
-  "main": "index.js",
-  "scripts": {
-    "test": "node --test scripts/*.test.mjs"
-  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/netlify/context-and-tools.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "homepage": "https://github.com/netlify/context-and-tools#readme",
   "bugs": {
     "url": "https://github.com/netlify/context-and-tools/issues"
   },
-  "homepage": "https://github.com/netlify/context-and-tools#readme"
+  "keywords": [
+    "netlify",
+    "skills",
+    "agent-skills",
+    "ai-agents",
+    "claude-code",
+    "cursor",
+    "codex",
+    "mcp"
+  ],
+  "bin": {
+    "netlify-skills": "bin/netlify-skills.mjs"
+  },
+  "files": [
+    "skills/",
+    "manifest.json",
+    "CHANGELOG.md",
+    "bin/",
+    "scripts/fetch-skill.mjs",
+    "scripts/build-manifest.mjs"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./manifest.json": "./manifest.json",
+    "./skills/*": "./skills/*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "test": "node --test scripts/*.test.mjs",
+    "build:manifest": "node scripts/build-manifest.mjs --out manifest.json",
+    "build:hosted": "node scripts/build-hosted.mjs --out dist"
+  }
 }

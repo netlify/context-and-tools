@@ -141,6 +141,59 @@ It connects to Netlify's hosted server over HTTP (`https://netlify-mcp.netlify.a
 
 Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name` and `description`) and markdown body. Feed them into any agent's context as needed.
 
+## Hosted skills, manifest, and npm
+
+Every release publishes the skills to two places you can consume without cloning this repo:
+
+- **Hosted:** `https://netlify-skills.netlify.app` — `manifest.json` and `skills/<name>/<file>` for the latest release, `versions.json` listing every published version, and immutable copies at `v/<version>/…`.
+- **npm:** [`@netlify/skills`](https://www.npmjs.com/package/@netlify/skills) — every skill plus `manifest.json` and the `netlify-skills` command, which installs single skills out of the package.
+
+Skill files under `v/<version>/` are exact `git archive` bytes of the tag and never change. Each `v/<version>/manifest.json` is regenerated on publish, but its `tree_hash` formula is frozen for `schema_version: 1`, so a pinned hash stays valid.
+
+The manifest is the contract every client syncs against. It lists each skill's name, status (`active` or `deprecated`), its own `version`, prior names, description, a per-file SHA-256, and a `tree_hash` over path, executable bit, and content that changes whenever any file in the skill changes, so "am I stale?" is one hash comparison.
+
+Skills change independently, so each carries its own version: the release in which its files last changed. The set might be at 1.6.0 while `netlify-functions` is still at 1.4.2 because nothing in it has moved since. Pin a skill by its own version: `v/1.4.2/skills/netlify-functions/…`. Nobody maintains these by hand; they are derived from git tags at publish time.
+
+```bash
+# Latest manifest
+curl -s https://netlify-skills.netlify.app/manifest.json | head -c 600
+
+# One skill, pinned to a version
+curl -s https://netlify-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKILL.md
+```
+
+### Install skills and keep them current
+
+The `netlify-skills` command ships inside `@netlify/skills`. By default it installs skills out of the package it came with, so `npx @netlify/skills@latest` is a complete, offline-after-fetch install of the newest release, and pinning is picking the package version (`npx @netlify/skills@1.3.2 add …`). Every file is hash-verified against the bundled manifest. No clone needed:
+
+```bash
+# One or more skills into .claude/skills (the default); `functions` works for `netlify-functions`
+npx @netlify/skills@latest add netlify-functions blobs
+
+# Every skill
+npx @netlify/skills@latest add --all
+
+# Pin a skill to its own version
+npx @netlify/skills@latest add netlify-functions --version 1.3.0
+
+# What state are my installed skills in? (`status` works too.) Exits 1 if update would change anything.
+npx @netlify/skills@latest check
+
+# Bring them up to date from this package's release
+npx @netlify/skills@latest update
+
+# Or reconcile against the hosted manifest (the newest release, whatever package version is running)
+npx @netlify/skills@latest update --remote
+```
+
+Use `@latest` with `npx`: it otherwise reuses whatever version it cached last time, and the release you install from should be the newest one. `--remote` reads the hosted manifest instead of the bundled one, which is what the Netlify CLI and MCP do; `--host <url>` names a different hosted location, and `--version` applies to the hosted path.
+
+`check` (or `status`) classifies each installed skill: `current`, `stale (have 1.2.0, latest is 1.3.0)`, `modified` (edited locally), `renamed`, `deprecated`, `duplicate` (one of our skills copied under another name), or `unknown` (yours, never touched), and lists what is `missing`. With `--json` this is what an orchestrator such as Agent Runners reads before injecting skills into a repo, so it adds only what is absent and never overwrites or duplicates. `update` replaces stale copies, migrates renamed ones, deletes deprecated ones, and leaves edited copies alone unless you pass `--reset`. It adds missing skills only with `--all`, so a single-skill install stays single. The manifest's per-skill `history` (every release a skill changed at, with its hash) is what lets it tell "outdated" from "edited".
+
+A service that reads skills programmatically (Agent Runners) can depend on the package and read one skill by path: `node_modules/@netlify/skills/skills/netlify-functions/SKILL.md`. The bundled `manifest.json` carries each skill's own version, so a service can tell which skills changed between two package versions without diffing files.
+
+The same client is in this repo as `scripts/fetch-skill.mjs` (`--source <dir>` or `--host <url>`; `--skill`/`--all` with `--dest`, `--check`, `--update`), which is what the Netlify CLI's init and sync will build on. The whole-set package also ships the `skills/CLAUDE.md` router; the hosted site serves exactly the files the manifest lists, so the router is not there. Both targets are published from the release tag by `.github/workflows/publish.yml`.
+
 ## Design Principles
 
 - **Factual, not opinionated** — platform behavior and API reference, not workflow preferences

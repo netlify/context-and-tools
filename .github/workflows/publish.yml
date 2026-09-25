@@ -1,0 +1,199 @@
+name: publish
+
+# Publishes a tagged release to the two distribution targets (EX-3049, EX-3054):
+#
+#   deploy-hosted  the Netlify site: every release's skills + manifest.json,
+#                  rebuilt from git tags by scripts/build-hosted.mjs, so the
+#                  deploy has no state of its own and re-publishing is safe.
+#   publish-npm    @netlify/skills at the tag's version: the whole set,
+#                  manifest.json, and the `netlify-skills` command that installs
+#                  single skills out of it. Skipped if that version is already
+#                  on the registry, so a re-run never fails on a half-finished
+#                  publish.
+#
+# Called by release-please.yml right after it cuts a release (the GitHub
+# release it creates is authored by GITHUB_TOKEN, which never fires other
+# workflows, so this has to be a job chain rather than an `on: release`
+# trigger). Also runnable by hand with a tag to re-publish after a fix or a
+# failed run.
+#
+# The two jobs are independent on purpose: a missing npm credential must not
+# block the hosted site, and vice versa. Each fails loudly on its own missing
+# secret rather than silently skipping, so a misconfigured target is visible
+# in the run, not discovered by a consumer.
+#
+# Secrets:
+#   NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID   deploy-hosted
+#   NPM_TOKEN                             publish-npm (granular token with
+#                                         publish rights on @netlify/skills)
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. v1.4.0"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)publish, e.g. v1.4.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # One publish at a time: two releases minutes apart must not race to deploy
+  # the same site or publish out of order.
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  deploy-hosted:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preflight — required secrets
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          missing=""
+          [ -z "$NETLIFY_AUTH_TOKEN" ] && missing="$missing NETLIFY_AUTH_TOKEN"
+          [ -z "$NETLIFY_SITE_ID" ] && missing="$missing NETLIFY_SITE_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Hosted skills deploy is not configured. Missing secret(s):$missing"
+            exit 1
+          fi
+
+      # The tag's checkout supplies the build script and netlify.toml; the
+      # content comes from every tag in history, so fetch them all.
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Build hosted site from git tags
+        run: node scripts/build-hosted.mjs --out dist
+
+      # The tag being published must be in the output, and latest must be the
+      # highest tag, not necessarily this one: re-publishing an old tag by
+      # hand must never roll the root back.
+      - name: Verify the tag is in the build
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#v}"
+          node -e '
+            const v = require("./dist/versions.json");
+            const [want] = process.argv.slice(1);
+            if (!v.versions.includes(want)) { console.error(`::error::${want} is not in dist/versions.json`); process.exit(1); }
+            console.log(`publishing ${want}; latest is ${v.latest}`);
+          ' "$version"
+
+      - name: Deploy to Netlify
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          npx --yes netlify-cli@23.13.0 deploy --prod --no-build --dir dist --json \
+            --message "publish ${TAG} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})" \
+            > "$RUNNER_TEMP/deploy.json"
+          url="$(node -p 'require(process.argv[1]).url' "$RUNNER_TEMP/deploy.json")"
+          echo "Deployed to $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # The contract a consumer relies on, run against the live site: a client
+      # with no repo access reads the manifest and confirms the skills it has
+      # (here, the ones we just built) are exactly the live set. --strict makes
+      # a missing or extra skill fail too, not just a stale one.
+      - name: Smoke test the live site
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: node scripts/fetch-skill.mjs --host "$URL" --check dist/skills --strict
+
+  publish-npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance attestation
+    steps:
+      - name: Preflight — required secrets
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::npm publish is not configured. Missing secret: NPM_TOKEN"
+            exit 1
+          fi
+
+      # Full history: per-skill versions in manifest.json are derived from the
+      # release tags that precede this one.
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      # release-please stamps package.json at the tag; a mismatch means the
+      # tag input is wrong or the checkout is not the release commit.
+      - name: Verify package version matches the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          pkg="$(node -p 'require("./package.json").version')"
+          if [ "v$pkg" != "$TAG" ]; then
+            echo "::error::package.json is $pkg but the tag is $TAG"
+            exit 1
+          fi
+
+      - name: Build manifest.json
+        run: node scripts/build-manifest.mjs --out manifest.json
+
+      # Same assertion as validate-skills' package-check, repeated here because
+      # this is the run that actually ships the tarball.
+      - name: Check the npm tarball contents
+        run: |
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e '
+            const [pkg] = require(process.argv[1]);
+            const files = new Set(pkg.files.map((f) => f.path));
+            const want = ["manifest.json", "skills/CLAUDE.md", "skills/netlify-functions/SKILL.md", "README.md", "LICENSE", "bin/netlify-skills.mjs", "scripts/fetch-skill.mjs", "scripts/build-manifest.mjs"];
+            const missing = want.filter((f) => !files.has(f));
+            if (missing.length) { console.error(`::error::tarball is missing ${JSON.stringify(missing)}`); process.exit(1); }
+            console.log(`${pkg.name}@${pkg.version}: ${files.size} files`);
+          ' "$RUNNER_TEMP/pack.json"
+
+      # Idempotent re-runs: skip only when the registry positively says this
+      # version exists. Any other `npm view` failure (network, auth, outage)
+      # fails the step rather than masquerading as "already published".
+      - name: Publish @netlify/skills
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          if npm view "${name}@${version}" version --json > "$RUNNER_TEMP/view.json" 2> "$RUNNER_TEMP/view.err"; then
+            if [ -s "$RUNNER_TEMP/view.json" ] && [ "$(cat "$RUNNER_TEMP/view.json")" != "[]" ]; then
+              echo "${name}@${version} is already published; nothing to do."
+              exit 0
+            fi
+          elif ! grep -q "E404" "$RUNNER_TEMP/view.err"; then
+            echo "::error::could not query the registry for ${name}@${version}:"
+            cat "$RUNNER_TEMP/view.err"
+            exit 1
+          fi
+          npm publish --provenance --access public

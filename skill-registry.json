@@ -1,0 +1,8 @@
+{
+  "$comment": "Skill metadata that cannot be derived from skills/ itself, read by scripts/build-manifest.mjs when it generates the hosted manifest. `skills` records prior names for skills that were renamed or consolidated, so a syncing client with the old name installed can map it to the current one. `deprecated` lists skills retired without a successor directory; they stay in the manifest for at least one release so clients can delete their copy. Everything else in the manifest (hashes, descriptions, provenance) is derived, never written here.",
+  "skills": {
+    "netlify-database": { "prior_names": ["netlify-db"] },
+    "netlify-deploy": { "prior_names": ["netlify-cli-and-deploy"] }
+  },
+  "deprecated": {}
+}

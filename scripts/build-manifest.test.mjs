@@ -158,15 +158,17 @@ test('skill history lists every release the tree changed at, ending with the hea
     { version: '0.4.0', trees: new Map([['netlify-alpha', 'a2'], ['netlify-beta', 'b1']]) },
   ];
   const hashAt = (version, name) => `sha256:${name}@${version}`;
-  const alpha = skillHistory({ name: 'netlify-alpha', headOid: 'a2', headTreeHash: 'sha256:head', headVersion: '0.5.0', tags, hashAt });
+  const alpha = skillHistory({ name: 'netlify-alpha', headTreeHash: 'sha256:netlify-alpha@0.3.0', headVersion: '0.5.0', tags, hashAt });
   assert.deepEqual(alpha, [
     { version: '0.1.0', tree_hash: 'sha256:netlify-alpha@0.1.0' },
     { version: '0.3.0', tree_hash: 'sha256:netlify-alpha@0.3.0' },
   ], 'unchanged since 0.3.0: no head entry');
-  const beta = skillHistory({ name: 'netlify-beta', headOid: 'b2', headTreeHash: 'sha256:head', headVersion: '0.5.0', tags, hashAt });
+  const beta = skillHistory({ name: 'netlify-beta', headTreeHash: 'sha256:head', headVersion: '0.5.0', tags, hashAt });
   assert.deepEqual(beta.map(({ version }) => version), ['0.2.0', '0.5.0'], 'changing in this release');
-  const gamma = skillHistory({ name: 'gamma', headOid: 'g1', headTreeHash: 'sha256:head', headVersion: '0.5.0', tags, hashAt });
+  const gamma = skillHistory({ name: 'gamma', headTreeHash: 'sha256:head', headVersion: '0.5.0', tags, hashAt });
   assert.deepEqual(gamma, [{ version: '0.5.0', tree_hash: 'sha256:head' }], 'brand new skill');
+  assert.deepEqual(skillHistory({ name: 'gamma', headTreeHash: 'sha256:head', headVersion: '0.1.0', tags: [], hashAt }),
+    [{ version: '0.1.0', tree_hash: 'sha256:head' }], 'no tags at all: the head is the whole history');
 
   const gap = [
     { version: '0.1.0', trees: new Map([['netlify-alpha', 'a1']]) },
@@ -174,8 +176,45 @@ test('skill history lists every release the tree changed at, ending with the hea
     { version: '0.3.0', trees: new Map([['netlify-alpha', 'a1']]) },
   ];
   assert.deepEqual(
-    skillHistory({ name: 'netlify-alpha', headOid: 'a1', headTreeHash: 'x', headVersion: '0.4.0', tags: gap, hashAt }).map(({ version }) => version),
+    skillHistory({ name: 'netlify-alpha', headTreeHash: 'sha256:netlify-alpha@0.3.0', headVersion: '0.4.0', tags: gap, hashAt }).map(({ version }) => version),
     ['0.1.0', '0.3.0'], 'removed and re-added counts as changed when it reappears',
+  );
+});
+
+test('skill history reaches back through prior names, and a rename is a change point', () => {
+  const hashAt = (version, name) => `sha256:${name}@${version}`;
+  const tags = [
+    { version: '0.4.0', trees: new Map([['netlify-db', 'd1']]) },
+    { version: '0.5.0', trees: new Map([['netlify-db', 'd2']]) },
+    { version: '0.6.0', trees: new Map([['netlify-database', 'd3']]) },
+    { version: '0.7.0', trees: new Map([['netlify-database', 'd3']]) },
+  ];
+  const renamedAndChanged = skillHistory({ name: 'netlify-database', priorNames: ['netlify-db'], headTreeHash: 'sha256:netlify-database@0.6.0', headVersion: '0.8.0', tags, hashAt });
+  assert.deepEqual(renamedAndChanged, [
+    { version: '0.4.0', name: 'netlify-db', tree_hash: 'sha256:netlify-db@0.4.0' },
+    { version: '0.5.0', name: 'netlify-db', tree_hash: 'sha256:netlify-db@0.5.0' },
+    { version: '0.6.0', tree_hash: 'sha256:netlify-database@0.6.0' },
+  ], 'entries under the old name are hashed at that name and say so');
+
+  const movedOnly = [
+    { version: '0.4.0', trees: new Map([['netlify-db', 'd1']]) },
+    { version: '0.5.0', trees: new Map([['netlify-database', 'd1']]) },
+  ];
+  assert.deepEqual(
+    skillHistory({ name: 'netlify-database', priorNames: ['netlify-db'], headTreeHash: 'sha256:netlify-database@0.5.0', headVersion: '0.6.0', tags: movedOnly, hashAt }).map(({ version }) => version),
+    ['0.4.0', '0.5.0'], 'same bytes under a new name is still a change: the version must be a release where the current path exists',
+  );
+
+  const renamedAtHead = [{ version: '0.4.0', trees: new Map([['netlify-db', 'd1']]) }];
+  assert.deepEqual(
+    skillHistory({ name: 'netlify-database', priorNames: ['netlify-db'], headTreeHash: 'sha256:netlify-db@0.4.0', headVersion: '0.5.0', tags: renamedAtHead, hashAt }).map(({ version }) => version),
+    ['0.4.0', '0.5.0'], 'renamed in this release',
+  );
+
+  const both = [{ version: '0.4.0', trees: new Map([['netlify-db', 'd1'], ['netlify-database', 'd2']]) }];
+  assert.deepEqual(
+    skillHistory({ name: 'netlify-database', priorNames: ['netlify-db'], headTreeHash: 'sha256:netlify-database@0.4.0', headVersion: '0.5.0', tags: both, hashAt }),
+    [{ version: '0.4.0', tree_hash: 'sha256:netlify-database@0.4.0' }], 'the current name wins when both exist at a tag',
   );
 });
 
@@ -219,6 +258,21 @@ test('a manifest built from a tagged repo carries derived version and history pe
   assert.equal(new Set(alpha.history.map(({ tree_hash }) => tree_hash)).size, 3, 'each change point has its own hash');
   assert.equal(zeta.version, '0.1.0', 'untouched since first tag');
   assert.deepEqual(zeta.history, [{ version: '0.1.0', tree_hash: zeta.tree_hash }]);
+
+  // Rename zeta without touching its bytes: history keeps the releases it
+  // shipped under the old name, hashed at that path, and the rename itself is
+  // a change point so the version points at a release where the new path exists.
+  g('tag', 'v0.3.0');
+  g('mv', 'skills/netlify-zeta', 'skills/netlify-omega');
+  const omegaMd = path.join(root, 'skills', 'netlify-omega', 'SKILL.md');
+  fs.writeFileSync(omegaMd, fs.readFileSync(omegaMd, 'utf8').replace('name: netlify-zeta', 'name: netlify-omega'));
+  fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify({ skills: { 'netlify-omega': { prior_names: ['netlify-zeta'] } } }));
+  g('add', '.'); g('commit', '-qm', 'four');
+  const omega = buildManifest({ root, ...fixed, version: '0.4.0' }).skills.find(({ name }) => name === 'netlify-omega');
+  assert.equal(omega.version, '0.4.0');
+  assert.deepEqual(omega.history.map(({ version, name }) => [version, name ?? null]), [['0.1.0', 'netlify-zeta'], ['0.4.0', null]]);
+  assert.equal(omega.history[0].tree_hash, zeta.tree_hash, 'a clean copy of the old name matches its history entry');
+  assert.notEqual(omega.history[1].tree_hash, zeta.tree_hash, 'the frontmatter rename changed the bytes');
 });
 
 test('deriving per-skill versions without release tags fails with a clear message', () => {

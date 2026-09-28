@@ -1,12 +1,33 @@
 name: release-please
 
+# Cuts releases and publishes them (EX-3049, EX-3054).
+#
+# On every push to main, release-please maintains the Release PR. Merging it
+# tags vX.Y.Z, and the `publish` job below hands that tag to publish.yml,
+# which publishes @netlify/skills to npm and the skills to the hosted site.
+# Chained here because the GitHub release is created with GITHUB_TOKEN, which
+# never triggers `on: release` workflows.
+#
+# A manual run with a tag re-publishes that release after a fix or a failed
+# run. The manual entry point lives in this file, not in publish.yml, on
+# purpose: npm Trusted Publishing validates the *calling* workflow's filename,
+# so the trusted publisher configured on npmjs.com for @netlify/skills points
+# at this file, and every publish must start here.
+#
+# `id-token: write` is what lets `npm publish` mint an OIDC token; it has to
+# be granted by the caller (here) and by the reusable workflow (publish.yml).
+
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)publish, e.g. v1.4.0"
+        required: true
+        type: string
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 # Two quick merges to main must not race to update the same Release PR.
 concurrency:
@@ -15,7 +36,11 @@ concurrency:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -26,16 +51,17 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # A merged Release PR tags vX.Y.Z; that tag is what gets published to the
-  # hosted site and npm. Chained here because the GitHub release above is
-  # created with GITHUB_TOKEN, which never triggers `on: release` workflows.
   publish:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    # `!cancelled()` lets this run when release-please was skipped (a manual run).
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created == 'true') }}
     uses: ./.github/workflows/publish.yml
     with:
-      tag: ${{ needs.release-please.outputs.tag_name }}
-    secrets: inherit
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+    # Only what publish.yml declares; npm needs no secret (OIDC).
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
     permissions:
       contents: read
       id-token: write

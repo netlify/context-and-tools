@@ -38,13 +38,37 @@ Some skills include `references/` subdirectories with deeper content:
 
 ## Installation
 
-### Codex Desktop App
+One command installs the skills into any project, from the released [`@netlify/skills`](https://www.npmjs.com/package/@netlify/skills) package:
+
+```bash
+npx @netlify/skills@latest add --all
+```
+
+It writes the skills into the agent directory already in the project (`.claude/`, `.agents/`, or `.grok/`) and never guesses: with none, or more than one, it asks for `--agent`.
+
+| Agent | `--agent` | Skills directory |
+|---|---|---|
+| Claude Code | `claude-code` | `.claude/skills/` |
+| Cursor | `cursor` | `.agents/skills/` |
+| Codex | `codex` | `.agents/skills/` |
+| Gemini CLI | `gemini-cli` | `.agents/skills/` |
+| GitHub Copilot, VS Code | `github-copilot` | `.agents/skills/` |
+| Grok Build | `grok` | `.grok/skills/` |
+| Anything else | | `--dest <dir>` |
+
+`add netlify-functions` installs one skill, `check` reports what is installed and whether it is current, and `update` brings it up to date. See [Install skills and keep them current](#install-skills-and-keep-them-current).
+
+### Other ways to install
+
+Each agent's plugin marketplace carries the same skills, packaged the way that agent manages plugins (with the Netlify MCP server bundled where the format allows). Use one of these when you want the agent, not the repo, to own the install.
+
+#### Codex Desktop App
 
 Install the Netlify plugin from the [Codex plugin directory](https://developers.openai.com/codex/plugins/) in the Codex desktop app.
 
 The plugin lets Codex deploy to Netlify without leaving your coding workflow. You can create projects, generate preview URLs, deploy to production, validate build configuration, and inspect deploy status and logs. For full details, refer to [Deploy from Codex with the Netlify Plugin](https://www.netlify.com/changelog/2026-03-27-deploy-from-codex-netlify-plugin/).
 
-### Codex CLI
+#### Codex CLI
 
 Copy the pre-built `codex/` directory into your project root:
 
@@ -56,7 +80,7 @@ git clone --depth 1 https://github.com/netlify/context-and-tools.git /tmp/netlif
 
 This gives you `codex/AGENTS.md` (the skill router) and `codex/skills/` with all Netlify skills. Codex discovers `AGENTS.md` automatically and activates skills by name using `$skill-name` syntax.
 
-### GitHub Copilot CLI
+#### GitHub Copilot CLI
 
 Copy the pre-built `codex/` directory into your project root, then point Copilot CLI at it:
 
@@ -72,7 +96,7 @@ export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="$PWD/codex"
 
 Copilot CLI reads `AGENTS.md` from any directory listed in `COPILOT_CUSTOM_INSTRUCTIONS_DIRS` and uses it as a router into the skill files under `codex/skills/`. Add the export to your shell profile to persist across sessions.
 
-### Claude Code
+#### Claude Code
 
 Add the marketplace and install the plugin:
 
@@ -83,7 +107,7 @@ Add the marketplace and install the plugin:
 
 This installs all Netlify skills into Claude Code. The included `skills/CLAUDE.md` acts as a router — it tells the agent which skill to read based on what you're building.
 
-### VS Code
+#### VS Code
 
 VS Code's [agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins) use the same plugin format as Claude Code, so VS Code installs the skills directly from this repository — no separate build step or generated output. VS Code auto-detects the plugin from `.claude-plugin/plugin.json` and loads the `skills/` directory and the bundled Netlify MCP server (`.mcp.json`).
 
@@ -94,7 +118,7 @@ Add this repository as a plugin marketplace, then install:
 
 Or install directly from source via the command palette: `Cmd+Shift+P` / `Ctrl+Shift+P` → **Chat: Install Plugin From Source** → enter `https://github.com/netlify/context-and-tools.git`.
 
-### Cursor
+#### Cursor
 
 Install from the [Cursor plugin marketplace](https://cursor.com/marketplace):
 
@@ -125,19 +149,19 @@ This copies `.mdc` rule files into `.cursor/rules/`, where Cursor automatically 
 
 
 
-### Grok Build
+#### Grok Build
 
 Netlify is listed in the [official xAI plugin marketplace](https://github.com/xai-org/plugin-marketplace). In Grok Build, open the extensions modal (`/plugins`) and use the **Marketplace** tab to find and install **netlify**.
 
 Grok Build uses the same plugin format as Claude Code, so it installs all Netlify skills directly from this repository — no separate build step or generated output. Marketplace sources live in `~/.grok/config.toml` under `[[marketplace.sources]]`; if the xAI marketplace isn't already configured, add it there. See the [xAI Skills, Plugins & Marketplaces docs](https://docs.x.ai/build/features/skills-plugins-marketplaces) for details.
 
-### Netlify MCP server
+#### Netlify MCP server
 
 The Claude Code, VS Code, and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
 
 It connects to Netlify's hosted server over HTTP (`https://netlify-mcp.netlify.app/mcp`) and authorizes via OAuth on first use — no token or local install required. The rules-based integrations (Cursor, Codex, Copilot) don't bundle the MCP server — add it to those clients manually using the [Netlify MCP docs](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/).
 
-### Other AI agents
+#### Other AI agents
 
 Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name` and `description`) and markdown body. Feed them into any agent's context as needed.
 
@@ -164,11 +188,16 @@ curl -s https://netlify-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKIL
 
 ### Install skills and keep them current
 
-The `netlify-skills` command ships inside `@netlify/skills`. By default it installs skills out of the package it came with, so `npx @netlify/skills@latest` is a complete, offline-after-fetch install of the newest release, and pinning is picking the package version (`npx @netlify/skills@1.3.2 add …`). Every file is hash-verified against the bundled manifest. No clone needed:
+The `netlify-skills` command ships inside `@netlify/skills`. By default it installs skills out of the package it came with, so `npx @netlify/skills@latest` is a complete, offline-after-fetch install of the newest release, and pinning is picking the package version (`npx @netlify/skills@1.3.2 add …`). Every file is checked against the manifest's SHA-256 before it is written. No clone needed:
 
 ```bash
-# One or more skills into .claude/skills (the default); `functions` works for `netlify-functions`
+# One or more skills into the agent directory found in the project (see the table above);
+# `functions` works for `netlify-functions`
 npx @netlify/skills@latest add netlify-functions blobs
+
+# Name the agent, or any directory
+npx @netlify/skills@latest add netlify-functions --agent cursor
+npx @netlify/skills@latest add netlify-functions --dest tools/skills
 
 # Every skill
 npx @netlify/skills@latest add --all
@@ -187,6 +216,8 @@ npx @netlify/skills@latest update --remote
 ```
 
 Use `@latest` with `npx`: it otherwise reuses whatever version it cached last time, and the release you install from should be the newest one. `--remote` reads the hosted manifest instead of the bundled one, which is what the Netlify CLI and MCP do; `--host <url>` names a different hosted location, and `--version` applies to the hosted path.
+
+What the hashes do and do not cover: the manifest and the files come from the same place (the package, or the hosted site), so a hash mismatch means a truncated or corrupted transfer, or a file that no longer matches its release, not a compromised source. Trust in the source is npm's provenance attestation for the package and TLS for the site (`--host` accepts `https://` only, except for localhost).
 
 `check` (or `status`) classifies each installed skill: `current`, `stale (have 1.2.0, latest is 1.3.0)`, `modified` (edited locally), `renamed`, `deprecated`, `duplicate` (one of our skills copied under another name), or `unknown` (yours, never touched), and lists what is `missing`. With `--json` this is what an orchestrator such as Agent Runners reads before injecting skills into a repo, so it adds only what is absent and never overwrites or duplicates. `update` replaces stale copies, migrates renamed ones, deletes deprecated ones, and leaves edited copies alone unless you pass `--reset`. It adds missing skills only with `--all`, so a single-skill install stays single. The manifest's per-skill `history` (every release a skill changed at, with its hash) is what lets it tell "outdated" from "edited".
 

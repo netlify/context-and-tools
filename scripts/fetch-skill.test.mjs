@@ -211,6 +211,89 @@ test('--update never overwrites an edited current-name copy while migrating its 
   const cleaned = await run(['--host', host, '--update', local, '--json']);
   assert.equal(JSON.parse(cleaned.stdout).actions.find(({ name }) => name === 'old-alpha').action, 'removed');
   assert.equal(fs.existsSync(path.join(local, 'old-alpha')), false);
+
+  // An edited old-name copy next to a clean current one is kept, not deleted.
+  fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });
+  fs.appendFileSync(path.join(local, 'old-alpha/SKILL.md'), 'old edits\n');
+  const editedOld = await run(['--host', host, '--update', local, '--json']);
+  assert.equal(editedOld.code, 0, editedOld.stderr);
+  const oldAction = JSON.parse(editedOld.stdout).actions.find(({ name }) => name === 'old-alpha');
+  assert.equal(oldAction.action, 'kept');
+  assert.match(oldAction.detail, /--reset/);
+  assert.match(fs.readFileSync(path.join(local, 'old-alpha/SKILL.md'), 'utf8'), /old edits/);
+  const reset = await run(['--host', host, '--update', local, '--reset', '--json']);
+  assert.equal(JSON.parse(reset.stdout).actions.find(({ name }) => name === 'old-alpha').action, 'removed');
+  assert.equal(fs.existsSync(path.join(local, 'old-alpha')), false);
+});
+
+test('a migrated skill is neither reported missing nor installed twice', async (t) => {
+  if (listenError) return t.skip(`localhost unavailable: ${listenError.code}`);
+  const local = path.join(fixture, 'migrate-only');
+  fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });
+  const single = await run(['--host', host, '--update', local, '--json']);
+  assert.equal(single.code, 0, single.stderr);
+  const actions = JSON.parse(single.stdout).actions;
+  assert.deepEqual(actions.map(({ name, action }) => [name, action]), [['old-alpha', 'renamed'], ['netlify-beta', 'missing']]);
+
+  fs.rmSync(path.join(local, 'netlify-alpha'), { recursive: true });
+  fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });
+  const all = await run(['--host', host, '--update', local, '--all', '--json']);
+  assert.equal(all.code, 0, all.stderr);
+  assert.deepEqual(JSON.parse(all.stdout).actions.map(({ name, action }) => [name, action]), [['old-alpha', 'renamed'], ['netlify-beta', 'added']]);
+});
+
+test('a symlink inside a skill directory classifies it without aborting the run', async (t) => {
+  if (listenError) return t.skip(`localhost unavailable: ${listenError.code}`);
+  const local = path.join(fixture, 'symlinks');
+  write(path.join(local, 'mine/SKILL.md'), 'mine\n');
+  fs.symlinkSync(path.join(local, 'mine/SKILL.md'), path.join(local, 'mine/link.md'));
+  fs.cpSync(path.join(fixture, 'skills/netlify-alpha'), path.join(local, 'netlify-alpha'), { recursive: true });
+  fs.symlinkSync(path.join(local, 'netlify-alpha/SKILL.md'), path.join(local, 'netlify-alpha/link.md'));
+  fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });
+  fs.symlinkSync(path.join(local, 'old-alpha/SKILL.md'), path.join(local, 'old-alpha/link.md'));
+
+  const checked = await run(['--host', host, '--check', local, '--json']);
+  assert.equal(checked.code, 1, checked.stderr);
+  const report = JSON.parse(checked.stdout);
+  assert.deepEqual(report.skills.map(({ name, status }) => [name, status]), [['mine', 'unknown'], ['netlify-alpha', 'modified'], ['old-alpha', 'renamed']]);
+  assert.equal(report.skills[2].modified, true);
+
+  const updated = await run(['--host', host, '--update', local, '--json']);
+  assert.equal(updated.code, 0, updated.stderr);
+  assert.deepEqual(JSON.parse(updated.stdout).actions.map(({ name, action }) => [name, action]),
+    [['mine', 'ignored'], ['netlify-alpha', 'kept'], ['old-alpha', 'kept'], ['netlify-beta', 'missing']]);
+  assert.equal(fs.lstatSync(path.join(local, 'netlify-alpha/link.md')).isSymbolicLink(), true, 'nothing was touched');
+});
+
+test('a non-200 response fails the install and writes nothing', async (t) => {
+  if (listenError) return t.skip(`localhost unavailable: ${listenError.code}`);
+  // A release whose manifest promises a file the site does not serve.
+  const manifest = JSON.parse(fs.readFileSync(path.join(dist, 'manifest.json'), 'utf8'));
+  const alpha = manifest.skills.find(({ name }) => name === 'netlify-alpha');
+  alpha.files['references/gone.md'] = 'sha256:0000000000000000000000000000000000000000000000000000000000000000';
+  write(path.join(dist, 'v/1.0.9/manifest.json'), JSON.stringify(manifest));
+  copyManifestFiles(JSON.parse(fs.readFileSync(path.join(dist, 'manifest.json'), 'utf8')), path.join(dist, 'v/1.0.9'));
+
+  const dest = path.join(fixture, 'not-found');
+  const missingFile = await run(['--host', host, '--version', '1.0.9', '--skill', 'netlify-alpha', '--dest', dest]);
+  assert.equal(missingFile.code, 1);
+  assert.match(missingFile.stderr, /references\/gone\.md: HTTP 404/);
+  assert.equal(fs.existsSync(dest), false, 'an error page is never saved as a skill');
+
+  const missingManifest = await run(['--host', host, '--version', '9.9.9', '--skill', 'netlify-alpha', '--dest', dest]);
+  assert.equal(missingManifest.code, 1);
+  assert.match(missingManifest.stderr, /manifest\.json: HTTP 404/);
+  assert.equal(fs.existsSync(dest), false);
+});
+
+test('--host must be https unless it is loopback', async () => {
+  const plain = await run(['--host', 'http://example.com', '--skill', 'netlify-alpha', '--dest', path.join(fixture, 'plain')]);
+  assert.equal(plain.code, 1);
+  assert.match(plain.stderr, /--host must be https/);
+  assert.equal(fs.existsSync(path.join(fixture, 'plain')), false);
+  const junk = await run(['--host', 'not a url', '--check', fixture]);
+  assert.equal(junk.code, 1);
+  assert.match(junk.stderr, /invalid --host URL/);
 });
 
 test('a hash mismatch writes nothing for that skill', async (t) => {
@@ -384,15 +467,40 @@ test('netlify-skills command wraps add and check with defaults', async (t) => {
     child.on('close', (code) => resolve({ code, stdout, stderr }));
   });
 
+  // No agent directory in the project: the command refuses to guess.
+  const nowhere = await runBin(['add', 'netlify-alpha'], { NETLIFY_SKILLS_PACKAGE_ROOT: dist });
+  assert.equal(nowhere.code, 1);
+  assert.match(nowhere.stderr, /no agent directory .* pass --agent <name> or --dest <dir>/);
+  assert.equal(fs.existsSync(path.join(cwd, '.claude')), false);
+
   // Default source: the package's own release (pointed at the fixture dist here).
+  // Default dest: the one agent directory present.
+  fs.mkdirSync(path.join(cwd, '.claude'));
   const added = await runBin(['add', 'netlify-alpha'], { NETLIFY_SKILLS_PACKAGE_ROOT: dist });
   assert.equal(added.code, 0, added.stderr);
-  assert.equal(fs.existsSync(path.join(cwd, '.claude/skills/netlify-alpha/SKILL.md')), true, 'default dest is .claude/skills');
+  assert.equal(fs.existsSync(path.join(cwd, '.claude/skills/netlify-alpha/SKILL.md')), true, 'dest is the detected agent directory');
+  assert.match(added.stderr, /using \.claude\/skills \(found \.claude\/\)/);
   assert.match(added.stdout, /installed netlify-alpha 1\.0\.0/);
+
+  // --agent names the directory outright; several agent directories need it.
+  const cursor = await runBin(['add', 'netlify-beta', '--agent', 'cursor'], { NETLIFY_SKILLS_PACKAGE_ROOT: dist });
+  assert.equal(cursor.code, 0, cursor.stderr);
+  assert.equal(fs.existsSync(path.join(cwd, '.agents/skills/netlify-beta/SKILL.md')), true);
+  const ambiguous = await runBin(['check'], { NETLIFY_SKILLS_HOST: host });
+  assert.equal(ambiguous.code, 1);
+  assert.match(ambiguous.stderr, /more than one agent directory here \(\.claude, \.agents\); pass --agent <name> or the directory as an argument/);
+  const byAgent = await runBin(['check', '--agent', 'cursor', '--json'], { NETLIFY_SKILLS_HOST: host });
+  assert.equal(byAgent.code, 0, byAgent.stderr);
+  assert.deepEqual(JSON.parse(byAgent.stdout).skills.map(({ name }) => name), ['netlify-beta']);
+  const badAgent = await runBin(['add', 'netlify-beta', '--agent', 'emacs']);
+  assert.equal(badAgent.code, 1);
+  assert.match(badAgent.stderr, /unknown agent: emacs \(one of claude-code, cursor, codex, gemini-cli, github-copilot, grok\)/);
+  fs.rmSync(path.join(cwd, '.agents'), { recursive: true });
 
   const checked = await runBin(['check', '--json'], { NETLIFY_SKILLS_HOST: host });
   assert.equal(checked.code, 0, checked.stderr);
   assert.equal(JSON.parse(checked.stdout).skills[0].status, 'current');
+  assert.match(checked.stderr, /using \.claude\/skills/);
 
   const explicitHost = await runBin(['add', 'netlify-beta', '--dest', 'here', '--host', host]);
   assert.equal(explicitHost.code, 0, explicitHost.stderr);
@@ -431,4 +539,31 @@ test('netlify-skills command wraps add and check with defaults', async (t) => {
   const unknown = await runBin(['remove', 'netlify-alpha']);
   assert.equal(unknown.code, 1);
   assert.match(unknown.stderr, /unknown command: remove/);
+
+  // Every usage guard: each combination is refused before anything runs.
+  const guards = [
+    [['add', 'netlify-alpha', '--all'], /--all cannot be combined with skill names/],
+    [['add', 'netlify-alpha', '--strict'], /--strict, --reset, and --json apply to check\/update only/],
+    [['add', 'netlify-alpha', '--reset'], /--strict, --reset, and --json apply to check\/update only/],
+    [['add', 'netlify-alpha', '--json'], /--strict, --reset, and --json apply to check\/update only/],
+    [['add', 'netlify-alpha', '--dest', 'x', '--agent', 'cursor'], /pass one of --agent or --dest/],
+    [['check', 'a', 'b'], /check takes at most one directory/],
+    [['update', 'a', 'b'], /update takes at most one directory/],
+    [['check', '--dest', 'x'], /--dest applies to add only; pass the directory to check as an argument/],
+    [['update', '--dest', 'x'], /--dest applies to add only; pass the directory to update as an argument/],
+    [['check', 'x', '--agent', 'cursor'], /pass one of --agent or a directory/],
+    [['check', '--reset'], /--reset applies to update only/],
+    [['check', '--all'], /--all applies to add and update only/],
+    [['update', '--strict'], /--strict applies to check only/],
+    [['add', 'netlify-alpha', '--dest'], /--dest requires a value/],
+    [['add', 'netlify-alpha', '--bogus'], /unknown option: --bogus/],
+    [['add', 'netlify-alpha', '--dest', 'x', '--remote', '--host', host], /one of --remote or --host/],
+  ];
+  for (const [args, message] of guards) {
+    const result = await runBin(args, { NETLIFY_SKILLS_PACKAGE_ROOT: dist, NETLIFY_SKILLS_HOST: host });
+    assert.equal(result.code, 1, `${args.join(' ')} should be refused`);
+    assert.match(result.stderr, message, args.join(' '));
+    assert.doesNotMatch(result.stdout, /installed|summary/, `${args.join(' ')} ran anyway`);
+  }
+  assert.equal(fs.existsSync(path.join(cwd, 'x')), false);
 });

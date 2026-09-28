@@ -23,6 +23,10 @@ on:
       - ".github/workflows/ctx-pipeline-notify.yml"
       - "package.json"
       - ".github/workflows/validate-skills.yml"
+      # package-check asserts these are in the npm tarball.
+      - "README.md"
+      - "LICENSE"
+      - "CHANGELOG.md"
 
 jobs:
   validate:

@@ -2,8 +2,12 @@
 // fetch-skill — Reference consumer for hosted, versioned skills (EX-3049, EX-3054).
 //
 // This deliberately needs no npm dependencies: it reads a release manifest,
-// verifies every byte it installs, and can tell whether a local skills
-// directory still agrees with that release. Tree hashing is imported from
+// checks every file it installs against the manifest's SHA-256, and can tell
+// whether a local skills directory still agrees with that release. The hashes
+// come from the same source as the bytes, so they catch a truncated or
+// corrupted transfer and a file that drifted from its manifest, not a
+// compromised source; trust in the source is TLS plus, for the package, npm's
+// provenance attestation. Tree hashing is imported from
 // build-manifest so producers and consumers cannot silently diverge. It ships
 // inside the @netlify/skills package as the `netlify-skills` command
 // (bin/netlify-skills.mjs), and it is the implementation the Netlify CLI's
@@ -62,7 +66,7 @@
 //   stale       → replace with latest
 //   modified    → leave it and say so; --reset replaces anyway
 //   renamed     → install under the new name, remove the old directory
-//                 (a modified copy is left alone unless --reset)
+//                 (an edited copy, old or new name, is left alone unless --reset)
 //   deprecated  → delete
 //   duplicate   → never touched (reported; the named copy is what sync manages)
 //   unknown     → never touched
@@ -113,8 +117,16 @@ function parseArgs(argv) {
   if (!opts.host && !opts.source) fail('one of --source <dir> or --host <url> is required');
   if (opts.host && opts.source) fail('--source and --host are mutually exclusive');
   if (opts.host) {
-    try { opts.host = new URL(opts.host).toString().replace(/\/$/, ''); }
+    let url;
+    try { url = new URL(opts.host); }
     catch { fail(`invalid --host URL: ${opts.host}`); }
+    // The hashes travel with the bytes, so a plaintext host would let one
+    // interception rewrite both. Loopback is exempt for local previews.
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+      fail(`--host must be https:// (http:// is accepted for localhost only): ${opts.host}`);
+    }
+    opts.host = url.toString().replace(/\/$/, '');
   } else {
     opts.source = path.resolve(opts.source);
     if (!fs.lstatSync(path.join(opts.source, 'manifest.json'), { throwIfNoEntry: false })?.isFile()) {
@@ -328,18 +340,24 @@ function classify(root, manifest) {
       continue;
     }
     const target = known?.status === 'active' ? known : renamed?.status === 'active' ? renamed : null;
-    const treeHash = hashTree(path.join(root, entry.name));
+    // A directory the hash formula cannot cover (a symlink or other special
+    // entry inside it) is nothing we ever wrote, so it is the user's own
+    // (unknown) or their edit of ours (modified); it must not abort the run.
+    let treeHash = null;
+    try { treeHash = hashTree(path.join(root, entry.name)); } catch { /* classified below */ }
     if (!target) {
-      const twin = manifest.skills.find((skill) => skill.status === 'active' && historyOf(skill).some((item) => item.tree_hash === treeHash));
+      const twin = treeHash && manifest.skills.find((skill) => skill.status === 'active' && historyOf(skill).some((item) => item.tree_hash === treeHash));
       if (twin) {
-        const at = historyOf(twin).find((item) => item.tree_hash === treeHash);
+        const at = historyOf(twin).findLast((item) => item.tree_hash === treeHash);
         records.push({ name: entry.name, status: 'duplicate', current_name: twin.name, version: twin.version, have: at.version });
       } else {
         records.push({ name: entry.name, status: 'unknown' });
       }
       continue;
     }
-    const match = historyOf(target).find((item) => item.tree_hash === treeHash);
+    // Newest match: a byte-identical rename leaves the same hash at two
+    // releases, and `have` should name the later one.
+    const match = treeHash ? historyOf(target).findLast((item) => item.tree_hash === treeHash) : undefined;
     if (target === renamed) {
       records.push({ name: entry.name, status: 'renamed', current_name: target.name, version: target.version, have: match?.version ?? null, modified: !match });
       continue;
@@ -394,6 +412,7 @@ async function update(opts, source, manifest) {
   const { exact } = indexes(manifest);
   const before = classify(opts.update, manifest);
   const install = { ...opts, dest: opts.update };
+  const installed = new Set();
   const actions = [];
   const act = (name, action, detail) => {
     actions.push({ name, action, ...(detail ? { detail } : {}) });
@@ -423,16 +442,21 @@ async function update(opts, source, manifest) {
         // Then the old directory is only ever removed, never used to overwrite
         // the current one: the current copy's own record decides its fate,
         // and an edited current copy is kept unless --reset.
+        // An edited old-name copy is likewise kept: it is deleted only with
+        // --reset, whether or not the current name is installed.
         const current = before.skills.find((other) => other.name === record.current_name);
-        if (current && current.status === 'modified' && !opts.reset) {
+        if (record.modified && !opts.reset) {
+          act(record.name, 'kept', current
+            ? `edited locally; ${record.current_name} is installed, pass --reset to remove this copy`
+            : `edited locally; now called ${record.current_name}, pass --reset to migrate`);
+        } else if (current && current.status === 'modified' && !opts.reset) {
           act(record.name, 'kept', `${record.current_name} is already installed and edited locally; pass --reset to migrate over it`);
         } else if (current) {
           fs.rmSync(dir, { recursive: true, force: true });
           act(record.name, 'removed', `superseded by ${record.current_name}, which is installed`);
-        } else if (record.modified && !opts.reset) {
-          act(record.name, 'kept', `edited locally; now called ${record.current_name}, pass --reset to migrate`);
         } else {
           await installSkill(install, source, exact.get(record.current_name));
+          installed.add(record.current_name);
           fs.rmSync(dir, { recursive: true, force: true });
           act(record.name, 'renamed', `-> ${record.current_name} ${record.version}`);
         }
@@ -450,6 +474,7 @@ async function update(opts, source, manifest) {
     }
   }
   for (const name of before.missing) {
+    if (installed.has(name)) continue; // arrived by migration above
     if (opts.all) {
       const skill = exact.get(name);
       await installSkill(install, source, skill);

@@ -176,7 +176,7 @@ export function buildHosted({ out, repo = '.', latest = null, minVersion = null 
       const version = tag.slice(1);
       const manifest = buildManifest({
         root: temporary, version, commit, publishedAt,
-        history: { repo: repoPath, headRef: tag, hashAt, tags: history.filter((entry) => compareVersions(entry.version, version) < 0) },
+        history: { repo: repoPath, hashAt, tags: history.filter((entry) => compareVersions(entry.version, version) < 0) },
       });
       const versionRoot = path.join(output, 'v', tag.slice(1));
       fs.mkdirSync(versionRoot, { recursive: true });

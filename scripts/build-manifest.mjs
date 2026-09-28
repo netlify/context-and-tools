@@ -24,7 +24,10 @@
 // git's tree object for `skills/<name>` is compared across release tags to
 // find the change points, and each change point's tree_hash is computed from
 // the blobs at that tag. A skill that differs from the newest tag (i.e. is
-// being released now) gets a final entry at the manifest's version.
+// being released now) gets a final entry at the manifest's version. History
+// follows a skill back through the prior names in skill-registry.json: an
+// entry made under a prior name carries that `name` (the path it is pinned
+// at), and the rename itself is a change point.
 //
 // History lets a client tell an outdated copy (hash matches an entry) from an
 // edited one (matches none). Pinning is `HOST/v/<skill version>/skills/<name>/…`.
@@ -196,20 +199,32 @@ export function treeHashAt(repo, ref, name) {
 
 // History of one skill: every release at which its tree changed, ascending,
 // each with the tree_hash it had from then on. `tags` are the release tags
-// before the head (ascending, each resolved to its skill trees); the head is
-// appended as `headVersion` when it differs from the newest tag. A skill
-// removed and re-added counts as changed when it reappears. `hashAt` is
-// injectable for tests; the default reads git objects.
-export function skillHistory({ name, headOid, headTreeHash, headVersion, tags, hashAt }) {
+// before the head (ascending, each resolved to its skill trees). At each tag
+// the skill is looked up by its current name first, then by each of its
+// `priorNames`, so history reaches back through a rename; an entry made
+// under a prior name carries that `name`, since that is the path it is
+// pinned at (`v/<version>/skills/<name>/`). A rename counts as a change even
+// when the bytes did not move, so the skill's version is a release where its
+// current path exists. A skill removed and re-added counts as changed when it
+// reappears. The head is appended as `headVersion` when its hash differs from
+// the newest entry (or there is none: a skill not yet in any tag). `hashAt`
+// is injectable for tests; the default reads git objects.
+export function skillHistory({ name, priorNames = [], headTreeHash, headVersion, tags, hashAt }) {
   const changes = [];
   let previous;
   for (const { version, trees } of tags) {
-    const oid = trees.get(name);
-    if (oid !== undefined && oid !== previous) changes.push(version);
-    previous = oid;
+    const found = [name, ...priorNames].find((candidate) => trees.get(candidate) !== undefined);
+    const key = found === undefined ? undefined : `${found}\0${trees.get(found)}`;
+    if (key !== undefined && key !== previous) changes.push({ version, name: found });
+    previous = key;
   }
-  const history = changes.map((version) => ({ version, tree_hash: hashAt(version, name) }));
-  if (headOid !== previous) history.push({ version: headVersion, tree_hash: headTreeHash });
+  const history = changes.map(({ version, name: nameAt }) => ({
+    version,
+    ...(nameAt === name ? {} : { name: nameAt }),
+    tree_hash: hashAt(version, nameAt),
+  }));
+  const last = history[history.length - 1];
+  if (!last || last.name !== undefined || last.tree_hash !== headTreeHash) history.push({ version: headVersion, tree_hash: headTreeHash });
   return history;
 }
 
@@ -292,7 +307,7 @@ function provenanceData(root) {
 }
 
 // `history`: `false` stamps every skill with the manifest version and a
-// one-entry history (no git); `{ repo, headRef, tags, hashAt? }` derives from
+// one-entry history (no git); `{ repo, tags, hashAt? }` derives from
 // those (hashAt(version, name) may be a memoized treeHashAt when many
 // manifests are built from one repo); omitted derives from git at `root` with
 // HEAD and every earlier release tag.
@@ -303,9 +318,8 @@ export function buildManifest({ root = '.', version, commit, publishedAt, histor
     if (!releaseTags(root).length) {
       throw new Error(`${root}: no release tags found; per-skill versions need full git history (fetch-depth: 0), or pass --no-history`);
     }
-    history = { repo: root, headRef: 'HEAD', tags: tagsBefore(root, version) };
+    history = { repo: root, tags: tagsBefore(root, version) };
   }
-  const headTrees = history ? skillTrees(history.repo, history.headRef) : null;
   const hashAt = history ? (history.hashAt || ((tagVersion, name) => treeHashAt(history.repo, `v${tagVersion}`, name))) : null;
   if (commit === undefined) {
     try {
@@ -341,7 +355,7 @@ export function buildManifest({ root = '.', version, commit, publishedAt, histor
     const { files, executable } = hashFiles(dir);
     const treeHash = hashFilesMap(files, executable);
     const skillHist = history
-      ? skillHistory({ name, headOid: headTrees.get(name), headTreeHash: treeHash, headVersion: version, tags: history.tags, hashAt })
+      ? skillHistory({ name, priorNames: priorBySkill.get(name) || [], headTreeHash: treeHash, headVersion: version, tags: history.tags, hashAt })
       : [{ version, tree_hash: treeHash }];
     const entry = {
       name,

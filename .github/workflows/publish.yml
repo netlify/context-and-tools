@@ -12,8 +12,10 @@ name: publish
 #                  deploy has no state of its own and re-publishing is safe.
 #
 # npm goes first and the site waits for it: the package is what consumers
-# depend on, so the site must never advertise a release npm does not have. A
-# site failure after npm shipped is recoverable by re-running with the tag.
+# depend on, so the site must never advertise a release npm does not have
+# (deploy-hosted also checks that the site's `latest` is on npm, since latest
+# is the highest tag, not necessarily the one being re-published). A site
+# failure after npm shipped is recoverable by re-running with the tag.
 #
 # Only called from release-please.yml (on a release, or by hand with a tag).
 # There is no workflow_dispatch here because npm Trusted Publishing checks the
@@ -183,6 +185,20 @@ jobs:
             if (!v.versions.includes(want)) { console.error(`::error::${want} is not in dist/versions.json`); process.exit(1); }
             console.log(`publishing ${want}; latest is ${v.latest}`);
           ' "$version"
+
+      # The site advertises `latest`, which is the highest tag, not this one.
+      # If a newer release's npm publish failed and an older tag is being
+      # re-published by hand, `latest` would name a version npm never got.
+      # Refuse; the fix is to re-publish the newer tag.
+      - name: Verify latest is on npm
+        run: |
+          name="$(node -p 'require("./package.json").name')"
+          latest="$(node -p 'require("./dist/versions.json").latest')"
+          if [ -z "$(npm view "${name}@${latest}" version 2>/dev/null)" ]; then
+            echo "::error::${name}@${latest} is not on npm, so the site cannot advertise it as latest. Re-publish v${latest} first."
+            exit 1
+          fi
+          echo "${name}@${latest} is on npm"
 
       - name: Deploy to Netlify
         id: deploy

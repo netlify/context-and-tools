@@ -65,6 +65,9 @@ before(async () => {
   write(path.join(fixture, 'old/netlify-alpha/SKILL.md'), '---\nname: netlify-alpha\ndescription: Alpha\n---\nalpha, first draft\n');
   const alpha = manifest.skills.find(({ name }) => name === 'netlify-alpha');
   alpha.history.unshift({ version: '0.9.0', tree_hash: hashTree(path.join(fixture, 'old/netlify-alpha')) });
+  // The retired skill shipped once, as exactly `retired/SKILL.md` = "retired\n".
+  write(path.join(fixture, 'old/retired/SKILL.md'), 'retired\n');
+  manifest.skills.find(({ name }) => name === 'retired').history = [{ version: '0.9.0', tree_hash: hashTree(path.join(fixture, 'old/retired')) }];
   write(path.join(dist, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   write(path.join(dist, 'v/1.0.0/manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   copyManifestFiles(manifest, dist);
@@ -242,6 +245,29 @@ test('a migrated skill is neither reported missing nor installed twice', async (
   assert.deepEqual(JSON.parse(all.stdout).actions.map(({ name, action }) => [name, action]), [['old-alpha', 'renamed'], ['netlify-beta', 'added']]);
 });
 
+test('a directory carrying our name but no SKILL.md is modified, not missing, so --all never installs over it', async (t) => {
+  if (listenError) return t.skip(`localhost unavailable: ${listenError.code}`);
+  const local = path.join(fixture, 'headless');
+  write(path.join(local, 'netlify-alpha/references/mine.md'), 'my notes\n');      // ours by name, SKILL.md gone
+  write(path.join(local, 'old-alpha/references/mine.md'), 'my notes\n');          // prior name, SKILL.md gone
+  write(path.join(local, 'not-a-skill/readme.md'), 'nothing to do with skills\n');  // no SKILL.md, not our name
+
+  const checked = await run(['--host', host, '--check', local, '--json']);
+  assert.equal(checked.code, 1, checked.stderr);
+  const report = JSON.parse(checked.stdout);
+  assert.deepEqual(report.skills.map(({ name, status }) => [name, status]), [['netlify-alpha', 'modified'], ['old-alpha', 'renamed']]);
+  assert.equal(report.skills[1].modified, true);
+  assert.deepEqual(report.missing, ['netlify-beta'], 'netlify-alpha is present, in some state');
+
+  const updated = await run(['--host', host, '--update', local, '--all', '--json']);
+  assert.equal(updated.code, 0, updated.stderr);
+  assert.deepEqual(JSON.parse(updated.stdout).actions.map(({ name, action }) => [name, action]),
+    [['netlify-alpha', 'kept'], ['old-alpha', 'kept'], ['netlify-beta', 'added']]);
+  assert.equal(fs.readFileSync(path.join(local, 'netlify-alpha/references/mine.md'), 'utf8'), 'my notes\n', 'not installed over');
+  assert.equal(fs.existsSync(path.join(local, 'old-alpha/references/mine.md')), true);
+  assert.equal(fs.existsSync(path.join(local, 'netlify-alpha/SKILL.md')), false);
+});
+
 test('a symlink inside a skill directory classifies it without aborting the run', async (t) => {
   if (listenError) return t.skip(`localhost unavailable: ${listenError.code}`);
   const local = path.join(fixture, 'symlinks');
@@ -388,6 +414,20 @@ test('--update applies the sync rules and --all adds what is missing', async (t)
   ]);
   assert.equal(fs.readFileSync(path.join(local, 'netlify-alpha/SKILL.md'), 'utf8'), fs.readFileSync(path.join(fixture, 'skills/netlify-alpha/SKILL.md'), 'utf8'));
   assert.equal(fs.existsSync(path.join(local, 'old-alpha')), false);
+  assert.equal(fs.existsSync(path.join(local, 'retired')), false);
+
+  // A deprecated copy that matches no shipped release is kept until --reset.
+  write(path.join(local, 'retired/SKILL.md'), 'retired, with my notes\n');
+  const editedDeprecated = await run(['--host', host, '--update', local, '--json']);
+  assert.equal(editedDeprecated.code, 0, editedDeprecated.stderr);
+  const keptAction = JSON.parse(editedDeprecated.stdout).actions.find(({ name }) => name === 'retired');
+  assert.equal(keptAction.action, 'kept');
+  assert.match(keptAction.detail, /use netlify-alpha, but edited locally; pass --reset/);
+  assert.equal(fs.existsSync(path.join(local, 'retired/SKILL.md')), true);
+  const checkedDeprecated = await run(['--host', host, '--check', local]);
+  assert.match(checkedDeprecated.stdout, /retired: deprecated -> netlify-alpha \(edited locally\)/);
+  const resetDeprecated = await run(['--host', host, '--update', local, '--reset', '--json']);
+  assert.equal(JSON.parse(resetDeprecated.stdout).actions.find(({ name }) => name === 'retired').action, 'removed');
   assert.equal(fs.existsSync(path.join(local, 'retired')), false);
   assert.equal(fs.existsSync(path.join(local, 'mine/SKILL.md')), true);
   assert.equal(fs.existsSync(path.join(local, 'netlify-beta')), false, 'missing skills are not added without --all');

@@ -273,6 +273,18 @@ test('a manifest built from a tagged repo carries derived version and history pe
   assert.deepEqual(omega.history.map(({ version, name }) => [version, name ?? null]), [['0.1.0', 'netlify-zeta'], ['0.4.0', null]]);
   assert.equal(omega.history[0].tree_hash, zeta.tree_hash, 'a clean copy of the old name matches its history entry');
   assert.notEqual(omega.history[1].tree_hash, zeta.tree_hash, 'the frontmatter rename changed the bytes');
+
+  // Retire omega: its entry keeps the releases it shipped in (and no head),
+  // so a client can tell a shipped copy from an edited one before deleting.
+  g('tag', 'v0.4.0');
+  fs.rmSync(path.join(root, 'skills', 'netlify-omega'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify({ deprecated: { 'netlify-omega': { since: '0.5.0', description: 'Gone.' } } }));
+  g('add', '.'); g('commit', '-qm', 'five');
+  const retired = buildManifest({ root, ...fixed, version: '0.5.0' }).skills.find(({ name }) => name === 'netlify-omega');
+  assert.equal(retired.status, 'deprecated');
+  assert.deepEqual(retired.history.map(({ version }) => version), ['0.4.0']);
+  assert.equal(retired.history[0].tree_hash, omega.tree_hash);
+  assert.equal(buildManifest({ root, ...fixed, version: '0.5.0', history: false }).skills.find(({ name }) => name === 'netlify-omega').history.length, 0, 'no git, no history');
 });
 
 test('deriving per-skill versions without release tags fails with a clear message', () => {

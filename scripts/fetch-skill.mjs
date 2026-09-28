@@ -52,9 +52,11 @@
 // `history` (every release the skill changed at, with its tree_hash):
 //   current     hash equals the latest tree_hash
 //   stale       hash equals an older entry: an unedited, outdated copy
-//   modified    hash matches no entry: someone edited it locally
+//   modified    hash matches no entry: someone edited it locally (or the
+//               directory carries our name but has no SKILL.md)
 //   renamed     directory name is a prior_name of a current skill
-//   deprecated  the manifest retired it
+//   deprecated  the manifest retired it (`modified` when its content matches
+//               no release it shipped in, or cannot be hashed)
 //   duplicate   directory name is not ours, but its content is a release of
 //               one of our skills (someone copied it under another name)
 //   unknown     not in the manifest at all: the user's own skill
@@ -67,7 +69,7 @@
 //   modified    → leave it and say so; --reset replaces anyway
 //   renamed     → install under the new name, remove the old directory
 //                 (an edited copy, old or new name, is left alone unless --reset)
-//   deprecated  → delete
+//   deprecated  → delete (an edited or unverifiable copy is kept unless --reset)
 //   duplicate   → never touched (reported; the named copy is what sync manages)
 //   unknown     → never touched
 //   missing     → added only with --all, so a single-skill install stays one
@@ -230,11 +232,11 @@ function indexes(manifest) {
 }
 
 // Manifests published before `history` existed still classify: their single
-// known hash is the latest one.
+// known hash is the latest one. A deprecated entry has no hash of its own;
+// its history (possibly empty) is all there is.
 function historyOf(skill) {
-  return Array.isArray(skill.history) && skill.history.length
-    ? skill.history
-    : [{ version: skill.version ?? null, tree_hash: skill.tree_hash }];
+  if (Array.isArray(skill.history) && skill.history.length) return skill.history;
+  return skill.tree_hash ? [{ version: skill.version ?? null, tree_hash: skill.tree_hash }] : [];
 }
 
 function safeFile(file) {
@@ -332,19 +334,29 @@ function classify(root, manifest) {
   );
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (!fs.lstatSync(path.join(root, entry.name, 'SKILL.md'), { throwIfNoEntry: false })?.isFile()) continue;
     const known = exact.get(entry.name);
     const renamed = prior.get(entry.name);
+    const target = known?.status === 'active' ? known : renamed?.status === 'active' ? renamed : null;
+    // A directory without a SKILL.md is not a skill, unless it carries one of
+    // our names: then it is what is left of one (SKILL.md deleted or
+    // symlinked), and it must be seen, or --all would install over it.
+    const hasSkillMd = fs.lstatSync(path.join(root, entry.name, 'SKILL.md'), { throwIfNoEntry: false })?.isFile();
+    if (!hasSkillMd && !target && known?.status !== 'deprecated') continue;
+    // A directory the hash formula cannot cover (no SKILL.md, or a symlink or
+    // other special entry inside it) is nothing we ever wrote, so it is the
+    // user's own (unknown) or their edit of ours (modified); it must not
+    // abort the run.
+    let treeHash = null;
+    if (hasSkillMd) {
+      try { treeHash = hashTree(path.join(root, entry.name)); } catch { /* classified below */ }
+    }
     if (known?.status === 'deprecated') {
-      records.push({ name: entry.name, status: 'deprecated', replaced_by: known.deprecated?.replaced_by || null });
+      // Deleted unasked only when the copy is one we shipped; an edited or
+      // unverifiable copy waits for --reset.
+      const match = treeHash ? historyOf(known).findLast((item) => item.tree_hash === treeHash) : undefined;
+      records.push({ name: entry.name, status: 'deprecated', replaced_by: known.deprecated?.replaced_by || null, have: match?.version ?? null, modified: !match });
       continue;
     }
-    const target = known?.status === 'active' ? known : renamed?.status === 'active' ? renamed : null;
-    // A directory the hash formula cannot cover (a symlink or other special
-    // entry inside it) is nothing we ever wrote, so it is the user's own
-    // (unknown) or their edit of ours (modified); it must not abort the run.
-    let treeHash = null;
-    try { treeHash = hashTree(path.join(root, entry.name)); } catch { /* classified below */ }
     if (!target) {
       const twin = treeHash && manifest.skills.find((skill) => skill.status === 'active' && historyOf(skill).some((item) => item.tree_hash === treeHash));
       if (twin) {
@@ -382,7 +394,7 @@ function describe(record) {
     case 'stale': return `stale (have ${record.have}, latest is ${record.version})`;
     case 'modified': return `modified (edited locally; latest is ${record.version})`;
     case 'renamed': return `renamed -> ${record.current_name}${record.modified ? ' (edited locally)' : ''}`;
-    case 'deprecated': return `deprecated${record.replaced_by ? ` -> ${record.replaced_by}` : ''}`;
+    case 'deprecated': return `deprecated${record.replaced_by ? ` -> ${record.replaced_by}` : ''}${record.modified ? ' (edited locally)' : ''}`;
     case 'duplicate': return `duplicate of ${record.current_name} ${record.have}${record.have !== record.version ? ` (latest is ${record.version})` : ''}`;
     default: return record.status;
   }
@@ -463,8 +475,12 @@ async function update(opts, source, manifest) {
         break;
       }
       case 'deprecated':
-        fs.rmSync(dir, { recursive: true, force: true });
-        act(record.name, 'removed', `deprecated${record.replaced_by ? `; use ${record.replaced_by}` : ''}`);
+        if (record.modified && !opts.reset) {
+          act(record.name, 'kept', `deprecated${record.replaced_by ? `; use ${record.replaced_by}` : ''}, but edited locally; pass --reset to delete`);
+        } else {
+          fs.rmSync(dir, { recursive: true, force: true });
+          act(record.name, 'removed', `deprecated${record.replaced_by ? `; use ${record.replaced_by}` : ''}`);
+        }
         break;
       case 'duplicate':
         act(record.name, 'ignored', `copy of ${record.current_name} ${record.have} under another name`);

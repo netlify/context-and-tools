@@ -30,7 +30,9 @@
 // at), and the rename itself is a change point.
 //
 // History lets a client tell an outdated copy (hash matches an entry) from an
-// edited one (matches none). Pinning is `HOST/v/<skill version>/skills/<name>/…`.
+// edited one (matches none). A deprecated skill keeps the history of the
+// releases it shipped in, for the same reason: only a copy that matches one
+// is safe to delete unasked. Pinning is `HOST/v/<skill version>/skills/<name>/…`.
 // This needs the tags: a shallow clone must fetch them, or pass --no-history
 // for a local preview in which every skill is stamped with the manifest version.
 //
@@ -208,8 +210,11 @@ export function treeHashAt(repo, ref, name) {
 // current path exists. A skill removed and re-added counts as changed when it
 // reappears. The head is appended as `headVersion` when its hash differs from
 // the newest entry (or there is none: a skill not yet in any tag). `hashAt`
-// is injectable for tests; the default reads git objects.
-export function skillHistory({ name, priorNames = [], headTreeHash, headVersion, tags, hashAt }) {
+// is injectable for tests; the default reads git objects. `retired: true`
+// is the history of a deprecated skill: the releases it shipped in, with no
+// head, so a client can tell an untouched copy from an edited one before
+// deleting it.
+export function skillHistory({ name, priorNames = [], headTreeHash, headVersion, tags, hashAt, retired = false }) {
   const changes = [];
   let previous;
   for (const { version, trees } of tags) {
@@ -223,6 +228,7 @@ export function skillHistory({ name, priorNames = [], headTreeHash, headVersion,
     ...(nameAt === name ? {} : { name: nameAt }),
     tree_hash: hashAt(version, nameAt),
   }));
+  if (retired) return history;
   const last = history[history.length - 1];
   if (!last || last.name !== undefined || last.tree_hash !== headTreeHash) history.push({ version: headVersion, tree_hash: headTreeHash });
   return history;
@@ -383,7 +389,7 @@ export function buildManifest({ root = '.', version, commit, publishedAt, histor
       tree_hash: null,
       files: {},
       executable: [],
-      history: [],
+      history: history ? skillHistory({ name, tags: history.tags, hashAt, retired: true }) : [],
       deprecated: deprecatedInfo,
     });
   }

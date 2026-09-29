@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ctx-notify.test.mjs — zero-dependency test suite for scripts/ctx-notify.mjs.
 //
-// Exercises the pure classification and formatting layer (everything above
+// Exercises the pure classification and body-building layer (everything above
 // the I/O line) against run/jobs fixtures shaped like the GitHub Actions API
 // responses the watcher reads. Each shape in the header's table has a case,
 // plus the degradation rules: a missing outcome artifact must never change
@@ -23,9 +23,9 @@ import {
   STEP,
   TRUSTED_EVENTS,
   classifyRun,
-  formatMessage,
   outcomeForAttempt,
   parseOutcome,
+  receiveBody,
   stripMarkup,
   untrustedReason,
 } from './ctx-notify.mjs';
@@ -69,6 +69,15 @@ function run(overrides = {}) {
     run_attempt: 1,
     ...overrides,
   };
+}
+
+const REPO = 'netlify/context-and-tools';
+
+// The body of a successful receiveBody(); fails the test on null or refusal.
+function body(cls, r, outcome) {
+  const built = receiveBody(cls, r, outcome, REPO);
+  assert.ok(built?.ok, `expected a body, got ${JSON.stringify(built)}`);
+  return built.body;
 }
 
 const DOCS_SHA = 'e33a7260cd1ab02c53b80420d047044454a29833';
@@ -129,12 +138,11 @@ test('outcomeForAttempt: the artifact only counts for the attempt that wrote it'
 
 // ── shapes ──
 
-test('imported: PR step green → 📥 with groupings; the PR URL rides on its own line', () => {
+test('imported: PR step green → imported with groupings; the PR URL rides in the body', () => {
   const cls = classifyRun(run(), [receiveJob()], OUTCOME);
   assert.equal(cls.shape, 'imported');
   assert.equal(cls.detail, 'groupings: functions forms');
-  const msg = formatMessage(cls, run(), OUTCOME);
-  assert.equal(msg.split('\n').pop(), 'PR: https://github.com/netlify/context-and-tools/pull/123');
+  assert.equal(body(cls, run(), OUTCOME).prUrl, 'https://github.com/netlify/context-and-tools/pull/123');
 });
 
 test('imported: ordering-only advance names itself rather than listing groupings', () => {
@@ -147,7 +155,7 @@ test('imported: no outcome artifact degrades the detail, not the shape', () => {
   const cls = classifyRun(run(), [receiveJob()], null);
   assert.equal(cls.shape, 'imported');
   assert.match(cls.detail, /groupings unknown/);
-  assert.doesNotMatch(formatMessage(cls, run(), null), /^PR:/m);
+  assert.equal(body(cls, run(), null).prUrl, null);
 });
 
 test('noop: import green, PR skipped → 💤', () => {
@@ -165,7 +173,7 @@ test('stale: guard green, import skipped → ⏭️ SKIPPED, not NO-OP', () => {
 
 test('skipped run (CTX_PIPELINE off) posts nothing', () => {
   assert.equal(classifyRun(run({ conclusion: 'skipped' }), [], null), null);
-  assert.equal(formatMessage(null, run()), null);
+  assert.equal(receiveBody(null, run(), null, REPO), null);
 });
 
 // ── failures: each known step gets an actionable line ──
@@ -258,22 +266,80 @@ test('unclassified: green run with a step layout the classifier does not know', 
   assert.equal(classifyRun(run(), [], null).shape, 'unclassified');
 });
 
-// ── message layout: status / docs+trigger / detail / run URL / PR URL ──
+// ── context-hub body: the ct-receive-finished contract ──
 
-test('formatMessage: one field per line in contract order, docs sha shortened to 9, plain-text only', () => {
-  const msg = formatMessage(classifyRun(run(), [receiveJob()], OUTCOME), run(), OUTCOME);
-  assert.deepEqual(msg.split('\n'), [
-    '📥 ctx-pipeline receive IMPORTED',
-    `docs ${DOCS_SHA.slice(0, 9)} · dispatch`,
-    'groupings: functions forms',
-    'run: https://github.com/netlify/context-and-tools/actions/runs/32073913019',
-    'PR: https://github.com/netlify/context-and-tools/pull/123',
-  ]);
-  // Workflow Builder renders the variable as plain text: no mrkdwn links, no entities.
-  assert.doesNotMatch(msg, /[<>]|&amp;/);
+test('receiveBody: imported carries every contract field', () => {
+  assert.deepEqual(body(classifyRun(run(), [receiveJob()], OUTCOME), run(), OUTCOME), {
+    githubRunUrl: 'https://github.com/netlify/context-and-tools/actions/runs/32073913019',
+    attempt: 1,
+    outcome: 'imported',
+    detail: 'groupings: functions forms',
+    docsSha: DOCS_SHA,
+    trigger: 'dispatch',
+    prUrl: 'https://github.com/netlify/context-and-tools/pull/123',
+  });
 });
 
-test('formatMessage: a populated pr_url never produces a PR line on a non-imported shape', () => {
+test('receiveBody: every shape maps to its outcome, with red sent as failed', () => {
+  const cases = [
+    ['imported', 'imported', run(), [receiveJob()]],
+    ['noop', 'noop', run(), [receiveJob({ 'Open or update the rolling sync PR': 'skipped' })]],
+    ['stale', 'stale', run(), [receiveJob({ 'Import changed skills': 'skipped', 'Open or update the rolling sync PR': 'skipped' })]],
+    ['red', 'failed', run({ conclusion: 'failure' }), [receiveJob({ 'Import changed skills': 'failure' })]],
+    ['unclassified', 'unclassified', run({ conclusion: 'cancelled' }), [receiveJob()]],
+  ];
+  for (const [shape, sent, r, jobs] of cases) {
+    const cls = classifyRun(r, jobs, OUTCOME);
+    assert.equal(cls.shape, shape);
+    assert.equal(body(cls, r, OUTCOME).outcome, sent, shape);
+  }
+});
+
+test('receiveBody: the run URL is built from repo and id, not html_url', () => {
+  const r = run({ html_url: 'https://evil.example/whatever' });
+  const cls = classifyRun(r, [receiveJob()], OUTCOME);
+  assert.equal(body(cls, r, OUTCOME).githubRunUrl, 'https://github.com/netlify/context-and-tools/actions/runs/32073913019');
+  assert.equal(receiveBody(cls, r, OUTCOME, 'a/b').body.githubRunUrl, 'https://github.com/a/b/actions/runs/32073913019');
+});
+
+test('receiveBody: docsSha is the full sha, null when missing or malformed', () => {
+  const cls = classifyRun(run(), [receiveJob()], OUTCOME);
+  assert.equal(body(cls, run(), OUTCOME).docsSha, DOCS_SHA);
+  assert.equal(body(cls, run(), null).docsSha, null);
+  for (const bad of ['', 'abc123', DOCS_SHA.toUpperCase(), DOCS_SHA.slice(0, 39), `${DOCS_SHA}0`, `${DOCS_SHA.slice(0, 39)}g`, '<!channel>']) {
+    assert.equal(body(cls, run(), { ...OUTCOME, docs_sha: bad }).docsSha, null, JSON.stringify(bad));
+  }
+});
+
+test('receiveBody: attempt is the run attempt', () => {
+  for (const n of [1, 3]) {
+    const r = run({ run_attempt: n });
+    assert.equal(body(classifyRun(r, [receiveJob()], null), r, null).attempt, n);
+  }
+});
+
+test('receiveBody: an invalid attempt or run id is refused', () => {
+  const cls = classifyRun(run(), [receiveJob()], null);
+  for (const r of [run({ run_attempt: 0 }), run({ run_attempt: '2' }), run({ run_attempt: undefined }), run({ id: 'abc/../x' })]) {
+    assert.equal(receiveBody(cls, r, null, REPO).ok, false);
+  }
+});
+
+test('receiveBody: triggers map to dispatch / manual / manual_skip_guard, anything else is refused', () => {
+  const trig = (r, o) => body(classifyRun(r, [receiveJob()], o), r, o).trigger;
+  assert.equal(trig(run(), OUTCOME), 'dispatch');
+  const manual = run({ event: 'workflow_dispatch' });
+  assert.equal(trig(manual, OUTCOME), 'manual');
+  assert.equal(trig(manual, { ...OUTCOME, guard_bypassed: 'true' }), 'manual_skip_guard');
+  for (const event of ['pull_request', 'push', undefined]) {
+    const r = run({ event });
+    const built = receiveBody(classifyRun(r, [receiveJob()], OUTCOME), r, OUTCOME, REPO);
+    assert.equal(built.ok, false, String(event));
+    assert.match(built.error, /trigger/);
+  }
+});
+
+test('receiveBody: a populated pr_url is null on a non-imported shape', () => {
   const failed = run({ conclusion: 'failure' });
   const cases = [
     ['noop', run(), [receiveJob({ 'Open or update the rolling sync PR': 'skipped' })]],
@@ -284,36 +350,21 @@ test('formatMessage: a populated pr_url never produces a PR line on a non-import
   for (const [shape, r, jobs] of cases) {
     const cls = classifyRun(r, jobs, OUTCOME);
     assert.equal(cls.shape, shape);
-    assert.doesNotMatch(formatMessage(cls, r, OUTCOME), /^PR:/m, shape);
+    assert.equal(body(cls, r, OUTCOME).prUrl, null, shape);
   }
 });
 
-test('formatMessage: PR line requires a GitHub pull URL, not whatever the artifact says', () => {
+test('receiveBody: prUrl requires a GitHub pull URL, not whatever the artifact says', () => {
   for (const bad of ['', 'not a url', 'https://example.com/pull/1', 'https://github.com/netlify/context-and-tools/pull/12 <!channel>']) {
-    const msg = formatMessage(classifyRun(run(), [receiveJob()], { ...OUTCOME, pr_url: bad }), run(), { ...OUTCOME, pr_url: bad });
-    assert.doesNotMatch(msg, /^PR:/m, JSON.stringify(bad));
+    const o = { ...OUTCOME, pr_url: bad };
+    assert.equal(body(classifyRun(run(), [receiveJob()], o), run(), o).prUrl, null, JSON.stringify(bad));
   }
 });
 
-test('formatMessage: docs n/a without an artifact; attempt number on re-runs; no PR line', () => {
-  const r = run({ run_attempt: 2 });
-  const lines = formatMessage(classifyRun(r, [receiveJob()], null), r, null).split('\n');
-  assert.equal(lines[1], 'docs n/a · dispatch (attempt 2)');
-  assert.equal(lines.length, 4);
-});
-
-test('formatMessage: manual runs say so, and skip_guard bypasses are flagged', () => {
-  const r = run({ event: 'workflow_dispatch' });
-  assert.equal(formatMessage(classifyRun(r, [receiveJob()], OUTCOME), r, OUTCOME).split('\n')[1], `docs ${DOCS_SHA.slice(0, 9)} · manual`);
-  const bypass = { ...OUTCOME, guard_bypassed: 'true' };
-  assert.equal(formatMessage(classifyRun(r, [receiveJob()], bypass), r, bypass).split('\n')[1], `docs ${DOCS_SHA.slice(0, 9)} · manual (skip_guard)`);
-});
-
-test('formatMessage: detail is capped at 300 chars', () => {
-  const msg = formatMessage({ shape: 'red', detail: 'x'.repeat(500) }, run(), null);
-  const detail = msg.split('\n')[2];
-  assert.equal(detail.length, 300);
-  assert.ok(detail.endsWith('…'));
+test('receiveBody: detail is capped at 300 chars', () => {
+  const sent = body({ shape: 'red', detail: 'x'.repeat(500) }, run(), null).detail;
+  assert.equal(sent.length, 300);
+  assert.ok(sent.endsWith('…'));
 });
 
 // ── helpers ──

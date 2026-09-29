@@ -1,46 +1,29 @@
 #!/usr/bin/env node
-// ctx-notify — classify a finished "Receive agent-context" run and post a
-// short status to #notify-context-pipeline (EX-3057).
+// ctx-notify — classify a finished "Receive agent-context" run and report it
+// to context-hub (EX-3057, EX-3258).
 //
 // Called by .github/workflows/ctx-pipeline-notify.yml (a workflow_run
 // watcher). The docs-side notifier reports delivery when its dispatch is
-// accepted; this one reports whether the import actually landed.
+// accepted; this one reports whether the import actually landed. context-hub
+// records the event and posts the Slack notice.
 //
-// One message per receive run, five shapes:
-//   📥 IMPORTED      skills (or the ordering position) changed; the rolling
-//                    sync PR was opened or updated
-//   💤 NO-OP         docs commit imported cleanly, nothing changed
-//   ⏭️ SKIPPED       stale delivery — the monotonicity guard refused an older
-//                    docs commit (AX-159); self-heals on the next dispatch
-//   🔴 FAILED        with the failing step and, where the step is known, what
-//                    to do about it (the guard's fail-closed branch calls out
-//                    the skip_guard recovery, because that state recurs on
-//                    every later dispatch until a human resets it)
-//   ⚠️ UNCLASSIFIED  cancelled / timed out / unrecognized job layout
-// Runs with conclusion "skipped" (CTX_PIPELINE off) post nothing.
+// One event per receive run, five outcomes: imported (skills or the ordering
+// position changed; the rolling sync PR was opened or updated), noop, stale
+// (the monotonicity guard refused an older docs commit, AX-159), failed
+// (`red` internally), unclassified (cancelled / timed out / unrecognized
+// job layout). Runs with conclusion "skipped" (CTX_PIPELINE off) send nothing.
 //
-// Message layout, one field per line, in a fixed order so a reader can pair
-// it with the docs-side line at a glance:
-//   <emoji> ctx-pipeline receive <SHAPE>
-//   docs <sha9|n/a> · <trigger>[ (attempt N)]
-//   <detail>
-//   run: <url>
-//   PR: <url>            (only when the rolling PR was opened or updated)
-// The docs sha is the correlation key: it matches the sha in the docs-side
-// 📦 DELIVERED line for the same delivery.
-//
-// The channel's webhook is a Slack Workflow Builder trigger (EX-3065), which
-// drops `text` into a template as PLAIN text: mrkdwn is not interpreted, so
-// <url|label> links render as literal brackets and &amp; shows as-is. Bare
-// URLs auto-link and newlines break lines, so the message uses only those.
-// The one payload-derived field (docs_ref) has angle brackets stripped: moot
-// in plain-text mode, and the right guard if the trigger ever becomes a
-// classic incoming webhook that does parse mrkdwn.
+// POST ${CONTEXT_HUB_URL}/api/pipeline/events/ct-receive-finished with body
+// { githubRunUrl, attempt, outcome, detail, docsSha, trigger, prUrl }.
+// githubRunUrl is built from the repo and run id, not trusted from html_url.
+// docsSha and prUrl come from the artifact and are validated (40-char hex;
+// a pull URL, imported only), else null. A re-run sends a second event for
+// the same run id, deliberately; `attempt` tells them apart.
 //
 // Trust boundary: workflow_run matches the watched workflow by NAME and fires
 // for any completed run of that name, including one a fork PR produced by
 // adding a pull_request trigger (or a same-named file) — and this watcher
-// runs on main with the webhook secret. So only runs from this repository
+// runs on main with the hub key. So only runs from this repository
 // triggered by repository_dispatch or workflow_dispatch (the receive
 // workflow's only legitimate triggers) are classified; anything else is
 // refused before its steps or artifact are read. The notify workflow's job
@@ -49,21 +32,20 @@
 // Classification reads GitHub's own job/step conclusions, so it works even
 // for runs that die before checkout. The receive workflow additionally
 // uploads a small `ctx-receive-outcome` artifact (docs sha, groupings, PR
-// URL) that only enriches the message — its absence degrades to "docs n/a",
-// never to a wrong shape. The artifact carries the run_attempt that wrote
+// URL) that only enriches the event — its absence degrades docsSha to null,
+// never to a wrong outcome. The artifact carries the run_attempt that wrote
 // it; a re-run that dies before uploading leaves the previous attempt's file
-// behind, and that one is ignored rather than attached to the new message.
-// Anything unrecognized posts ⚠️ loudly rather than a confident guess.
+// behind, and that one is ignored rather than attached to the new event.
+// Anything unrecognized is reported as unclassified rather than guessed.
 //
-// GitHub API reads and the Slack POST retry three times with backoff and a
-// 10s timeout each. If Slack is still down after that the notify run goes
-// red; a persistent Slack outage cannot be reported through Slack, and the
-// red run is the floor (same as the docs side).
-//
-// Inert until SLACK_WEBHOOK_URL exists (ctx-pipeline environment): without it
-// the message prints as a dry run and the step exits 0. A failed Slack POST
+// GitHub API reads retry three times with backoff and a 10s timeout each;
+// send() (from ctx-hub-ping.mjs) does the same for the POST. A failed send
 // exits 1 — the notify run goes red in Actions; the receive run itself is
-// never touched.
+// never touched. The key is never printed.
+//
+// Inert until CONTEXT_HUB_URL and CONTEXT_HUB_PIPELINE_KEY exist (ctx-pipeline
+// environment): without them the request prints as a dry run and the step
+// exits 0.
 //
 // Zero dependencies, Node 18+.
 //
@@ -74,17 +56,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { checkHubUrl, send } from './ctx-hub-ping.mjs';
 
 export const RECEIVE_WORKFLOW = 'Receive agent-context';
 export const OUTCOME_ARTIFACT = 'ctx-receive-outcome';
-
-const SHAPES = {
-  imported: { emoji: '📥', label: 'IMPORTED' },
-  noop: { emoji: '💤', label: 'NO-OP' },
-  stale: { emoji: '⏭️', label: 'SKIPPED' },
-  red: { emoji: '🔴', label: 'FAILED' },
-  unclassified: { emoji: '⚠️', label: 'UNCLASSIFIED' },
-};
+export const RECEIVE_PATH = '/api/pipeline/events/ct-receive-finished';
 
 // Step names as the receive workflow declares them; matched by prefix so a
 // trailing clarification in the workflow doesn't silently break a match. The
@@ -207,32 +183,40 @@ export function classifyRun(run, jobs, outcome = null) {
   return { shape: 'unclassified', detail: `unhandled run conclusion "${run.conclusion}"` };
 }
 
+const DOCS_SHA = /^[0-9a-f]{40}$/;
+
 function trigger(run, outcome) {
   if (run.event === 'repository_dispatch') return 'dispatch';
-  if (run.event === 'workflow_dispatch')
-    return outcome?.guard_bypassed === 'true' ? 'manual (skip_guard)' : 'manual';
-  return run.event || 'trigger n/a';
+  if (run.event === 'workflow_dispatch') return outcome?.guard_bypassed === 'true' ? 'manual_skip_guard' : 'manual';
+  return null;
 }
 
-export function formatMessage(cls, run, outcome = null) {
+// Returns null (send nothing), else { ok: true, body } | { ok: false, error }.
+// workflow_run fires per attempt: a re-run sends a second event for the same
+// run id, deliberately; `attempt` keeps the duplicate distinguishable.
+export function receiveBody(cls, run, outcome, repo) {
   if (!cls) return null;
-  const { emoji, label } = SHAPES[cls.shape];
-  const docsSha = (outcome?.docs_sha || '').slice(0, 9);
-  // workflow_run fires per attempt: a re-run posts a second message for the
-  // same run ID, deliberately (a re-run that goes green must post 📥) — the
-  // attempt number keeps the duplicate legible.
-  const attempt = run.run_attempt > 1 ? ` (attempt ${run.run_attempt})` : '';
-  const lines = [
-    `${emoji} ctx-pipeline receive ${label}`,
-    `${docsSha ? `docs ${docsSha}` : 'docs n/a'} · ${trigger(run, outcome)}${attempt}`,
-    truncate(cls.detail, 300),
-    `run: ${run.html_url}`,
-  ];
+  const trig = trigger(run, outcome);
+  if (!trig) return { ok: false, error: `unexpected trigger ${JSON.stringify(run.event ?? null)}` };
+  if (!/^\d+$/.test(String(run.id))) return { ok: false, error: `run id must be numeric, got ${JSON.stringify(run.id ?? null)}` };
+  if (!Number.isInteger(run.run_attempt) || run.run_attempt < 1)
+    return { ok: false, error: `run_attempt must be an integer of at least 1, got ${JSON.stringify(run.run_attempt ?? null)}` };
+  const docsSha = DOCS_SHA.test(outcome?.docs_sha || '') ? outcome.docs_sha : null;
   // The receive workflow only writes pr_url when the PR step succeeded, but
-  // the header promises this line appears on IMPORTED alone, so the shape
-  // and the URL's form are checked here rather than trusted from the artifact.
-  if (cls.shape === 'imported' && PULL_URL.test(outcome?.pr_url || '')) lines.push(`PR: ${outcome.pr_url}`);
-  return lines.join('\n');
+  // the shape and the URL's form are checked here rather than trusted.
+  const prUrl = cls.shape === 'imported' && PULL_URL.test(outcome?.pr_url || '') ? outcome.pr_url : null;
+  return {
+    ok: true,
+    body: {
+      githubRunUrl: `https://github.com/${repo}/actions/runs/${run.id}`,
+      attempt: run.run_attempt,
+      outcome: cls.shape === 'red' ? 'failed' : cls.shape,
+      detail: truncate(cls.detail, 300),
+      docsSha,
+      trigger: trig,
+      prUrl,
+    },
+  };
 }
 
 // ── I/O below: nothing above this line shells out or reads the network ──
@@ -300,28 +284,30 @@ async function main() {
   const { jobs } = await ghJson(['api', `repos/${repo}/actions/runs/${args.runId}/jobs?per_page=100`]);
   const outcome = run.conclusion === 'skipped' ? null : loadOutcome(repo, run);
 
-  const message = formatMessage(classifyRun(run, jobs, outcome), run, outcome);
-  if (!message) {
-    console.log(`no message for this run (${run.conclusion} ${run.name})`);
+  const built = receiveBody(classifyRun(run, jobs, outcome), run, outcome, repo);
+  if (!built) {
+    console.log(`nothing to report for this run (${run.conclusion} ${run.name})`);
     return;
+  }
+  if (!built.ok) {
+    console.error(`notify: ${built.error}`);
+    process.exit(1);
   }
 
-  const webhook = process.env.SLACK_WEBHOOK_URL;
-  if (args.dryRun || process.env.DRY_RUN === 'true' || !webhook) {
-    if (!webhook) console.log('SLACK_WEBHOOK_URL unset — inert until the secret exists in the ctx-pipeline environment');
-    console.log(`notify (dry-run): ${message}`);
+  const url = process.env.CONTEXT_HUB_URL;
+  const key = process.env.CONTEXT_HUB_PIPELINE_KEY;
+  if (args.dryRun || process.env.DRY_RUN === 'true' || !url || !key) {
+    if (!url || !key) console.log('CONTEXT_HUB_URL / CONTEXT_HUB_PIPELINE_KEY unset — inert until they exist in the ctx-pipeline environment');
+    console.log(`notify (dry-run): ${RECEIVE_PATH} ${JSON.stringify(built.body)}`);
     return;
   }
-  await withRetry('Slack POST', async () => {
-    const res = await fetch(webhook, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: message }),
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    if (!res.ok) throw new Error(`Slack webhook returned ${res.status}: ${await res.text()}`);
-  });
-  console.log(`posted: ${message}`);
+  const hub = checkHubUrl(url);
+  if (!hub.ok) {
+    console.error(`notify: ${hub.error}`);
+    process.exit(1);
+  }
+  const status = await send({ url, key, path: RECEIVE_PATH, body: built.body });
+  console.log(`notify: ${RECEIVE_PATH} ${status}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

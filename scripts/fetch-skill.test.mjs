@@ -51,7 +51,7 @@ before(async () => {
   write(path.join(fixture, 'skills/netlify-beta/SKILL.md'), '---\nname: netlify-beta\ndescription: Beta\n---\nbeta\n');
   write(path.join(fixture, 'skill-registry.json'), JSON.stringify({
     skills: { 'netlify-alpha': { prior_names: ['old-alpha'] } },
-    deprecated: { retired: { since: '1.0.0', replaced_by: 'netlify-alpha', description: 'Retired' } },
+    deprecated: { retired: { since: '1.0.0', replaced_by: 'netlify-alpha', description: 'Retired', prior_names: ['old-retired'] } },
   }));
   const manifest = buildManifest({
     history: false,
@@ -346,6 +346,7 @@ test('--check classifies local skills, reports missing, and leaves unknown skill
   fs.cpSync(path.join(fixture, 'skills/netlify-alpha'), path.join(local, 'netlify-alpha'), { recursive: true });
   fs.cpSync(path.join(fixture, 'skills/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });
   write(path.join(local, 'retired/SKILL.md'), 'retired\n');
+  write(path.join(local, 'old-retired/SKILL.md'), 'retired\n'); // the retired skill, under its earlier name
   write(path.join(local, 'mine/SKILL.md'), 'mine\n');
   const unknownBefore = fs.readFileSync(path.join(local, 'mine/SKILL.md'));
 
@@ -353,8 +354,9 @@ test('--check classifies local skills, reports missing, and leaves unknown skill
   assert.equal(initial.code, 1);
   const report = JSON.parse(initial.stdout);
   assert.deepEqual(report.skills.map(({ name, status }) => [name, status]), [
-    ['mine', 'unknown'], ['netlify-alpha', 'current'], ['old-alpha', 'renamed'], ['retired', 'deprecated'],
+    ['mine', 'unknown'], ['netlify-alpha', 'current'], ['old-alpha', 'renamed'], ['old-retired', 'deprecated'], ['retired', 'deprecated'],
   ]);
+  assert.equal(report.skills[3].modified, false, 'a shipped copy under a prior name of a retired skill is recognised');
   assert.equal(report.skills[1].version, '1.0.0');
   assert.equal(report.skills[2].modified, false, 'renamed copy matches the current content');
   assert.deepEqual(report.missing, ['netlify-beta']);
@@ -373,6 +375,7 @@ test('--check classifies local skills, reports missing, and leaves unknown skill
   fs.appendFileSync(path.join(local, 'netlify-alpha/SKILL.md'), 'edited\n');
   fs.rmSync(path.join(local, 'old-alpha'), { recursive: true });
   fs.rmSync(path.join(local, 'retired'), { recursive: true });
+  fs.rmSync(path.join(local, 'old-retired'), { recursive: true });
   const modified = await run(['--host', host, '--check', local, '--json']);
   assert.equal(modified.code, 0, modified.stderr);
   assert.deepEqual(JSON.parse(modified.stdout).skills.find(({ name }) => name === 'netlify-alpha'), { name: 'netlify-alpha', status: 'modified', version: '1.0.0', have: null });
@@ -403,6 +406,7 @@ test('--update applies the sync rules and --all adds what is missing', async (t)
   fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'netlify-alpha'), { recursive: true });          // stale
   fs.cpSync(path.join(fixture, 'old/netlify-alpha'), path.join(local, 'old-alpha'), { recursive: true });      // renamed, unedited
   write(path.join(local, 'retired/SKILL.md'), 'retired\n');                                            // deprecated
+  write(path.join(local, 'old-retired/SKILL.md'), 'retired\n');                                        // deprecated, prior name
   write(path.join(local, 'mine/SKILL.md'), 'mine\n');                                                  // unknown
 
   const first = await run(['--host', host, '--update', local, '--json']);
@@ -410,11 +414,12 @@ test('--update applies the sync rules and --all adds what is missing', async (t)
   const report = JSON.parse(first.stdout);
   // alpha is installed under its current name too, so old-alpha is only removed, never migrated over it.
   assert.deepEqual(report.actions.map(({ name, action }) => [name, action]), [
-    ['mine', 'ignored'], ['netlify-alpha', 'updated'], ['old-alpha', 'removed'], ['retired', 'removed'], ['netlify-beta', 'missing'],
+    ['mine', 'ignored'], ['netlify-alpha', 'updated'], ['old-alpha', 'removed'], ['old-retired', 'removed'], ['retired', 'removed'], ['netlify-beta', 'missing'],
   ]);
   assert.equal(fs.readFileSync(path.join(local, 'netlify-alpha/SKILL.md'), 'utf8'), fs.readFileSync(path.join(fixture, 'skills/netlify-alpha/SKILL.md'), 'utf8'));
   assert.equal(fs.existsSync(path.join(local, 'old-alpha')), false);
   assert.equal(fs.existsSync(path.join(local, 'retired')), false);
+  assert.equal(fs.existsSync(path.join(local, 'old-retired')), false);
 
   // A deprecated copy that matches no shipped release is kept until --reset.
   write(path.join(local, 'retired/SKILL.md'), 'retired, with my notes\n');

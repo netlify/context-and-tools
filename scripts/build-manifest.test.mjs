@@ -68,14 +68,14 @@ test('registry supplies prior names and interleaved deprecated entries', () => {
   fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify({
     skills: { 'netlify-alpha': { prior_names: ['old-alpha'] } },
     deprecated: {
-      'netlify-beta': { since: '2.0.0', replaced_by: 'netlify-alpha', description: 'Use alpha.' },
+      'netlify-beta': { since: '2.0.0', replaced_by: 'netlify-alpha', description: 'Use alpha.', prior_names: ['old-beta'] },
     },
   }));
   const manifest = buildManifest({ history: false, root, ...fixed });
   assert.deepEqual(manifest.skills.map(({ name }) => name), ['netlify-alpha', 'netlify-beta', 'netlify-zeta']);
   assert.deepEqual(manifest.skills[0].prior_names, ['old-alpha']);
   assert.deepEqual(manifest.skills[1], {
-    name: 'netlify-beta', status: 'deprecated', version: null, prior_names: [], description: 'Use alpha.',
+    name: 'netlify-beta', status: 'deprecated', version: null, prior_names: ['old-beta'], description: 'Use alpha.',
     tree_hash: null, files: {}, executable: [], history: [], deprecated: { since: '2.0.0', replaced_by: 'netlify-alpha' },
   });
 });
@@ -87,6 +87,9 @@ test('registry rejects unknown skill keys, discovered deprecations, and reused n
     { skills: { 'netlify-alpha': { prior_names: ['netlify-zeta'] } } },
     { skills: { 'netlify-alpha': { prior_names: ['old'] }, 'netlify-zeta': { prior_names: ['old'] } } },
     { skills: { 'netlify-alpha': { prior_names: ['old'] } }, deprecated: { old: { since: '1.0.0', description: 'gone' } } },
+    { skills: { 'netlify-alpha': { prior_names: ['old'] } }, deprecated: { gone: { since: '1.0.0', description: 'gone', prior_names: ['old'] } } },
+    { deprecated: { gone: { since: '1.0.0', description: 'gone', prior_names: ['netlify-zeta'] } } },
+    { deprecated: { gone: { since: '1.0.0', description: 'gone', prior_names: 'old' } } },
   ]) {
     const root = fixture();
     fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify(registry));
@@ -276,14 +279,18 @@ test('a manifest built from a tagged repo carries derived version and history pe
 
   // Retire omega: its entry keeps the releases it shipped in (and no head),
   // so a client can tell a shipped copy from an edited one before deleting.
+  // The rename record moves to the deprecated entry, so a copy still called
+  // netlify-zeta is deprecated too, not unknown.
   g('tag', 'v0.4.0');
   fs.rmSync(path.join(root, 'skills', 'netlify-omega'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify({ deprecated: { 'netlify-omega': { since: '0.5.0', description: 'Gone.' } } }));
+  fs.writeFileSync(path.join(root, 'skill-registry.json'), JSON.stringify({ deprecated: { 'netlify-omega': { since: '0.5.0', description: 'Gone.', prior_names: ['netlify-zeta'] } } }));
   g('add', '.'); g('commit', '-qm', 'five');
   const retired = buildManifest({ root, ...fixed, version: '0.5.0' }).skills.find(({ name }) => name === 'netlify-omega');
   assert.equal(retired.status, 'deprecated');
-  assert.deepEqual(retired.history.map(({ version }) => version), ['0.4.0']);
-  assert.equal(retired.history[0].tree_hash, omega.tree_hash);
+  assert.deepEqual(retired.prior_names, ['netlify-zeta']);
+  assert.deepEqual(retired.history.map(({ version, name }) => [version, name ?? null]), [['0.1.0', 'netlify-zeta'], ['0.4.0', null]]);
+  assert.equal(retired.history[0].tree_hash, zeta.tree_hash);
+  assert.equal(retired.history[1].tree_hash, omega.tree_hash);
   assert.equal(buildManifest({ root, ...fixed, version: '0.5.0', history: false }).skills.find(({ name }) => name === 'netlify-omega').history.length, 0, 'no git, no history');
 });
 

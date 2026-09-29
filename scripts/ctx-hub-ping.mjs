@@ -33,11 +33,6 @@
 //   node scripts/ctx-hub-ping.mjs release-pr-opened | release-created | publish-finished
 import { pathToFileURL } from 'node:url';
 
-export const PATHS = {
-  'release-pr-opened': '/api/pipeline/events/ct-release-pr-opened',
-  'release-created': '/api/pipeline/events/ct-release-created',
-  'publish-finished': '/api/pipeline/events/ct-publish-finished',
-};
 
 const TAG = /^v\d+\.\d+\.\d+$/;
 const RUN_ID = /^\d+$/;
@@ -116,16 +111,33 @@ export function publishFinishedBody(env) {
   };
 }
 
-const BUILDERS = {
-  'release-pr-opened': releasePrOpenedBody,
-  'release-created': releaseCreatedBody,
-  'publish-finished': publishFinishedBody,
+export const COMMANDS = {
+  'release-pr-opened': { path: '/api/pipeline/events/ct-release-pr-opened', build: releasePrOpenedBody },
+  'release-created': { path: '/api/pipeline/events/ct-release-created', build: releaseCreatedBody },
+  'publish-finished': { path: '/api/pipeline/events/ct-publish-finished', build: publishFinishedBody },
 };
 
 export function buildPing(command, env) {
-  if (!Object.hasOwn(BUILDERS, command)) return fail(`unknown command ${JSON.stringify(command ?? null)}; expected ${Object.keys(PATHS).join(' | ')}`);
-  const built = BUILDERS[command](env);
-  return built.ok ? { ok: true, path: PATHS[command], body: built.body } : built;
+  if (!Object.hasOwn(COMMANDS, command)) return fail(`unknown command ${JSON.stringify(command ?? null)}; expected ${Object.keys(COMMANDS).join(' | ')}`);
+  const { path, build } = COMMANDS[command];
+  const built = build(env);
+  return built.ok ? { ok: true, path, body: built.body } : built;
+}
+
+// The bearer key goes to CONTEXT_HUB_URL, so a plaintext host would expose it
+// to interception. Loopback is exempt for local runs. Never echoes the key.
+export function checkHubUrl(raw) {
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return fail('CONTEXT_HUB_URL is not a valid URL');
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    return fail('CONTEXT_HUB_URL must be https:// (http:// is accepted for localhost only)');
+  }
+  return { ok: true };
 }
 
 // ── I/O below: nothing above this line reads the network or the environment ──
@@ -171,6 +183,11 @@ async function main() {
   if (!url || !key) {
     console.log(`hub-ping (dry-run): ${ping.path} ${JSON.stringify(ping.body)}`);
     return;
+  }
+  const hub = checkHubUrl(url);
+  if (!hub.ok) {
+    console.error(`hub-ping: ${hub.error}`);
+    process.exit(1);
   }
   const status = await send({ url, key, path: ping.path, body: ping.body });
   console.log(`hub-ping: ${ping.path} ${status}`);

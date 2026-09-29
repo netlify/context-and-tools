@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PATHS, buildPing, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send } from './ctx-hub-ping.mjs';
+import { COMMANDS, buildPing, checkHubUrl, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send } from './ctx-hub-ping.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ctx-hub-ping.mjs');
 const RUN_URL = 'https://github.com/netlify/context-and-tools/actions/runs/123';
@@ -65,10 +65,6 @@ test('publish-finished: body carries run URL, tag, npm and site', () => {
     path: '/api/pipeline/events/ct-publish-finished',
     body: { githubRunUrl: RUN_URL, tag: 'v1.6.0', npm: 'published', site: 'passed' },
   });
-});
-
-test('PATHS has exactly the three commands', () => {
-  assert.deepEqual(Object.keys(PATHS).sort(), ['publish-finished', 'release-created', 'release-pr-opened']);
 });
 
 // ── mappings ──
@@ -185,7 +181,7 @@ function fakeFetch(...steps) {
   };
   return { impl, calls };
 }
-const SEND = { url: 'https://hub.example', key: 'secret-key', path: PATHS['release-created'], body: { tag: 'v1.0.0' }, delays: [0, 0] };
+const SEND = { url: 'https://hub.example', key: 'secret-key', path: COMMANDS['release-created'].path, body: { tag: 'v1.0.0' }, delays: [0, 0] };
 
 test('send: 200 succeeds on the first attempt with the right request', async () => {
   const { impl, calls } = fakeFetch(200);
@@ -256,6 +252,26 @@ test('main: URL set but key unset is still a dry run', () => {
   const r = runScript(['release-created'], { ...BASE_ENV, TAG: 'v1.0.0', CONTEXT_HUB_URL: 'https://hub.example' });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^hub-ping \(dry-run\): /);
+});
+
+test('checkHubUrl: https and loopback http pass; other http and malformed are refused', () => {
+  for (const ok of ['https://hub.example', 'http://localhost:8888', 'http://127.0.0.1:3000', 'http://[::1]:3000']) {
+    assert.equal(checkHubUrl(ok).ok, true, ok);
+  }
+  for (const bad of ['http://hub.example', 'ftp://hub.example', 'not a url', '']) {
+    const r = checkHubUrl(bad);
+    assert.equal(r.ok, false, bad);
+    assert.match(r.error, /CONTEXT_HUB_URL/);
+  }
+});
+
+test('main: a non-https, non-loopback URL is refused before any request (exit 1, key not printed)', () => {
+  for (const CONTEXT_HUB_URL of ['http://hub.example', 'not a url']) {
+    const r = runScript(['release-created'], { ...BASE_ENV, TAG: 'v1.0.0', CONTEXT_HUB_URL, CONTEXT_HUB_PIPELINE_KEY: 'secret-key' });
+    assert.equal(r.status, 1, CONTEXT_HUB_URL);
+    assert.match(r.stderr, /CONTEXT_HUB_URL/);
+    assert.doesNotMatch(r.stderr + r.stdout, /secret-key/);
+  }
 });
 
 test('main: unknown command and invalid input exit 1 with a message on stderr', () => {
@@ -356,7 +372,13 @@ test('workflow shape: every ping step runs scripts/ctx-hub-ping.mjs with a known
     }
   }
   assert.deepEqual(pings.sort(), ['publish-finished', 'release-created', 'release-pr-opened']);
-  for (const command of pings) assert.ok(Object.hasOwn(PATHS, command), command);
+  for (const command of pings) assert.ok(Object.hasOwn(COMMANDS, command), command);
+});
+
+test('workflow shape: the release-created ping still runs after a failed release-PR ping', () => {
+  const step = /- name: Ping context-hub \(release created\)\n\s+if: (.+)\n/.exec(RELEASE_JOBS['notify-hub']);
+  assert.ok(step, 'release-created step has an if');
+  assert.match(step[1], /!cancelled\(\)/);
 });
 
 test('workflow shape: ping steps take the key and URL from env, and never interpolate into run text', () => {

@@ -97,7 +97,7 @@ jobs:
         run: node scripts/ctx-hub-ping.mjs release-pr-opened
 
       - name: Ping context-hub (release created)
-        if: ${{ needs.release-please.outputs.release_created == 'true' }}
+        if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' }}
         env:
           TAG: ${{ needs.release-please.outputs.tag_name }}
           CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}

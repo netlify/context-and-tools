@@ -56,6 +56,8 @@ It writes the skills into the agent directory already in the project (`.claude/`
 | Grok Build | `grok` | `.grok/skills/` |
 | Anything else | | `--dest <dir>` |
 
+Each directory is the project-level skills location in that agent's own docs: [Claude Code](https://code.claude.com/docs/en/skills), [Cursor](https://cursor.com/docs/context/skills), [Codex](https://developers.openai.com/codex/skills), [Gemini CLI](https://geminicli.com/docs/cli/skills/), [GitHub Copilot](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills), and [Grok](https://docs.x.ai/build/features/skills-plugins-marketplaces). Cursor, Codex, Gemini CLI, and Copilot all read the shared `.agents/skills/`. The generated `.cursor/rules/` files and the `codex/AGENTS.md` router under [Other ways to install](#other-ways-to-install) are the older formats for those two agents; they still work, but they are not what `add` writes.
+
 `add netlify-functions` installs one skill, `check` reports what is installed and whether it is current, and `update` brings it up to date. See [Install skills and keep them current](#install-skills-and-keep-them-current).
 
 ### Other ways to install

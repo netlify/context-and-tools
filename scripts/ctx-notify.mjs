@@ -125,8 +125,8 @@ function failureDetail(step, outcome) {
   if (name.startsWith(STEP.preflight))
     return 'receiver not configured — DOCS_READ_TOKEN and/or CTX_PIPELINE_PR_TOKEN missing (see run)';
   if (name.startsWith(STEP.checkoutDocs)) {
-    // docs_ref echoes the dispatch payload — untrusted, so it must not carry
-    // Slack markup (<!channel>) into the message.
+    // docs_ref echoes the dispatch payload — untrusted, so clean it before it
+    // leaves the runner.
     const ref = outcome?.docs_ref ? stripMarkup(truncate(outcome.docs_ref, 60)) : 'the requested ref';
     return `could not check out netlify/docs at ${ref} — DOCS_READ_TOKEN expired, or the ref no longer exists (docs history rewrite?)`;
   }

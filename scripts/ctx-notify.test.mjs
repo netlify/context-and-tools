@@ -3,10 +3,9 @@
 //
 // Exercises the pure classification and body-building layer (everything above
 // the I/O line) against run/jobs fixtures shaped like the GitHub Actions API
-// responses the watcher reads. Each shape in the header's table has a case,
-// plus the degradation rules: a missing outcome artifact must never change
-// the shape (only the docs sha / groupings / PR fields), and anything
-// unrecognized must land on ⚠️ rather than a confident guess.
+// responses the watcher reads. Each outcome shape has a case, a missing outcome
+// artifact must never change the shape, and unrecognized runs must land on
+// unclassified rather than a confident guess.
 //
 // Zero dependencies, Node 18+ (node:test, node:assert/strict).
 //
@@ -165,20 +164,20 @@ test('imported: no outcome artifact degrades the detail, not the shape', () => {
   assert.equal(body(cls, run(), null).prUrl, null);
 });
 
-test('noop: import green, PR skipped → 💤', () => {
+test('noop: import green, PR skipped → noop', () => {
   const jobs = [receiveJob({ 'Open or update the rolling sync PR': 'skipped' })];
   const cls = classifyRun(run(), jobs, { ...OUTCOME, changed: '', changed_count: '0', state_changed: 'false', pr_url: '' });
   assert.equal(cls.shape, 'noop');
 });
 
-test('stale: guard green, import skipped → ⏭️ SKIPPED, not NO-OP', () => {
+test('stale: guard green, import skipped → stale, not noop', () => {
   const jobs = [receiveJob({ 'Import changed skills': 'skipped', 'Open or update the rolling sync PR': 'skipped' })];
   const cls = classifyRun(run(), jobs, { ...OUTCOME, guard_skip: '1', changed: '', changed_count: '' });
   assert.equal(cls.shape, 'stale');
   assert.match(cls.detail, /AX-159/);
 });
 
-test('skipped run (CTX_PIPELINE off) posts nothing', () => {
+test('skipped run (CTX_PIPELINE off) reports nothing', () => {
   assert.equal(classifyRun(run({ conclusion: 'skipped' }), [], null), null);
   assert.equal(receiveBody(null, run(), null, REPO), null);
 });

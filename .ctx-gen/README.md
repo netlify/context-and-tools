@@ -37,8 +37,8 @@ AXIS scenarios.)
 - **`../.github/workflows/ctx-pipeline-notify.yml`** — a `workflow_run`
   watcher that reports every receiver outcome (imported / no-op / stale skip /
   failed / unclassified) to context-hub, which posts the Slack notice to
-  `#notify-context-pipeline`. docs' dispatch is fire-and-forget, so without this a failed
-  import was invisible while Slack kept saying "delivered" (EX-3057). Logic in
+  `#notify-context-pipeline`. docs' dispatch is fire-and-forget, so the
+  receiver's own outcome has to be reported from this side (EX-3057). Logic in
   `../scripts/ctx-notify.mjs`; inert until `CONTEXT_HUB_URL` (variable) and
   `CONTEXT_HUB_PIPELINE_KEY` (secret) exist in the `ctx-pipeline` environment.
 - **Release pings** — `release-please.yml` (`notify-hub`) and `publish.yml`

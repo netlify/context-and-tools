@@ -109,6 +109,13 @@ test('the receive workflow name and the notify trigger both equal RECEIVE_WORKFL
   assert.match(NOTIFY_YML, new RegExp(`workflows: \\["${RECEIVE_WORKFLOW}"\\]`));
 });
 
+test('the notify workflow reports to context-hub from the ctx-pipeline environment', () => {
+  assert.match(NOTIFY_YML, /^\s+CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}$/m);
+  assert.match(NOTIFY_YML, /^\s+CONTEXT_HUB_PIPELINE_KEY: \$\{\{ secrets\.CONTEXT_HUB_PIPELINE_KEY \}\}$/m);
+  assert.doesNotMatch(NOTIFY_YML, /SLACK_WEBHOOK/, 'the notify workflow must not reference a Slack webhook secret');
+  assert.match(NOTIFY_YML, /^\s+environment: ctx-pipeline$/m);
+});
+
 test('the receive workflow has no triggers beyond TRUSTED_EVENTS', () => {
   const on = RECEIVE_YML.slice(RECEIVE_YML.indexOf('\non:\n') + 5, RECEIVE_YML.indexOf('\npermissions:'));
   const triggers = on.split('\n').filter((l) => /^  \w/.test(l)).map((l) => l.trim().replace(/:$/, ''));

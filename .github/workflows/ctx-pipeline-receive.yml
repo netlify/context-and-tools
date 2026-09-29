@@ -24,7 +24,7 @@ name: Receive agent-context
 # One token with both scopes may back both secrets. The dispatch trigger also
 # requires the CTX_PIPELINE repo variable = 'true'; manual runs never do.
 #
-# Outcomes are posted to Slack by ctx-pipeline-notify.yml (EX-3057), which
+# Outcomes are reported to context-hub by ctx-pipeline-notify.yml (EX-3057), which
 # classifies from this job's step conclusions. Keep the job name and the step
 # names stable: scripts/ctx-notify.mjs matches them by prefix.
 
@@ -233,12 +233,12 @@ jobs:
           echo "url=$(gh pr view "$branch" --json url --jq '.url')" >> "$GITHUB_OUTPUT"
 
       # Step outputs are not visible through the Actions API, so the docs sha,
-      # groupings and PR URL travel to the Slack notifier as a tiny artifact.
+      # groupings and PR URL travel to the notifier as a tiny artifact.
       # always(): a run that dies mid-way still records the ref it resolved.
       - name: Record receive outcome
         if: always()
         # Notifier plumbing must never redden the receiver: a failure here
-        # only costs the Slack message its docs sha / groupings / PR link.
+        # only costs the report its docs sha / groupings / PR link.
         continue-on-error: true
         env:
           DOCS_REF: ${{ steps.ref.outputs.ref }}

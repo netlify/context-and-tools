@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -267,4 +268,105 @@ test('main: unknown command and invalid input exit 1 with a message on stderr', 
   assert.equal(badTag.status, 1);
   assert.match(badTag.stderr, /TAG/);
   assert.equal(badTag.stdout, '');
+});
+
+// ── workflow shape (the workflow files read as text; no YAML library) ──
+
+const WORKFLOWS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows');
+const workflowText = (name) => fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
+
+// Top-level jobs of a workflow: name → the job's text. A job starts at a
+// two-space-indented `name:` line under `jobs:` and runs to the next one.
+function jobsOf(yml) {
+  const lines = yml.split('\n');
+  const jobs = {};
+  let current = null;
+  let inJobs = false;
+  for (const line of lines) {
+    if (/^jobs:\s*$/.test(line)) {
+      inJobs = true;
+      continue;
+    }
+    if (!inJobs) continue;
+    if (/^\S/.test(line)) break; // next top-level key
+    const m = /^  ([A-Za-z0-9_-]+):\s*$/.exec(line);
+    if (m) {
+      current = m[1];
+      jobs[current] = '';
+    } else if (current) {
+      jobs[current] += `${line}\n`;
+    }
+  }
+  return jobs;
+}
+
+const RELEASE_JOBS = jobsOf(workflowText('release-please.yml'));
+const PUBLISH_JOBS = jobsOf(workflowText('publish.yml'));
+
+// Each job's `needs:` as a list of job names (inline `x`, `[x, y]`, or a block list).
+function needsOf(jobText) {
+  const inline = /^    needs:\s*(.+)$/m.exec(jobText);
+  if (inline) return inline[1].replace(/[[\]]/g, '').split(',').map((s) => s.trim()).filter(Boolean);
+  const block = /^    needs:\s*\n((?:      - .+\n)+)/m.exec(jobText);
+  return block ? block[1].split('\n').map((l) => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean) : [];
+}
+
+test('workflow shape: notify-hub and report exist, with the ctx-pipeline environment and continue-on-error', () => {
+  for (const [jobs, name] of [[RELEASE_JOBS, 'notify-hub'], [PUBLISH_JOBS, 'report']]) {
+    assert.ok(jobs[name], `${name} job exists`);
+    assert.match(jobs[name], /^    environment: ctx-pipeline$/m, name);
+    assert.match(jobs[name], /^    continue-on-error: true$/m, name);
+    assert.match(jobs[name], /^    permissions:\n      contents: read$/m, name);
+    assert.match(jobs[name], /persist-credentials: false/, name);
+  }
+});
+
+test('workflow shape: no job needs notify-hub or report', () => {
+  for (const jobs of [RELEASE_JOBS, PUBLISH_JOBS]) {
+    for (const [name, text] of Object.entries(jobs)) {
+      const needs = needsOf(text);
+      assert.ok(!needs.includes('notify-hub') && !needs.includes('report'), `${name} needs ${needs}`);
+    }
+  }
+  assert.deepEqual(needsOf(PUBLISH_JOBS.report), ['publish-npm', 'deploy-hosted']);
+  assert.deepEqual(needsOf(RELEASE_JOBS['notify-hub']), ['release-please']);
+});
+
+test('workflow shape: report runs always', () => {
+  assert.match(PUBLISH_JOBS.report, /^    if: \$\{\{ always\(\) \}\}$/m);
+});
+
+test('workflow shape: the npm step id and both result= lines exist', () => {
+  const yml = workflowText('publish.yml');
+  assert.match(yml, /^ {8}id: npm$/m);
+  assert.match(yml, /echo "result=already_published" >> "\$GITHUB_OUTPUT"/);
+  assert.match(yml, /echo "result=published" >> "\$GITHUB_OUTPUT"/);
+  assert.match(PUBLISH_JOBS['publish-npm'], /^ {4}outputs:\n {6}result: \$\{\{ steps\.npm\.outputs\.result \}\}$/m);
+});
+
+test('workflow shape: every ping step runs scripts/ctx-hub-ping.mjs with a known command, inputs via env', () => {
+  const pings = [];
+  for (const yml of [workflowText('release-please.yml'), workflowText('publish.yml')]) {
+    for (const line of yml.split('\n')) {
+      if (!line.includes('ctx-hub-ping.mjs')) continue;
+      if (/^\s*#/.test(line)) continue;
+      const m = /^ {8}run: node scripts\/ctx-hub-ping\.mjs (\S+)$/.exec(line);
+      assert.ok(m, `ping step is a plain run line: ${line}`);
+      pings.push(m[1]);
+    }
+  }
+  assert.deepEqual(pings.sort(), ['publish-finished', 'release-created', 'release-pr-opened']);
+  for (const command of pings) assert.ok(Object.hasOwn(PATHS, command), command);
+});
+
+test('workflow shape: ping steps take the key and URL from env, and never interpolate into run text', () => {
+  for (const jobs of [RELEASE_JOBS, PUBLISH_JOBS]) {
+    for (const name of ['notify-hub', 'report']) {
+      const text = jobs[name];
+      if (!text) continue;
+      assert.match(text, /CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}/);
+      assert.match(text, /CONTEXT_HUB_PIPELINE_KEY: \$\{\{ secrets\.CONTEXT_HUB_PIPELINE_KEY \}\}/);
+      for (const line of text.split('\n')) if (/^\s*run:/.test(line)) assert.doesNotMatch(line, /\$\{\{/, line);
+    }
+  }
 });

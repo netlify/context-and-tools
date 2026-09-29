@@ -41,6 +41,11 @@ AXIS scenarios.)
   import was invisible while Slack kept saying "delivered" (EX-3057). Logic in
   `../scripts/ctx-notify.mjs`; inert until `SLACK_WEBHOOK_URL` exists in the
   `ctx-pipeline` environment.
+- **Release pings** — `release-please.yml` (`notify-hub`) and `publish.yml`
+  (`report`) tell context-hub when a release PR opens, a release is created, and
+  a publish finishes, via `../scripts/ctx-hub-ping.mjs` (EX-3255). Inert until
+  `CONTEXT_HUB_URL` (variable) and `CONTEXT_HUB_PIPELINE_KEY` (secret) exist in
+  the `ctx-pipeline` environment; a failed ping never blocks a release.
 
 ## Triggers
 

@@ -61,6 +61,8 @@ jobs:
     permissions:
       contents: read
       id-token: write # npm Trusted Publishing + provenance attestation
+    outputs:
+      result: ${{ steps.npm.outputs.result }}
     steps:
       - name: Check the tag input
         env:
@@ -122,12 +124,14 @@ jobs:
       # version exists. Any other `npm view` failure (network, outage) fails
       # the step rather than masquerading as "already published".
       - name: Publish @netlify/skills
+        id: npm
         run: |
           name="$(node -p 'require("./package.json").name')"
           version="$(node -p 'require("./package.json").version')"
           if npm view "${name}@${version}" version --json > "$RUNNER_TEMP/view.json" 2> "$RUNNER_TEMP/view.err"; then
             if [ -s "$RUNNER_TEMP/view.json" ] && [ "$(cat "$RUNNER_TEMP/view.json")" != "[]" ]; then
               echo "${name}@${version} is already published; nothing to do."
+              echo "result=already_published" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           elif ! grep -q "E404" "$RUNNER_TEMP/view.err"; then
@@ -136,6 +140,7 @@ jobs:
             exit 1
           fi
           npm publish --provenance --access public
+          echo "result=published" >> "$GITHUB_OUTPUT"
 
   deploy-hosted:
     needs: publish-npm
@@ -222,3 +227,33 @@ jobs:
         env:
           URL: ${{ steps.deploy.outputs.url }}
         run: node scripts/fetch-skill.mjs --host "$URL" --check dist/skills --strict
+
+  # Pings context-hub (EX-3255) with how the two jobs above ended (npm result,
+  # site result); context-hub posts the Slack notice. Inert until
+  # CONTEXT_HUB_URL and CONTEXT_HUB_PIPELINE_KEY exist in the ctx-pipeline
+  # environment. Telemetry only: runs after success or failure, is
+  # continue-on-error, and nothing needs it, so it never blocks publishing.
+  # Checks out the default ref, not the tag, so re-publishing an old tag still
+  # has the script.
+  report:
+    needs: [publish-npm, deploy-hosted]
+    if: ${{ always() }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Ping context-hub (publish finished)
+        env:
+          TAG: ${{ inputs.tag }}
+          NPM_JOB_RESULT: ${{ needs.publish-npm.result }}
+          NPM_OUTCOME: ${{ needs.publish-npm.outputs.result }}
+          SITE_JOB_RESULT: ${{ needs.deploy-hosted.result }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs publish-finished

@@ -44,6 +44,8 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
@@ -65,3 +67,39 @@ jobs:
     permissions:
       contents: read
       id-token: write
+
+  # Pings context-hub (EX-3255) when release-please opens or updates its release
+  # PR and when a release is created; context-hub posts the Slack notice. Pings
+  # go to CONTEXT_HUB_URL from the ctx-pipeline environment (inert until it and
+  # CONTEXT_HUB_PIPELINE_KEY exist). Telemetry only: continue-on-error, and
+  # nothing needs this job, so it never blocks or reddens a release or publish.
+  notify-hub:
+    needs: release-please
+    if: ${{ !cancelled() && needs.release-please.result == 'success' && (needs.release-please.outputs.prs_created == 'true' || needs.release-please.outputs.release_created == 'true') }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Ping context-hub (release PR)
+        if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+        env:
+          # env indirection: the PR title is attacker-shaped text and must reach
+          # the script as data, never interpolated into command text.
+          PR_JSON: ${{ needs.release-please.outputs.pr }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs release-pr-opened
+
+      - name: Ping context-hub (release created)
+        if: ${{ needs.release-please.outputs.release_created == 'true' }}
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs release-created

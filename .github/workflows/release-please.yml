@@ -30,7 +30,8 @@ name: release-please
 # release-please itself runs with a GitHub App token (TOKENS_APP_ID and
 # TOKENS_PRIVATE_KEY, the org's Token Generator app; IT-3868 installs it on
 # this repo) instead of GITHUB_TOKEN, so the Release PR it opens gets CI like
-# any other PR.
+# any other PR. Those two are repository or organization secrets: the job
+# that reads them runs in no environment.
 #
 # A manual run (workflow_dispatch with a tag) re-publishes a release after a
 # failed or partial run. It only publishes a real release: the run must be

@@ -102,7 +102,7 @@ jobs:
       - name: Run script tests
         run: npm test
 
-  # What `npm publish` would ship (publish.yml) and what the manifest says
+  # What `npm publish` would ship (release-please.yml) and what the manifest says
   # about skills/ must both be right before merge, not discovered at release.
   package-check:
     permissions:

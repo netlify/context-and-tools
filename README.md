@@ -223,7 +223,7 @@ What the hashes do and do not cover: the manifest and the files come from the sa
 
 A service that reads skills programmatically (Agent Runners) can depend on the package and read one skill by path: `node_modules/@netlify/skills/skills/netlify-functions/SKILL.md`. The bundled `manifest.json` carries each skill's own version, so a service can tell which skills changed between two package versions without diffing files.
 
-The same client is in this repo as `scripts/fetch-skill.mjs` (`--source <dir>` or `--host <url>`; `--skill`/`--all` with `--dest`, `--check`, `--update`), which is what the Netlify CLI's init and sync will build on. The whole-set package also ships the `skills/CLAUDE.md` router; the hosted site serves exactly the files the manifest lists, so the router is not there. Both targets are published from the release tag by `.github/workflows/publish.yml`.
+The same client is in this repo as `scripts/fetch-skill.mjs` (`--source <dir>` or `--host <url>`; `--skill`/`--all` with `--dest`, `--check`, `--update`), which is what the Netlify CLI's init and sync will build on. The whole-set package also ships the `skills/CLAUDE.md` router; the hosted site serves exactly the files the manifest lists, so the router is not there. Both targets are published from the release tag by `.github/workflows/release-please.yml`.
 
 ## Design Principles
 

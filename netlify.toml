@@ -3,7 +3,7 @@
 # The site is a pure build output of this repo: scripts/build-hosted.mjs
 # materializes every release tag from git into dist/, so the deploy has no
 # state of its own and can be rebuilt from any checkout. It is deployed with
-# `netlify deploy --prod --no-build --dir dist` by .github/workflows/publish.yml
+# `netlify deploy --prod --no-build --dir dist` by .github/workflows/release-please.yml
 # after release-please tags a release. Do not connect the site to Git: a
 # Netlify build clone has no tags to build from, and a Git-triggered deploy
 # would race the release publish.

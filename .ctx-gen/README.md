@@ -67,7 +67,7 @@ with the PR title as the whole commit message, and release-please hides
 `chore`, so a chore-titled sync would never cut a release. As `fix`, every
 merged import lands in the standing Release PR as a patch bump, and merging
 that PR publishes the skills and manifest to the hosted site and npm
-(`.github/workflows/publish.yml`).
+(`.github/workflows/release-please.yml`).
 
 ## Running it locally
 

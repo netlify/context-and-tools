@@ -120,12 +120,13 @@ test('a top-level skill dir not named netlify-* fails', () => {
   assert.match(r.stderr, /other-skill is not CLAUDE\.md or a netlify-<name>/);
 });
 
-test('a netlify-* dir with no SKILL.md fails', () => {
+test('a netlify-* dir with no SKILL.md fails, and its router gap is reported too', () => {
   const root = makeSkills();
   write(root, 'netlify-empty/references/a.md');
   const r = run(root);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /netlify-empty has no SKILL\.md/);
+  assert.match(r.stderr, /netlify-empty is not referenced/);
 });
 
 test('a symlink inside a skill dir fails', () => {

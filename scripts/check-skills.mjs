@@ -70,13 +70,13 @@ function checkLayout(skillsDir, problems) {
     } else if (!top.isDirectory() || !SKILL_NAME.test(top.name)) {
       problems.push(`${top.name} is not CLAUDE.md or a netlify-<name> skill directory — every build script skips it, so it reaches no surface`);
     } else {
-      skills.push(...checkSkill(skillsDir, top.name, problems));
+      skills.push(top.name);
+      checkSkill(skillsDir, top.name, problems);
     }
   }
   return skills;
 }
 
-// Returns [name] when the skill is complete enough to require a router line.
 function checkSkill(skillsDir, name, problems) {
   const dir = path.join(skillsDir, name);
   let hasSkillMd = false;
@@ -93,9 +93,7 @@ function checkSkill(skillsDir, name, problems) {
   }
   if (!hasSkillMd) {
     problems.push(`${name} has no SKILL.md — the build scripts skip it, so it reaches no surface`);
-    return [];
   }
-  return [name];
 }
 
 function checkReferences(dir, name, problems) {

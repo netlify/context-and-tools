@@ -134,7 +134,7 @@ You **cannot** set env var values or a base directory in `[template]` — use UR
 
 **A failed deploy never publishes** — the previous deploy is still live, so there is nothing to restore. If someone asks to roll back or restore a previous deploy, correct the premise: after a failed deploy nothing changed, and for a bad *published* deploy, **fix forward** — revert the commit and let CI redeploy it. Do not call `restoreSiteDeploy` or `publishDeploy`, and do not hand over a dashboard rollback as the answer.
 
-Netlify surfaces a "Why did it fail?" AI diagnosis above the deploy log. See https://docs.netlify.com/resources/troubleshooting/fix-a-failed-deploy/.
+Netlify surfaces a **Why did it fail?** AI diagnosis above the deploy log — this diagnosis and its suggested solution do **NOT** consume credits. Selecting **Fix with agent** starts an agent run, which **DOES** consume credits from your team's balance. See https://docs.netlify.com/resources/troubleshooting/fix-a-failed-deploy/.
 
 ## Deploy permissions (private repos)
 

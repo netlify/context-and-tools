@@ -9,8 +9,8 @@
 // invisible to both. This fails the PR instead of letting either happen.
 //
 // Layout rules
-//   - skills/ holds only CLAUDE.md and directories named netlify-<name>, each
-//     containing SKILL.md.
+//   - skills/ holds only CLAUDE.md and directories named netlify-<name> (<name> is
+//     lowercase a-z and hyphens only), each containing SKILL.md.
 //   - A skill dir holds only SKILL.md and optionally references/.
 //   - references/ holds only regular *.md files (no subdirectories).
 //   - No symlinks anywhere. .DS_Store is ignored at every level.
@@ -33,8 +33,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SKILL_NAME = /^netlify-[a-z0-9-]+$/;
-const ROUTER_PATH = /`(netlify-[a-z0-9-]+\/[^`]*)`/g;
+// Must match the pattern in build-codex-skills.sh that rewrites router paths;
+// a name it does not match (e.g. one with digits) is not rewritten in codex/AGENTS.md.
+const SKILL_NAME = /^netlify-[a-z-]+$/;
+const ROUTER_PATH = /`(netlify-[a-z-]+\/[^`]*)`/g;
 
 function parseArgs(argv) {
   const opts = { skillsDir: 'skills' };
@@ -68,7 +70,7 @@ function checkLayout(skillsDir, problems) {
     } else if (top.isFile() && top.name === 'CLAUDE.md') {
       continue;
     } else if (!top.isDirectory() || !SKILL_NAME.test(top.name)) {
-      problems.push(`${top.name} is not CLAUDE.md or a netlify-<name> skill directory — every build script skips it, so it reaches no surface`);
+      problems.push(`${top.name} is not CLAUDE.md or a netlify-<name> skill directory (name uses only a-z and -) — every build script skips it, so it reaches no surface`);
     } else {
       skills.push(top.name);
       checkSkill(skillsDir, top.name, problems);

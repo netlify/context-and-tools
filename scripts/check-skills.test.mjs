@@ -120,6 +120,15 @@ test('a top-level skill dir not named netlify-* fails', () => {
   assert.match(r.stderr, /other-skill is not CLAUDE\.md or a netlify-<name>/);
 });
 
+test('a skill name with a digit fails, even when listed in the router', () => {
+  const root = makeSkills();
+  write(root, 'CLAUDE.md', `${ROUTER}- \`netlify-foo2/SKILL.md\` — foo\n`);
+  write(root, 'netlify-foo2/SKILL.md');
+  const r = run(root);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /netlify-foo2 is not CLAUDE\.md or a netlify-<name>/);
+});
+
 test('a netlify-* dir with no SKILL.md fails, and its router gap is reported too', () => {
   const root = makeSkills();
   write(root, 'netlify-empty/references/a.md');

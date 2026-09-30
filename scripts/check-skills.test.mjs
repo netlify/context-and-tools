@@ -80,6 +80,14 @@ test('the router referencing a nonexistent skill fails and names it', () => {
   assert.match(r.stderr, /netlify-ghost\/SKILL\.md/);
 });
 
+test('the router referencing a nonexistent skill with a digit in its name fails', () => {
+  const root = makeSkills();
+  write(root, 'CLAUDE.md', `${ROUTER}- \`netlify-foo2/SKILL.md\` — stale\n`);
+  const r = run(root);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /references `netlify-foo2\/SKILL\.md`, which does not exist/);
+});
+
 test('the router referencing a nonexistent references path fails', () => {
   const root = makeSkills();
   write(root, 'CLAUDE.md', `${ROUTER}- see \`netlify-alpha/references/missing.md\`\n`);

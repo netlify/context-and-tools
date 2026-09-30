@@ -33,10 +33,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Must match the pattern in build-codex-skills.sh that rewrites router paths;
-// a name it does not match (e.g. one with digits) is not rewritten in codex/AGENTS.md.
+// SKILL_NAME must match the pattern in build-codex-skills.sh that rewrites router
+// paths; a name it does not match (e.g. one with digits) is not rewritten in codex/AGENTS.md.
+// ROUTER_PATH is deliberately wider (digits allowed) so a stale path with digits is still caught.
 const SKILL_NAME = /^netlify-[a-z-]+$/;
-const ROUTER_PATH = /`(netlify-[a-z-]+\/[^`]*)`/g;
+const ROUTER_PATH = /`(netlify-[a-z0-9-]+\/[^`]*)`/g;
 
 function parseArgs(argv) {
   const opts = { skillsDir: 'skills' };

@@ -17,6 +17,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
 - `scripts/build-agent-plugin.sh` — Mirrors `skills/` → `agent-plugin/skills/`
 - `scripts/build-gemini-extension.sh` — Rewrites the `skills` array in `gemini-extension.json` from `skills/*/SKILL.md` (sorted; requires `jq`)
+- `scripts/check-skills.mjs` — CI check that every `skills/netlify-*/` folder is listed in `skills/CLAUDE.md` and contains only files the build scripts carry (`SKILL.md` plus flat `references/*.md`)
 - `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/`, `codex/`, `agent-plugin/skills/`, and the `gemini-extension.json` skill list from `skills/` and commits them in a single step (on push to main and on PRs), so the generated outputs always stay in parity with `skills/`
 
 ## Skills
@@ -35,7 +36,7 @@ bash scripts/build-cursor-rules.sh
 
 Skills should be factual and platform-focused — not opinionated about frameworks, ORMs, or workflow preferences. They help any agent work correctly with Netlify primitives.
 
-Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content.
+Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content. A new skill needs a `` `netlify-<name>/SKILL.md` `` line in `skills/CLAUDE.md` (the router Cursor and Codex read), or CI fails.
 
 **Important:** Always edit files in `skills/`. Never edit files in `cursor/rules/`, `codex/`, or `agent-plugin/skills/`, or the `skills` array in `gemini-extension.json` — they are overwritten by CI.
 

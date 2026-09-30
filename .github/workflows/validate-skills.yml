@@ -10,6 +10,8 @@ on:
       - "scripts/ctx-ordering-guard.test.mjs"
       - "scripts/ctx-notify.mjs"
       - "scripts/ctx-notify.test.mjs"
+      - "scripts/check-skills.mjs"
+      - "scripts/check-skills.test.mjs"
       # ctx-notify.test.mjs parses these: a step rename must run the suite.
       - ".github/workflows/ctx-pipeline-receive.yml"
       - ".github/workflows/ctx-pipeline-notify.yml"
@@ -73,7 +75,8 @@ jobs:
     # (scripts/ctx-receive.mjs, scripts/ctx-ordering-guard.mjs,
     # scripts/ctx-notify.mjs); `npm test`
     # runs every scripts/*.test.mjs. No npm install: the package has no
-    # dependencies, so `npm test` runs as-is.
+    # dependencies, so `npm test` runs as-is. Also runs scripts/check-skills.mjs,
+    # which fails a skill that would miss a generated surface.
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -89,3 +92,6 @@ jobs:
 
       - name: Run receiver tests
         run: npm test
+
+      - name: Check skills reach every generated surface
+        run: node scripts/check-skills.mjs

@@ -38,7 +38,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from '../scripts/fetch-skill.mjs';
 
-const DEFAULT_HOST = 'https://netlify-skills.netlify.app';
+const DEFAULT_HOST = 'https://netlify-agent-skills.netlify.app';
 // Project-level skills directory per agent, as each agent's own docs list it
 // (linked from the README's Installation table). Cursor, Codex, Gemini CLI,
 // and GitHub Copilot (VS Code) all read the shared `.agents/skills/`.

@@ -171,7 +171,7 @@ Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name`
 
 Every release publishes the skills to two places you can consume without cloning this repo:
 
-- **Hosted:** `https://netlify-skills.netlify.app` — `manifest.json` and `skills/<name>/<file>` for the latest release, `versions.json` listing every published version, and immutable copies at `v/<version>/…`.
+- **Hosted:** `https://netlify-agent-skills.netlify.app` — `manifest.json` and `skills/<name>/<file>` for the latest release, `versions.json` listing every published version, and immutable copies at `v/<version>/…`.
 - **npm:** [`@netlify/skills`](https://www.npmjs.com/package/@netlify/skills) — every skill plus `manifest.json` and the `netlify-skills` command, which installs single skills out of the package.
 
 Skill files under `v/<version>/` are exact `git archive` bytes of the tag and never change. Each `v/<version>/manifest.json` is regenerated on publish, but its `tree_hash` formula is frozen for `schema_version: 1`, so a pinned hash stays valid.
@@ -182,10 +182,10 @@ Skills change independently, so each carries its own version: the release in whi
 
 ```bash
 # Latest manifest
-curl -s https://netlify-skills.netlify.app/manifest.json | head -c 600
+curl -s https://netlify-agent-skills.netlify.app/manifest.json | head -c 600
 
 # One skill, pinned to a version
-curl -s https://netlify-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKILL.md
+curl -s https://netlify-agent-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKILL.md
 ```
 
 ### Install skills and keep them current

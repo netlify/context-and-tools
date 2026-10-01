@@ -4,6 +4,18 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.6.0](https://github.com/netlify/context-and-tools/compare/v1.5.2...v1.6.0) (2026-10-01)
+
+
+### Features
+
+* publish versioned skills to a hosted site and npm (EX-3049, EX-3054) ([485f16b](https://github.com/netlify/context-and-tools/commit/485f16b9e45c00d982680a883a912b15329fdb04))
+
+
+### Bug Fixes
+
+* **context:** sync skills from netlify/docs ([#142](https://github.com/netlify/context-and-tools/issues/142)) ([5c7595f](https://github.com/netlify/context-and-tools/commit/5c7595fb8b425db698d1e51e207486167981fc6a))
+
 ## [1.5.2](https://github.com/netlify/context-and-tools/compare/v1.5.1...v1.5.2) (2026-09-28)
 
 

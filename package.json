@@ -1,6 +1,6 @@
 {
   "name": "@netlify/skills",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Public Netlify skills for AI coding agents. Each skill is a focused, factual reference for a Netlify platform primitive — designed to help agents build correctly on Netlify without needing to search docs.",
   "license": "MIT",
   "repository": {

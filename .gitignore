@@ -5,3 +5,7 @@ node_modules/
 .claude/worktrees/
 # Transient docs checkout used by the Context Pipeline receiver workflow.
 .docs-src/
+# Publish outputs: the hosted site tree and the npm-packaged manifest are
+# generated at release time by scripts/build-hosted.mjs / build-manifest.mjs.
+dist/
+/manifest.json

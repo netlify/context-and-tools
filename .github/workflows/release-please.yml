@@ -292,15 +292,25 @@ jobs:
       # If a newer release's npm publish failed and an older release's run is
       # being re-run, `latest` would name a version npm never got. Refuse; the
       # fix is to re-run the newer release's run first.
+      #
+      # A version npm has just accepted takes a few minutes to appear in the
+      # registry's read path (npm says so on publish), and this job starts
+      # seconds after publish-npm, so poll before concluding it is missing.
+      # The first release did exactly this: published, then "not on npm".
       - name: Verify latest is on npm
         run: |
           name="$(node -p 'require("./package.json").name')"
           latest="$(node -p 'require("./dist/versions.json").latest')"
-          if [ -z "$(npm view "${name}@${latest}" version 2>/dev/null)" ]; then
-            echo "::error::${name}@${latest} is not on npm, so the site cannot advertise it as latest. Re-publish v${latest} first."
-            exit 1
-          fi
-          echo "${name}@${latest} is on npm"
+          for attempt in $(seq 1 20); do
+            if [ -n "$(npm view "${name}@${latest}" version 2>/dev/null)" ]; then
+              echo "${name}@${latest} is on npm"
+              exit 0
+            fi
+            echo "${name}@${latest} not visible yet (attempt ${attempt}/20); waiting 30s"
+            sleep 30
+          done
+          echo "::error::${name}@${latest} is not on npm after 10 minutes, so the site cannot advertise it as latest. Re-publish v${latest} first."
+          exit 1
 
       - name: Deploy to Netlify
         id: deploy

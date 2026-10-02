@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // ctx-hub-ping — tell context-hub about a release moment (EX-3255).
 //
-// Called by .github/workflows/release-please.yml (release PR opened, release
-// created) and .github/workflows/publish.yml (publish finished). context-hub
+// Called by .github/workflows/release-please.yml: `notify-hub` (release PR
+// opened, release created) and `report` (publish finished). context-hub
 // records each as an event and posts the Slack notice. This is telemetry: a
 // ping never decides whether a release or publish happens, and the calling
 // jobs are continue-on-error so a failed ping never turns a run red.
@@ -148,11 +148,14 @@ const HTTP_TIMEOUT_MS = 10_000;
 // Resolves with the HTTP status on 2xx. Rejects on a 4xx (never retried), or
 // on a 5xx / network error once the delays are used up.
 export async function send({ url, key, path, body, fetchImpl = fetch, delays = RETRY_DELAYS_MS }) {
+  // A trailing slash on CONTEXT_HUB_URL would make `//api/...`, a 404 the
+  // retry loop never retries.
+  const endpoint = `${url.replace(/\/+$/, '')}${path}`;
   for (let attempt = 0; ; attempt += 1) {
     let retryable;
     let message;
     try {
-      const res = await fetchImpl(`${url}${path}`, {
+      const res = await fetchImpl(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
         body: JSON.stringify(body),

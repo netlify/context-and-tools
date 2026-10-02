@@ -22,8 +22,8 @@ This repository contains public Netlify skills — factual platform reference fo
 - `scripts/fetch-skill.mjs` — Zero-dependency reference client: install skills (`--skill`/`--all`) from a release directory (`--source`) or the hosted site (`--host`) with hash verification; `--check` a local skills dir against the manifest; `--update` applies the sync rules (stale → replace, modified → keep unless `--reset`, renamed → migrate, deprecated → delete, edited copies kept unless `--reset`)
 - `bin/netlify-skills.mjs` — The `netlify-skills` command shipped in `@netlify/skills` (`npx @netlify/skills@latest add|check|update`); installs from the package's own bundled release by default, `--host` for the hosted manifest, into the agent directory found in the project or the one `--agent`/`--dest` names; thin wrapper over `fetch-skill.mjs`
 - `skill-registry.json` — Hand-maintained prior names and deprecations that the manifest cannot derive from `skills/`
-- `netlify.toml` — Hosted-site config (publish dir, cache headers); deployed by `.github/workflows/publish.yml`, not by a Git-connected build
-- `.github/workflows/publish.yml` — Publishes a release tag to the hosted Netlify site and to npm (`@netlify/skills`); called only from `release-please.yml`, which is also the manual re-publish entry point (npm Trusted Publishing is tied to that file)
+- `netlify.toml` — Hosted-site config (publish dir, cache headers); deployed by `.github/workflows/release-please.yml`, not by a Git-connected build
+- `.github/workflows/release-please.yml` — Cuts releases and publishes each tag to npm (`@netlify/skills`, Trusted Publishing tied to this filename) and then to the hosted Netlify site; also the manual re-publish entry point, guarded to real release tags on main
 - `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/`, `codex/`, `agent-plugin/skills/`, and the `gemini-extension.json` skill list from `skills/` and commits them in a single step (on push to main and on PRs), so the generated outputs always stay in parity with `skills/`
 
 ## Skills

@@ -21,11 +21,10 @@ on:
       # ctx-notify.test.mjs parses these: a step rename must run the suite.
       - ".github/workflows/ctx-pipeline-receive.yml"
       - ".github/workflows/ctx-pipeline-notify.yml"
-      # ctx-hub-ping.test.mjs parses these: a job or step rename must run the suite.
+      # ctx-hub-ping.test.mjs parses this: a job or step rename must run the suite.
       - "scripts/ctx-hub-ping.mjs"
       - "scripts/ctx-hub-ping.test.mjs"
       - ".github/workflows/release-please.yml"
-      - ".github/workflows/publish.yml"
       - "package.json"
       - ".github/workflows/validate-skills.yml"
       # package-check asserts these are in the npm tarball.
@@ -107,7 +106,7 @@ jobs:
       - name: Run script tests
         run: npm test
 
-  # What `npm publish` would ship (publish.yml) and what the manifest says
+  # What `npm publish` would ship (release-please.yml) and what the manifest says
   # about skills/ must both be right before merge, not discovered at release.
   package-check:
     permissions:

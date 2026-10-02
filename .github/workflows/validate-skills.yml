@@ -21,6 +21,10 @@ on:
       # ctx-notify.test.mjs parses these: a step rename must run the suite.
       - ".github/workflows/ctx-pipeline-receive.yml"
       - ".github/workflows/ctx-pipeline-notify.yml"
+      # ctx-hub-ping.test.mjs parses this: a job or step rename must run the suite.
+      - "scripts/ctx-hub-ping.mjs"
+      - "scripts/ctx-hub-ping.test.mjs"
+      - ".github/workflows/release-please.yml"
       - "package.json"
       - ".github/workflows/validate-skills.yml"
       # package-check asserts these are in the npm tarball.

@@ -56,6 +56,8 @@ It writes the skills into the agent directory already in the project (`.claude/`
 | Grok Build | `grok` | `.grok/skills/` |
 | Anything else | | `--dest <dir>` |
 
+Each directory is the project-level skills location in that agent's own docs: [Claude Code](https://code.claude.com/docs/en/skills), [Cursor](https://cursor.com/docs/context/skills), [Codex](https://developers.openai.com/codex/skills), [Gemini CLI](https://geminicli.com/docs/cli/skills/), [GitHub Copilot](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills), and [Grok](https://docs.x.ai/build/features/skills-plugins-marketplaces). Cursor, Codex, Gemini CLI, and Copilot all read the shared `.agents/skills/`. The generated `.cursor/rules/` files and the `codex/AGENTS.md` router under [Other ways to install](#other-ways-to-install) are the older formats for those two agents; they still work, but they are not what `add` writes.
+
 `add netlify-functions` installs one skill, `check` reports what is installed and whether it is current, and `update` brings it up to date. See [Install skills and keep them current](#install-skills-and-keep-them-current).
 
 ### Other ways to install
@@ -169,7 +171,7 @@ Each `SKILL.md` file is a self-contained reference with YAML frontmatter (`name`
 
 Every release publishes the skills to two places you can consume without cloning this repo:
 
-- **Hosted:** `https://netlify-skills.netlify.app` — `manifest.json` and `skills/<name>/<file>` for the latest release, `versions.json` listing every published version, and immutable copies at `v/<version>/…`.
+- **Hosted:** `https://netlify-agent-skills.netlify.app` — `manifest.json` and `skills/<name>/<file>` for the latest release, `versions.json` listing every published version, and immutable copies at `v/<version>/…`.
 - **npm:** [`@netlify/skills`](https://www.npmjs.com/package/@netlify/skills) — every skill plus `manifest.json` and the `netlify-skills` command, which installs single skills out of the package.
 
 Skill files under `v/<version>/` are exact `git archive` bytes of the tag and never change. Each `v/<version>/manifest.json` is regenerated on publish, but its `tree_hash` formula is frozen for `schema_version: 1`, so a pinned hash stays valid.
@@ -180,10 +182,10 @@ Skills change independently, so each carries its own version: the release in whi
 
 ```bash
 # Latest manifest
-curl -s https://netlify-skills.netlify.app/manifest.json | head -c 600
+curl -s https://netlify-agent-skills.netlify.app/manifest.json | head -c 600
 
 # One skill, pinned to a version
-curl -s https://netlify-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKILL.md
+curl -s https://netlify-agent-skills.netlify.app/v/1.3.2/skills/netlify-functions/SKILL.md
 ```
 
 ### Install skills and keep them current
@@ -223,7 +225,7 @@ What the hashes do and do not cover: the manifest and the files come from the sa
 
 A service that reads skills programmatically (Agent Runners) can depend on the package and read one skill by path: `node_modules/@netlify/skills/skills/netlify-functions/SKILL.md`. The bundled `manifest.json` carries each skill's own version, so a service can tell which skills changed between two package versions without diffing files.
 
-The same client is in this repo as `scripts/fetch-skill.mjs` (`--source <dir>` or `--host <url>`; `--skill`/`--all` with `--dest`, `--check`, `--update`), which is what the Netlify CLI's init and sync will build on. The whole-set package also ships the `skills/CLAUDE.md` router; the hosted site serves exactly the files the manifest lists, so the router is not there. Both targets are published from the release tag by `.github/workflows/publish.yml`.
+The same client is in this repo as `scripts/fetch-skill.mjs` (`--source <dir>` or `--host <url>`; `--skill`/`--all` with `--dest`, `--check`, `--update`), which is what the Netlify CLI's init and sync will build on. The whole-set package also ships the `skills/CLAUDE.md` router; the hosted site serves exactly the files the manifest lists, so the router is not there. Both targets are published from the release tag by `.github/workflows/release-please.yml`.
 
 ## Design Principles
 

@@ -273,8 +273,9 @@ function registryData(root, discovered) {
   const priorBySkill = new Map();
   const occupied = new Map([...discovered].map((name) => [name, `skill ${JSON.stringify(name)}`]));
 
-  for (const [name, entry] of Object.entries(skills)) {
-    if (!discovered.has(name)) throw new Error(`skill-registry.json: skill ${JSON.stringify(name)} is not a discovered skill`);
+  // Every name in the registry, current or prior, active or deprecated, must
+  // be unique: a client maps an installed directory name to exactly one entry.
+  const priorNamesOf = (name, entry) => {
     const priorNames = entry?.prior_names || [];
     if (!Array.isArray(priorNames)) throw new Error(`skill-registry.json: prior_names for ${JSON.stringify(name)} must be an array`);
     for (const prior of priorNames) {
@@ -282,17 +283,26 @@ function registryData(root, discovered) {
       if (occupied.has(prior)) throw new Error(`skill-registry.json: name ${JSON.stringify(prior)} appears more than once (${occupied.get(prior)} and prior name)`);
       occupied.set(prior, `prior name of ${JSON.stringify(name)}`);
     }
-    priorBySkill.set(name, [...priorNames]);
+    return [...priorNames];
+  };
+
+  for (const [name, entry] of Object.entries(skills)) {
+    if (!discovered.has(name)) throw new Error(`skill-registry.json: skill ${JSON.stringify(name)} is not a discovered skill`);
+    priorBySkill.set(name, priorNamesOf(name, entry));
   }
 
+  // A retired skill keeps its prior names: a copy still installed under a
+  // name it had before a rename is deprecated too, and must be cleaned up.
+  const priorByDeprecated = new Map();
   for (const [name, entry] of Object.entries(deprecated)) {
     if (occupied.has(name)) throw new Error(`skill-registry.json: name ${JSON.stringify(name)} appears more than once (${occupied.get(name)} and deprecated name)`);
     occupied.set(name, 'deprecated name');
     if (!entry || typeof entry.since !== 'string' || typeof entry.description !== 'string' || !entry.description) {
       throw new Error(`skill-registry.json: deprecated ${JSON.stringify(name)} requires since and description`);
     }
+    priorByDeprecated.set(name, priorNamesOf(name, entry));
   }
-  return { priorBySkill, deprecated };
+  return { priorBySkill, priorByDeprecated, deprecated };
 }
 
 function provenanceData(root) {
@@ -349,7 +359,7 @@ export function buildManifest({ root = '.', version, commit, publishedAt, histor
     }
   }
 
-  const { priorBySkill, deprecated } = registryData(root, discovered);
+  const { priorBySkill, priorByDeprecated, deprecated } = registryData(root, discovered);
   const provenance = provenanceData(root);
   const entries = [];
   for (const name of discovered) {
@@ -384,12 +394,12 @@ export function buildManifest({ root = '.', version, commit, publishedAt, histor
       name,
       status: 'deprecated',
       version: null,
-      prior_names: [],
+      prior_names: priorByDeprecated.get(name),
       description: data.description,
       tree_hash: null,
       files: {},
       executable: [],
-      history: history ? skillHistory({ name, tags: history.tags, hashAt, retired: true }) : [],
+      history: history ? skillHistory({ name, priorNames: priorByDeprecated.get(name), tags: history.tags, hashAt, retired: true }) : [],
       deprecated: deprecatedInfo,
     });
   }

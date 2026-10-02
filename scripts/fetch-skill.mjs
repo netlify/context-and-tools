@@ -55,8 +55,9 @@
 //   modified    hash matches no entry: someone edited it locally (or the
 //               directory carries our name but has no SKILL.md)
 //   renamed     directory name is a prior_name of a current skill
-//   deprecated  the manifest retired it (`modified` when its content matches
-//               no release it shipped in, or cannot be hashed)
+//   deprecated  the manifest retired it, under this name or one of its
+//               prior_names (`modified` when its content matches no release
+//               it shipped in, or cannot be hashed)
 //   duplicate   directory name is not ours, but its content is a release of
 //               one of our skills (someone copied it under another name)
 //   unknown     not in the manifest at all: the user's own skill
@@ -341,7 +342,8 @@ function classify(root, manifest) {
     // our names: then it is what is left of one (SKILL.md deleted or
     // symlinked), and it must be seen, or --all would install over it.
     const hasSkillMd = fs.lstatSync(path.join(root, entry.name, 'SKILL.md'), { throwIfNoEntry: false })?.isFile();
-    if (!hasSkillMd && !target && known?.status !== 'deprecated') continue;
+    const retired = known?.status === 'deprecated' ? known : renamed?.status === 'deprecated' ? renamed : null;
+    if (!hasSkillMd && !target && !retired) continue;
     // A directory the hash formula cannot cover (no SKILL.md, or a symlink or
     // other special entry inside it) is nothing we ever wrote, so it is the
     // user's own (unknown) or their edit of ours (modified); it must not
@@ -350,11 +352,11 @@ function classify(root, manifest) {
     if (hasSkillMd) {
       try { treeHash = hashTree(path.join(root, entry.name)); } catch { /* classified below */ }
     }
-    if (known?.status === 'deprecated') {
-      // Deleted unasked only when the copy is one we shipped; an edited or
-      // unverifiable copy waits for --reset.
-      const match = treeHash ? historyOf(known).findLast((item) => item.tree_hash === treeHash) : undefined;
-      records.push({ name: entry.name, status: 'deprecated', replaced_by: known.deprecated?.replaced_by || null, have: match?.version ?? null, modified: !match });
+    if (retired) {
+      // Deleted unasked only when the copy is one we shipped (under this or a
+      // prior name); an edited or unverifiable copy waits for --reset.
+      const match = treeHash ? historyOf(retired).findLast((item) => item.tree_hash === treeHash) : undefined;
+      records.push({ name: entry.name, status: 'deprecated', replaced_by: retired.deprecated?.replaced_by || null, have: match?.version ?? null, modified: !match });
       continue;
     }
     if (!target) {

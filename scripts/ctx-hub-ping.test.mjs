@@ -195,6 +195,14 @@ test('send: 200 succeeds on the first attempt with the right request', async () 
   assert.ok(calls[0].init.signal, 'each attempt has a timeout signal');
 });
 
+test('send: a trailing slash on the hub URL does not double the path separator', async () => {
+  for (const url of ['https://hub.example/', 'https://hub.example//']) {
+    const { impl, calls } = fakeFetch(200);
+    await send({ ...SEND, url, fetchImpl: impl });
+    assert.equal(calls[0].url, 'https://hub.example/api/pipeline/events/ct-release-created', url);
+  }
+});
+
 test('send: 5xx is retried twice, then fails after three attempts', async () => {
   const { impl, calls } = fakeFetch(503);
   await assert.rejects(send({ ...SEND, fetchImpl: impl }), /returned 503/);
@@ -317,7 +325,6 @@ function jobsOf(yml) {
 }
 
 const RELEASE_JOBS = jobsOf(workflowText('release-please.yml'));
-const PUBLISH_JOBS = jobsOf(workflowText('publish.yml'));
 
 // Each job's `needs:` as a list of job names (inline `x`, `[x, y]`, or a block list).
 function needsOf(jobText) {
@@ -328,48 +335,48 @@ function needsOf(jobText) {
 }
 
 test('workflow shape: notify-hub and report exist, with the ctx-pipeline environment and continue-on-error', () => {
-  for (const [jobs, name] of [[RELEASE_JOBS, 'notify-hub'], [PUBLISH_JOBS, 'report']]) {
-    assert.ok(jobs[name], `${name} job exists`);
-    assert.match(jobs[name], /^    environment: ctx-pipeline$/m, name);
-    assert.match(jobs[name], /^    continue-on-error: true$/m, name);
-    assert.match(jobs[name], /^    permissions:\n      contents: read$/m, name);
-    assert.match(jobs[name], /persist-credentials: false/, name);
+  for (const name of ['notify-hub', 'report']) {
+    const job = RELEASE_JOBS[name];
+    assert.ok(job, `${name} job exists`);
+    assert.match(job, /^    environment: ctx-pipeline$/m, name);
+    assert.match(job, /^    continue-on-error: true$/m, name);
+    assert.match(job, /^    permissions:\n      contents: read$/m, name);
+    assert.match(job, /persist-credentials: false/, name);
   }
 });
 
 test('workflow shape: no job needs notify-hub or report', () => {
-  for (const jobs of [RELEASE_JOBS, PUBLISH_JOBS]) {
-    for (const [name, text] of Object.entries(jobs)) {
-      const needs = needsOf(text);
-      assert.ok(!needs.includes('notify-hub') && !needs.includes('report'), `${name} needs ${needs}`);
-    }
+  for (const [name, text] of Object.entries(RELEASE_JOBS)) {
+    const needs = needsOf(text);
+    assert.ok(!needs.includes('notify-hub') && !needs.includes('report'), `${name} needs ${needs}`);
   }
-  assert.deepEqual(needsOf(PUBLISH_JOBS.report), ['publish-npm', 'deploy-hosted']);
+  assert.deepEqual(needsOf(RELEASE_JOBS.report), ['release-please', 'publish-npm', 'deploy-hosted']);
   assert.deepEqual(needsOf(RELEASE_JOBS['notify-hub']), ['release-please']);
 });
 
-test('workflow shape: report runs always', () => {
-  assert.match(PUBLISH_JOBS.report, /^    if: \$\{\{ always\(\) \}\}$/m);
+test('workflow shape: report runs after success or failure of a created release, not after a cancel', () => {
+  assert.match(
+    RELEASE_JOBS.report,
+    /^    if: \$\{\{ !cancelled\(\) && needs\.release-please\.outputs\.release_created == 'true' \}\}$/m,
+  );
 });
 
 test('workflow shape: the npm step id and both result= lines exist', () => {
-  const yml = workflowText('publish.yml');
-  assert.match(yml, /^ {8}id: npm$/m);
-  assert.match(yml, /echo "result=already_published" >> "\$GITHUB_OUTPUT"/);
-  assert.match(yml, /echo "result=published" >> "\$GITHUB_OUTPUT"/);
-  assert.match(PUBLISH_JOBS['publish-npm'], /^ {4}outputs:\n {6}result: \$\{\{ steps\.npm\.outputs\.result \}\}$/m);
+  const npmJob = RELEASE_JOBS['publish-npm'];
+  assert.match(npmJob, /^ {8}id: npm$/m);
+  assert.match(npmJob, /echo "result=already_published" >> "\$GITHUB_OUTPUT"/);
+  assert.match(npmJob, /echo "result=published" >> "\$GITHUB_OUTPUT"/);
+  assert.match(npmJob, /^ {6}result: \$\{\{ steps\.npm\.outputs\.result \}\}$/m);
 });
 
 test('workflow shape: every ping step runs scripts/ctx-hub-ping.mjs with a known command, inputs via env', () => {
   const pings = [];
-  for (const yml of [workflowText('release-please.yml'), workflowText('publish.yml')]) {
-    for (const line of yml.split('\n')) {
-      if (!line.includes('ctx-hub-ping.mjs')) continue;
-      if (/^\s*#/.test(line)) continue;
-      const m = /^ {8}run: node scripts\/ctx-hub-ping\.mjs (\S+)$/.exec(line);
-      assert.ok(m, `ping step is a plain run line: ${line}`);
-      pings.push(m[1]);
-    }
+  for (const line of workflowText('release-please.yml').split('\n')) {
+    if (!line.includes('ctx-hub-ping.mjs')) continue;
+    if (/^\s*#/.test(line)) continue;
+    const m = /^ {8}run: node scripts\/ctx-hub-ping\.mjs (\S+)$/.exec(line);
+    assert.ok(m, `ping step is a plain run line: ${line}`);
+    pings.push(m[1]);
   }
   assert.deepEqual(pings.sort(), ['publish-finished', 'release-created', 'release-pr-opened']);
   for (const command of pings) assert.ok(Object.hasOwn(COMMANDS, command), command);
@@ -382,13 +389,10 @@ test('workflow shape: the release-created ping still runs after a failed release
 });
 
 test('workflow shape: ping steps take the key and URL from env, and never interpolate into run text', () => {
-  for (const jobs of [RELEASE_JOBS, PUBLISH_JOBS]) {
-    for (const name of ['notify-hub', 'report']) {
-      const text = jobs[name];
-      if (!text) continue;
-      assert.match(text, /CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}/);
-      assert.match(text, /CONTEXT_HUB_PIPELINE_KEY: \$\{\{ secrets\.CONTEXT_HUB_PIPELINE_KEY \}\}/);
-      for (const line of text.split('\n')) if (/^\s*run:/.test(line)) assert.doesNotMatch(line, /\$\{\{/, line);
-    }
+  for (const name of ['notify-hub', 'report']) {
+    const text = RELEASE_JOBS[name];
+    assert.match(text, /CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}/);
+    assert.match(text, /CONTEXT_HUB_PIPELINE_KEY: \$\{\{ secrets\.CONTEXT_HUB_PIPELINE_KEY \}\}/);
+    for (const line of text.split('\n')) if (/^\s*run:/.test(line)) assert.doesNotMatch(line, /\$\{\{/, line);
   }
 });

@@ -41,9 +41,9 @@ AXIS scenarios.)
   import was invisible while Slack kept saying "delivered" (EX-3057). Logic in
   `../scripts/ctx-notify.mjs`; inert until `SLACK_WEBHOOK_URL` exists in the
   `ctx-pipeline` environment.
-- **Release pings** — `release-please.yml` (`notify-hub`) and `publish.yml`
-  (`report`) tell context-hub when a release PR opens, a release is created, and
-  a publish finishes, via `../scripts/ctx-hub-ping.mjs` (EX-3255). Inert until
+- **Release pings** — `release-please.yml` (`notify-hub` and `report`) tells
+  context-hub when a release PR opens, a release is created, and a publish
+  finishes, via `../scripts/ctx-hub-ping.mjs` (EX-3255). Inert until
   `CONTEXT_HUB_URL` (variable) and `CONTEXT_HUB_PIPELINE_KEY` (secret) exist in
   the `ctx-pipeline` environment; a failed ping never blocks a release.
 
@@ -72,7 +72,7 @@ with the PR title as the whole commit message, and release-please hides
 `chore`, so a chore-titled sync would never cut a release. As `fix`, every
 merged import lands in the standing Release PR as a patch bump, and merging
 that PR publishes the skills and manifest to the hosted site and npm
-(`.github/workflows/publish.yml`).
+(`.github/workflows/release-please.yml`).
 
 ## Running it locally
 

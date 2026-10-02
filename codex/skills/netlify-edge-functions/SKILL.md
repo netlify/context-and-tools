@@ -1,132 +1,60 @@
 ---
 name: netlify-edge-functions
-description: Write, configure, and deploy Netlify Edge Functions (Deno runtime at the network edge) in TypeScript/JavaScript. Use when adding request/response manipulation at the edge — auth middleware, geolocation redirects, A/B testing and personalization, content localization, redirects/rewrites, SSR at the edge, or transforming responses — or when configuring path routing, response caching, or edge error handling. Triggers on tasks like "add auth middleware", "geo-based redirect", "A/B testing at the edge", "rewrite requests", or editing files in netlify/edge-functions.
+description: Write and configure Netlify Edge Functions — TypeScript/JavaScript handlers running in a Deno runtime at the network edge. Use when adding auth middleware or auth redirects, geolocation or localization logic, A/B testing or personalization, request/response transforms (rewrites/redirects), or edge SSR to a Netlify site. Triggers on tasks like "add an edge function", "auth check at the edge", "redirect visitors by country", "A/B test with cookies", "rewrite requests", "personalize by geo", or "cache an edge response". Covers the config export, path routing, the Context object, response caching, environment variables, and edge-vs-serverless choices. Check the framework's adapter first — only hand-write an edge function when the framework doesn't already generate one.
 ---
 
 # Netlify Edge Functions
 
-**Reach for this (modern):** default-export handler + inline `config` export with a narrowly-scoped `path`. Import types from `@netlify/edge-functions`.
+## Modern syntax (reach for this)
+
+Export a default handler plus a `config` object. Import `Config`/`Context` types from `@netlify/edge-functions`; `Request`/`Response`/`URL` are global.
 
 ```ts
 import type { Config, Context } from "@netlify/edge-functions";
 
 export default async (request: Request, context: Context) => {
-  // return Response | URL (rewrite) | undefined (continue chain)
+  return new Response("Hello world");
 };
 
-export const config: Config = { path: "/products/*" };
+export const config: Config = {
+  path: "/test",
+};
 ```
 
-**Avoid:** import maps in `deno.json` (unsupported — use a separate file via `deno_import_map`). Do not hand-write a function your framework's adapter already generates (Next.js, Astro, Remix, SvelteKit, Nuxt, etc.) — check the framework adapter/reference first; duplicating adapter middleware causes conflicts.
+**Do not hand-write an edge function when your framework's adapter already generates middleware for the job** — duplicating it causes conflicts. Check the framework adapter/reference first.
+
+**Edge vs serverless:** use edge functions for low-latency request/response manipulation, geolocation logic, auth checks/redirects, and A/B personalization. Use serverless functions for long-running work (up to 15 min), heavy Node.js dependencies, database-heavy operations, background/scheduled tasks, or memory above 512 MB.
 
 ## File location
 
-- Default directory: `YOUR_BASE_DIRECTORY/netlify/edge-functions`.
-- Custom directory: `edge_functions` key under `[build]` in `netlify.toml`. Keep it **outside** the publish directory so source files aren't deployed.
-- `.js`/`.ts`/`.jsx`/`.tsx` all supported. If a `.ts` and `.js` file share a name, the `.ts` is ignored and the `.js` deploys.
+- Default directory: `YOUR_BASE_DIRECTORY/netlify/edge-functions`. Custom: `edge_functions` under `[build]` in `netlify.toml` (path relative to base directory).
+- Keep the directory **outside your publish directory** so source files aren't deployed.
+- Extensions: `.js`, `.ts`, `.jsx`, `.tsx` (`.jsx`/`.tsx` useful for SSR).
+- Same-name conflict: if `my-function.ts` and `my-function.js` both exist, the **TypeScript file is ignored** and the JavaScript one is deployed.
 
-## ⚠️ A function without a route silently never runs
+## Routing — required, or the function silently never runs
 
-Edge functions are **not** auto-assigned a URL. No `config` export and no `netlify.toml` declaration = deploys clean, no build error, no warning, never executes. If "my edge function does nothing," check the route first.
+⚠️ **An edge function without a route (no `config` export and no `netlify.toml` declaration) still deploys but never runs — no build error, no warning.** When "my edge function does nothing", check the route first.
 
-## Request handling patterns
+⚠️ **Scope `path` narrowly.** `path: "/*"` intercepts every request including static assets, adding latency and billing an edge invocation for each one.
 
-Handler receives `(request: Request, context: Context)`. Return one of:
-- `Response` — respond directly (ends the chain; declared redirects for the path do not run)
-- `URL` — rewrite to a **same-site** URL with 200 status (address bar unchanged)
-- `undefined` / empty `return;` — bypass this function, continue the chain
+Edge functions are **not** auto-assigned a URL route. Configure via inline `config` or `netlify.toml`.
 
-Netlify adds no headers to edge requests — use `context` for client info.
+`path` is a `URLPattern` expression, must start with `/`, single string or array:
 
-### Redirect
 ```ts
-export default async (req: Request, { cookies, geo }: Context) => {
-  if (geo.city === "Paris" && cookies.get("promo-code") === "15-for-followers") {
-    return Response.redirect(new URL("/subscriber-sale", req.url));
-  }
+export const config: Config = {
+  path: ["/", "/products/*"],
+  excludedPath: ["/*.css", "/*.js"],
 };
 ```
 
-### Rewrite (same-site only)
-```ts
-export default async (request: Request, { geo }: Context) => {
-  if (geo.city === "Paris") return new URL("/subscriber-sale", request.url);
-};
-```
-To reach another site or external content, use `fetch()` — rewrite via `URL` is same-site only.
+Config properties: `path`, `excludedPath`, `pattern` (regex alternative to `path`), `excludedPattern`, `method`, `header`, `onError`, `cache`.
 
-### Middleware transform
-```ts
-import type { Context } from "@netlify/edge-functions";
+### netlify.toml declaration
 
-export default async (request: Request, context: Context) => {
-  const response = await context.next();
-  const text = await response.text();
-  return new Response(text.toUpperCase(), response);
-};
-```
-`context.next()` runs the rest of the chain and returns the origin `Response`. Only call it if you need the response body (it costs latency otherwise).
+Use `[[edge_functions]]` to declare multiple functions on one path and control order:
 
-To transform a **different** path, use `fetch()` — but this starts a **new** request chain and re-runs any edge functions matching that path. Use `context.next()` to hit a static asset/serverless function at the same internal path without re-running edge functions.
-
-### Read the request body
-A body can only be read once. If you read it, pass a fresh request to `next()`:
-```ts
-export default async (req: Request, context: Context) => {
-  const body = await req.json();
-  if (!isValid(body.access_token)) return new Response("forbidden", { status: 403 });
-  return context.next(new Request(req, { body: JSON.stringify(body) }));
-};
-```
-
-### Conditional requests
-`next()` normally forces a full response. For client caching control:
-```ts
-const res = await next({ sendConditionalRequest: true });
-if (res.status === 304) return res;
-```
-
-## `Context` object
-
-- **`geo`** — `city`, `country {code,name}`, `subdivision {code,name}`, `latitude`, `longitude`, `timezone`, `postalCode`.
-- **`cookies`** — `get(name)`, `set(options)`, `delete(name|options)` (CookieStore web standard). ⚠️ Cross-subdomain cookies require a **custom domain** — `netlify.app` is on the Public Suffix List.
-- **`next(options?)` / `next(request, options?)`** — continue the chain; `options.sendConditionalRequest`.
-- **`params`** — path params, e.g. `/pets/:name` → `{ name: "winter" }`. Query string: use `request.url`.
-- **`ip`**, **`requestId`**, **`server.region`**.
-- **`site`** — `id`, `name`, `url`. **`account.id`**. **`deploy`** — `context`, `id`, `published`, `skewProtectionToken`.
-- **`waitUntil(promise)`** — run work after the response is sent (analytics, logs) without blocking it. Still subject to the CPU time limit.
-
-`Netlify.context` gives the same context inside the handler (`null` outside it).
-
-## Environment variables
-
-Access via `Netlify.env.get(name)` (also `has`, `set`, `delete`, `toObject`). `set`/`delete` are invocation-scoped only — they do **not** persist; use the Netlify env API to update.
-
-```ts
-const value = Netlify.env.get("MY_IMPORTANT_VARIABLE");
-```
-
-⚠️ **Gotchas:**
-- Variables in `netlify.toml` are **NOT** available to edge functions.
-- Scope must include **Functions** to reach runtime. **Build**-scoped vars are build-only — embed them at build time if needed.
-- Values are frozen at deploy time. Change a var → new deploy required. Deploy Previews/branch deploys use their deploy-time values.
-
-## Configuration / routing
-
-Config via inline `config` export or `netlify.toml`. Properties:
-- **`path`** — `URLPattern` string or array; must start with `/`. e.g. `["/", "/products/*"]`.
-- **`excludedPath`** — exclude routes from `path`; must start with `/`. e.g. `["/*.css", "/*.js"]`.
-- **`pattern`** / **`excludedPattern`** — regex alternatives to `path`/`excludedPath`.
-- **`method`** — string or array of HTTP methods (inline only).
-- **`header`** — object of header conditions: `true` (present), `false` (absent), or a regex string on the value. Names case-insensitive; multiple same-name values matched as comma-joined list.
-- **`cache`** — `"manual"` to opt into caching.
-- **`onError`** — error handling (see below).
-
-### ⚠️ Scope `path` narrowly
-
-`path: "/*"` intercepts **every** request including static assets — adds latency to each and **bills an edge invocation** for each. Match only the paths you need.
-
-### netlify.toml (for ordering / multiple functions on a path)
 ```toml
 [[edge_functions]]
   path = "/admin"
@@ -136,58 +64,108 @@ Config via inline `config` export or `netlify.toml`. Properties:
   path = "/admin"
   function = "injector"
   cache = "manual"
+
+[[edge_functions]]
+  pattern = "/products/(.*)"
+  excludedPattern = "/products/things/(.*)"
+  function = "highlight"
 ```
-Header matching uses an `[edge_functions.header]` sub-table.
 
-### Execution order
-Config-file declarations run before inline; framework-generated before user; non-cached before cached. Within `netlify.toml`: top-to-bottom. Within inline: **alphabetical by file name**. To control order, prefer `netlify.toml`. If the same function is declared both inline and in toml, they merge and inline fields win.
+Properties: `function`, `path`, `excludedPath`, `pattern`, `excludedPattern`, `header`, `cache`.
 
-**Two-pass loop:** Netlify runs the whole declaration order **twice** — the first pass runs only edge functions **not** configured for caching, the second pass runs the ones **with** caching configured. So a cached function always runs after every non-cached one on the same path, regardless of declaration position — that's why a cached function declared between two non-cached ones still runs after both.
+**Merge precedence:** if the same function is declared both inline and in `netlify.toml`, configs merge and are treated as inline; inline wins duplicate fields.
 
-Caveats: a function on the **target** of a static rewrite does **not** run for rewritten requests. If a function returns a `Response`, redirects for that path are skipped.
+### Match by headers
 
-## Response caching (opt-in)
-
-### ⚠️ Both parts or neither
-Cache headers on the `Response` do **nothing** without `cache: "manual"` in config — and `cache: "manual"` without headers still caches nothing. You need **both**:
+`header` keys are HTTP header names (case-insensitive); values are `true` (present), `false` (absent), or a string regex on the value. Multiple same-name values match against the comma-joined list.
 
 ```ts
-import type { Config, Context } from "@netlify/edge-functions";
-
-export default async (req: Request, context: Context) => {
-  return new Response("Hello world", {
-    headers: { "cache-control": "public, s-maxage=3600" },
-  });
+export const config: Config = {
+  header: { "x-required": true, "x-forbidden": false, "user-agent": "(iPhone|Android)" },
+  path: "/*",
 };
-
-export const config: Config = { cache: "manual", path: "/hello" };
 ```
 
-- Use caching only for endpoint-style responses reusable across clients (e.g. shared SSR HTML). **Never** for middleware, routing, or per-client personalization.
-- Cached responses do **not** count toward invocations.
-- ⚠️ A cached function **shadows real static files**: `cache:"manual"` on `/*` makes `/cat.png` serve the function, not the static file.
-- Supported headers: `Cache-Control`, `CDN-Cache-Control`, `Netlify-CDN-Cache-Control`, `Expires`, `Vary`, `Netlify-Vary`. Headers must be set inline in code.
-- New deploy in the same context voids `s-maxage`/`max-age`/`Expires` (atomic deploys).
-- No local caching — cache headers are ignored under `netlify dev`.
+### Declaration processing order
 
-## Error handling (`onError`, inline only)
+Netlify runs the whole declaration order **TWICE**: the first pass runs only edge functions **not** configured for caching; the second pass runs the ones **with** caching configured. Within that:
 
-- **`"fail"`** (default) — generic error page, stops the chain.
-- **`"/custom-path"`** — rewrite to a same-site path (starts with `/`), served without invoking that path's edge functions.
-- **`"bypass"`** — skip the erroring function, continue the chain.
+1. Framework-generated functions declared in a config file.
+2. Your `netlify.toml` declarations (top-to-bottom order).
+3. Framework/integration-generated functions with inline config.
+4. Your inline declarations (**alphabetical by function file name**).
 
-Guidance: fail **closed** for critical logic (auth); fail **open** for progressive enhancement (localization → `bypass`).
+To control order across multiple functions on a path, prefer `netlify.toml` declarations over inline.
 
-## Runtime & modules
+After all functions run, Netlify evaluates redirect rules — unless a function returned a response and ended the chain. To customize order, use `netlify.toml`.
 
-Deno runtime with many standard Web APIs (`fetch`/`Request`/`Response`/`URL`, `console`, `atob`/`btoa`, `TextEncoder`/`Decoder`(`Stream`), Web Crypto `crypto.randomUUID/getRandomValues/subtle`, `WebSocket`, timers, Streams API, `URLPattern`, `Performance`).
+**Order caveats:**
+- A returned response ends the chain; redirects for that path don't occur.
+- An edge function on the **target** of a static rewrite does **not** execute for rewritten requests.
+- `fetch()` for internal requests or returning a `URL` starts a **new request chain** and re-runs matching edge functions. Use `context.next()` to avoid re-running them.
 
-- **Node built-ins:** `import { randomBytes } from "node:crypto"` (`node:` prefix).
-- **Deno modules:** URL import, e.g. `import React from "https://esm.sh/react"`.
-- **npm packages (beta):** `npm install` then import by name. ⚠️ Packages needing native binaries (Prisma) or runtime dynamic imports (cowsay) may fail — prefer `node:` built-ins / Deno URLs.
-- **Import maps:** separate file only (not `deno.json`), declared via `deno_import_map` in `[functions]`.
+## Function signature & return values
 
-### SSR at the edge (.tsx)
+Handler receives `(request: Request, context: Context)`. Return one of:
+- a `Response` — delivered to the client; **ends the request chain** (declared redirects for that path don't run).
+- a `URL` — rewrite to a **same-site** URL with 200 status; address bar unchanged. Same-site only — for other sites use `fetch`.
+- `undefined` / empty `return;` — bypass this function, continue the chain.
+
+Modify a response as middleware by awaiting `context.next()`:
+
+```ts
+import type { Context } from "@netlify/edge-functions";
+
+export default async (request: Request, context: Context) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("method") !== "transform") return;
+
+  const response = await context.next();
+  const text = await response.text();
+  return new Response(text.toUpperCase(), response);
+};
+```
+
+Netlify does **not** add headers to edge function requests — use `context` for client request info.
+
+## Common patterns
+
+**Redirect by geo + cookie:**
+```ts
+export default async (req: Request, { cookies, geo }: Context) => {
+  if (geo.city === "Paris" && cookies.get("promo-code") === "15-for-followers") {
+    return Response.redirect(new URL("/subscriber-sale", req.url));
+  }
+};
+```
+
+**Rewrite (same-site, 200):**
+```ts
+export default async (request: Request, { geo }: Context) => {
+  if (geo.city === "Paris") return new URL("/subscriber-sale", request.url);
+};
+```
+
+**Read request body then continue** — a body can only be read once, so pass a new `Request` with an unread body:
+```ts
+export default async (req: Request, context: Context) => {
+  const body = await req.json();
+  if (!isValid(body.access_token)) return new Response("forbidden", { status: 403 });
+  return context.next(new Request(req, { body: JSON.stringify(body) }));
+};
+```
+
+**Conditional request:**
+```ts
+export default async (req: Request, { next }: Context) => {
+  const res = await next({ sendConditionalRequest: true });
+  if (res.status === 304) return res;
+  const text = await res.text();
+  return new Response(text.toUpperCase(), res);
+};
+```
+
+**SSR with React (`.tsx`):**
 ```tsx
 import React from "https://esm.sh/react";
 import { renderToReadableStream } from "https://esm.sh/react-dom/server";
@@ -203,35 +181,122 @@ export default async function handler(req: Request, context: Context) {
 export const config: Config = { path: "/hello" };
 ```
 
-## Edge vs serverless
+## Context object
 
-Edge for low-latency request/response manipulation, geolocation, auth checks/redirects, A/B personalization. Serverless for long-running work (up to 15 min), heavy Node deps, database-heavy operations, background/scheduled tasks, or memory above 512 MB.
+- **`geo`** — `city`, `country.{code,name}`, `subdivision.{code,name}`, `latitude`, `longitude`, `timezone`, `postalCode`.
+- **`cookies`** — `get(name)`, `set(options)` (CookieStore.set format), `delete(name|options)`. Cross-subdomain cookies need a custom domain — impossible on `netlify.app` (Public Suffix List).
+- **`next(options?)`** / **`next(request, options?)`** — invoke the next item in the chain; returns a `Promise<Response>` you can modify. `options.sendConditionalRequest: true` for conditional requests. Only call `next` if you need the response body. Pass an explicit `Request` when you've read the body.
+- **`params`** — path params, e.g. path `/pets/:name` + request `/pets/winter` → `{name:"winter"}`. Query string: use `request.url`.
+- **`ip`** — client IP string.
+- **`requestId`** — Netlify request ID.
+- **`account.id`**, **`site.{id,name,url}`**, **`server.region`**, **`deploy.{context,id,published,skewProtectionToken}`**.
+- **`waitUntil(promise)`** — extend execution past the response (analytics, logs) without blocking it. Still subject to the CPU limit.
 
-## Limits
+**`Netlify` global:** `Netlify.context` (null outside the handler), `Netlify.env.{get,has,set,delete,toObject}`. `Netlify.env.set`/`delete` are **invocation-scoped only** — they do not persist env vars; use the Netlify env API endpoints.
 
-- Code size: **20 MB** compressed (bundle).
-- Memory: **512 MB** per deployed set.
-- CPU execution: **50 ms** per request (excludes waiting on resources; `waitUntil` work still counts).
-- Response header timeout: **40 s**.
-- Invocations/month vary by plan; cached responses don't count.
+## Response caching
 
-## Local dev, deploy, monitor
+⚠️ **Caching requires BOTH opting in AND setting headers — it's both or neither.** Setting `Cache-Control` on the returned `Response` does nothing without `cache: "manual"` in config, and vice versa. Default (either missing): every request invokes the function.
+
+1. Opt in: `cache: "manual"` (inline or `netlify.toml`).
+2. Set headers **inline in the function code** (not in `netlify.toml`):
+
+```ts
+import type { Context, Config } from "@netlify/edge-functions";
+
+export default async (req: Request, context: Context) => {
+  return new Response("Hello world", {
+    headers: { "cache-control": "public, s-maxage=3600" },
+  });
+};
+
+export const config: Config = { cache: "manual", path: "/hello" };
+```
+
+Supported cache headers: `Cache-Control`, `CDN-Cache-Control`, `Netlify-CDN-Cache-Control`, `Expires` (overridden by `max-age`/`s-maxage`), `Vary`, `Netlify-Vary`. See https://docs.netlify.com/build/caching/caching-overview
+
+**Atomic deploys void the cache:** `s-maxage`/`max-age`/`Expires` are discarded by a new deploy in the same deploy context, even mid-lifetime.
+
+**When to cache:** endpoint responses reusable across clients (e.g. identical SSR HTML). **Do not cache** middleware, routing/transform logic, or per-client personalization.
+
+⚠️ **Caching functions always shadow static files.** A caching function on `/*` serves `/cat.png` instead of the static `cat.png`.
+
+## Error handling (`onError`, inline only)
+
+- **`fail`** (default) — serve a generic error page.
+- **`/YOUR_CUSTOM_PATH`** — rewrite to a same-site path (must start with `/`); served without invoking edge functions for that path.
+- **`bypass`** — skip the erroring function, continue the chain.
+
+```ts
+export const config: Config = { path: "/hello", onError: "/unavailable" };
+```
+
+Fail closed for critical logic (auth); fail open (`bypass`) for progressive enhancement (nice-to-have localization).
+
+## Environment variables
+
+- Set via UI/CLI/API; scope **must include Functions** to reach edge runtime.
+- **Env vars in `netlify.toml` are NOT available to edge functions.**
+- **Build-scope vars are NOT available at edge runtime** — only during the build step. Embed their values at build time if needed.
+- Changes require a **new build and deploy**; each deploy freezes values at deploy time.
+- Access at runtime with `Netlify.env.get(key)` / `Netlify.env.toObject()`.
+
+```ts
+export default async (request: Request, context: Context) => {
+  const value = Netlify.env.get("MY_IMPORTANT_VARIABLE");
+  return new Response(`Value: ${value}`);
+};
+```
+
+Next.js Middleware note: with Netlify Edge Functions for Middleware on Next.js, `process.env` also works.
+
+## Runtime & modules
+
+Deno-based. Import modules by:
+- **Node built-ins:** `import { randomBytes } from "node:crypto";`
+- **Deno/URL imports:** `import React from "https://esm.sh/react";`
+- **npm packages (beta):** `npm install` then import by name. ⚠️ Beta — packages using native binaries (Prisma) or runtime dynamic imports (cowsay) may fail.
+
+**Import maps** (module names instead of URLs) — use a separate import map file, declared in `netlify.toml`:
+
+```toml
+[functions]
+  deno_import_map = "./path/to/your/import_map.json"
+```
+
+Supported Web APIs include `fetch`/`Request`/`Response`/`URL`/`File`/`Blob`, `console`, `atob`/`btoa`, `TextEncoder`/`TextDecoder` (+ stream variants), Web Crypto (`randomUUID`, `getRandomValues`, `SubtleCrypto`), WebSocket, timers, Streams API, URLPattern, `Performance`.
+
+## Local dev & deploy
 
 ```bash
 npm install netlify-cli -g
-netlify dev      # runs edge functions on local requests at :8888
+netlify dev        # runs edge functions on local requests
+# visit http://localhost:8888/test
 ```
-- Geo mocking: `--geo=mock` (San Francisco) or `--geo=mock --country=XX`. Debug: `--edge-inspect` / `--edge-inspect-brk`.
-- Manual deploys require CLI **12.2.8+** (older versions error). Deploys are atomic.
-- Logs: **Cloud compute > Edge functions** in the UI; each `console` log names the emitting function. Filter by name/path (glob) and time. Retention ≥24h (7 days on some plans).
 
-## Feature limitations
+- Debug: `netlify dev` with `--edge-inspect` or `--edge-inspect-brk` (see https://cli.netlify.com/commands/dev/).
+- Geo mocking: `--geo=mock` (San Francisco) or `--geo=mock --country=XX`.
+- ⚠️ **No local caching** — cache headers are ignored in local testing.
+- Manual deploys require **Netlify CLI 12.2.8+** (older versions error).
+- Deploys are **atomic** — old deploys keep old behavior until you publish a new production deploy.
 
-- Split Testing enabled → edge functions do **not** run.
-- Custom Headers (incl. basic auth headers) do **not** apply to edge functions.
-- Prerendering does **not** apply to paths served by an edge function.
+**Monitor:** production logs at Netlify UI **Cloud compute > Edge functions**. Each `console.*` log includes the generating function name. Retention ≥ 24h (7 days on some plans). Log Drains on Enterprise.
+
+## Limits & feature gaps
+
+- **Code size:** 20 MB compressed (bundle max).
+- **Memory:** 512 MB per set of deployed edge functions.
+- **CPU time:** 50 ms per request (excludes wait time; `waitUntil` work still counts).
+- **Response header timeout:** 40 s.
+- Cached responses do **not** count toward invocations.
+- **Split Testing** enabled → edge functions do **not** run.
+- **Custom Headers** (incl. basic auth) do **not** apply to edge functions.
+- **Prerendering** does not apply to edge-served paths.
+- Rewrites are **same-site only** — use `fetch` for other/external sites.
 - Multiple framework plugins generating edge functions may collide.
-- Not part of Netlify's HIPAA-compliant offering.
+- **Not** supported under HIPAA-compliant hosting.
+
+See the overview at https://docs.netlify.com/build/edge-functions/overview.md and the full example library at https://edge-functions-examples.netlify.app/
 
 <!-- system: agent-context/edge-functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (edge-functions)

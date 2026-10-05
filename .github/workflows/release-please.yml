@@ -81,6 +81,8 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      pr: ${{ steps.release.outputs.pr }}
     steps:
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         if: env.HAS_APP_TOKEN == 'true'
@@ -113,6 +115,7 @@ jobs:
       # The commit the tag pointed at when it was verified; deploy-hosted
       # builds exactly this, not the tag name again.
       sha: ${{ steps.verify.outputs.sha }}
+      result: ${{ steps.npm.outputs.result }}
     steps:
       - name: Check the run is a push to main and the tag is a release tag
         run: |
@@ -210,12 +213,14 @@ jobs:
       # version exists. Any other `npm view` failure (network, outage) fails
       # the step rather than masquerading as "already published".
       - name: Publish @netlify/skills
+        id: npm
         run: |
           name="$(node -p 'require("./package.json").name')"
           version="$(node -p 'require("./package.json").version')"
           if npm view "${name}@${version}" version --json > "$RUNNER_TEMP/view.json" 2> "$RUNNER_TEMP/view.err"; then
             if [ -s "$RUNNER_TEMP/view.json" ] && [ "$(cat "$RUNNER_TEMP/view.json")" != "[]" ]; then
               echo "${name}@${version} is already published; nothing to do."
+              echo "result=already_published" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           elif ! grep -q "E404" "$RUNNER_TEMP/view.err"; then
@@ -224,6 +229,7 @@ jobs:
             exit 1
           fi
           npm publish --provenance --access public
+          echo "result=published" >> "$GITHUB_OUTPUT"
 
   deploy-hosted:
     needs: [release-please, publish-npm]
@@ -333,3 +339,66 @@ jobs:
         env:
           URL: ${{ steps.deploy.outputs.url }}
         run: node scripts/fetch-skill.mjs --host "$URL" --check dist/skills --strict
+
+  # Pings context-hub (EX-3255) when release-please opens or updates its release
+  # PR and when a release is created; context-hub posts the Slack notice. Pings
+  # go to CONTEXT_HUB_URL from the ctx-pipeline environment (inert until it and
+  # CONTEXT_HUB_PIPELINE_KEY exist). Telemetry only: continue-on-error, and
+  # nothing needs this job, so it never blocks or reddens a release or publish.
+  notify-hub:
+    needs: release-please
+    if: ${{ !cancelled() && needs.release-please.result == 'success' && (needs.release-please.outputs.prs_created == 'true' || needs.release-please.outputs.release_created == 'true') }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Ping context-hub (release PR)
+        if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+        env:
+          # env indirection: the PR title is attacker-shaped text and must reach
+          # the script as data, never interpolated into command text.
+          PR_JSON: ${{ needs.release-please.outputs.pr }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs release-pr-opened
+
+      - name: Ping context-hub (release created)
+        if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' }}
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs release-created
+
+  # Pings context-hub (EX-3255) with how the two publish jobs ended (npm result,
+  # site result) whenever a release was created; context-hub posts the Slack
+  # notice. Runs after success or failure but not after a cancelled run, is
+  # continue-on-error, and nothing needs it, so it never blocks publishing.
+  report:
+    needs: [release-please, publish-npm, deploy-hosted]
+    if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Ping context-hub (publish finished)
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          NPM_JOB_RESULT: ${{ needs.publish-npm.result }}
+          NPM_OUTCOME: ${{ needs.publish-npm.outputs.result }}
+          SITE_JOB_RESULT: ${{ needs.deploy-hosted.result }}
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs publish-finished

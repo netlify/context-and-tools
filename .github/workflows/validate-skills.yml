@@ -10,6 +10,8 @@ on:
       - "scripts/ctx-ordering-guard.test.mjs"
       - "scripts/ctx-notify.mjs"
       - "scripts/ctx-notify.test.mjs"
+      - "scripts/check-skills.mjs"
+      - "scripts/check-skills.test.mjs"
       - "scripts/build-manifest.mjs"
       - "scripts/build-manifest.test.mjs"
       - "scripts/build-hosted.mjs"
@@ -89,7 +91,8 @@ jobs:
     # (scripts/ctx-receive.mjs, scripts/ctx-ordering-guard.mjs,
     # scripts/ctx-notify.mjs); `npm test`
     # runs every scripts/*.test.mjs. No npm install: the package has no
-    # dependencies, so `npm test` runs as-is.
+    # dependencies, so `npm test` runs as-is. Also runs scripts/check-skills.mjs,
+    # which fails a skill that would miss a generated surface.
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -105,6 +108,9 @@ jobs:
 
       - name: Run script tests
         run: npm test
+
+      - name: Check skills reach every generated surface
+        run: node scripts/check-skills.mjs
 
   # What `npm publish` would ship (release-please.yml) and what the manifest says
   # about skills/ must both be right before merge, not discovered at release.

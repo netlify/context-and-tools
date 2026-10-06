@@ -17,6 +17,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `scripts/build-codex-skills.sh` — Copies `skills/` → `codex/` and generates `AGENTS.md`
 - `scripts/build-agent-plugin.sh` — Mirrors `skills/` → `agent-plugin/skills/`
 - `scripts/build-gemini-extension.sh` — Rewrites the `skills` array in `gemini-extension.json` from `skills/*/SKILL.md` (sorted; requires `jq`)
+- `scripts/check-skills.mjs` — CI check that every `skills/netlify-*/` folder is listed in `skills/CLAUDE.md` and contains only files the build scripts carry (`SKILL.md` plus flat `references/*.md`)
 - `scripts/build-manifest.mjs` — Generates `manifest.json` (skill names, statuses, per-skill `version` and `history` derived from git tags, prior names, per-file hashes, `tree_hash`, docs provenance) from `skills/`, `.ctx-gen/`, and `skill-registry.json`
 - `scripts/build-hosted.mjs` — Materializes every release tag into `dist/` (`manifest.json`, `skills/`, `versions.json`, `v/<version>/…`) for the hosted site
 - `scripts/fetch-skill.mjs` — Zero-dependency reference client: install skills (`--skill`/`--all`) from a release directory (`--source`) or the hosted site (`--host`) with hash verification; `--check` a local skills dir against the manifest; `--update` applies the sync rules (stale → replace, modified → keep unless `--reset`, renamed → migrate, deprecated → delete, edited copies kept unless `--reset`)
@@ -42,7 +43,7 @@ bash scripts/build-cursor-rules.sh
 
 Skills should be factual and platform-focused — not opinionated about frameworks, ORMs, or workflow preferences. They help any agent work correctly with Netlify primitives.
 
-Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content.
+Each skill follows the standard SKILL.md format with YAML frontmatter (`name` and `description`). Keep SKILL.md files under 500 lines. Use `references/` subdirectories for detailed content. A new skill needs a `` `netlify-<name>/SKILL.md` `` line in `skills/CLAUDE.md` (the router Cursor and Codex read), or CI fails.
 
 **Renaming or retiring a skill:** add the old name to `skill-registry.json` (`prior_names` on the successor, or a `deprecated` entry when there is no successor). The hosted manifest reads it so syncing clients can map or delete the old copy.
 

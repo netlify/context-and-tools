@@ -162,6 +162,15 @@ test('a missing skills/CLAUDE.md fails', () => {
   assert.match(r.stderr, /CLAUDE\.md is missing/);
 });
 
+test('a skills dir holding only CLAUDE.md fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'check-skills-'));
+  write(root, 'CLAUDE.md', '# Skills\n');
+  const r = run(root);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /has no netlify-<name> skill directories/);
+  assert.doesNotMatch(r.stdout, /skills OK/);
+});
+
 test('.DS_Store files are ignored at every level', () => {
   const root = makeSkills();
   write(root, '.DS_Store');

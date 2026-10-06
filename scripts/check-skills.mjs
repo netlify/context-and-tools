@@ -11,6 +11,8 @@
 // Layout rules
 //   - skills/ holds only CLAUDE.md and directories named netlify-<name> (<name> is
 //     lowercase a-z and hyphens only), each containing SKILL.md.
+//   - skills/ holds at least one skill dir (zero means a wrong --skills-dir or
+//     a tree emptied by a bad merge; passing it would ship nothing).
 //   - A skill dir holds only SKILL.md and optionally references/.
 //   - references/ holds only regular *.md files (no subdirectories).
 //   - No symlinks anywhere. .DS_Store is ignored at every level.
@@ -76,6 +78,9 @@ function checkLayout(skillsDir, problems) {
       skills.push(top.name);
       checkSkill(skillsDir, top.name, problems);
     }
+  }
+  if (skills.length === 0) {
+    problems.push(`${skillsDir} has no netlify-<name> skill directories — nothing would reach any surface; check --skills-dir`);
   }
   return skills;
 }

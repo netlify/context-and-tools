@@ -139,7 +139,7 @@ export default async (req: Request, { cookies, geo }: Context) => {
 };
 ```
 
-**Rewrite (same-site, 200):**
+**Rewrite (same-site, 200)** — return a standard `URL` object (see https://docs.netlify.com/build/edge-functions/api#return-a-rewrite):
 ```ts
 export default async (request: Request, { geo }: Context) => {
   if (geo.city === "Paris") return new URL("/subscriber-sale", request.url);
@@ -255,7 +255,7 @@ Next.js Middleware note: with Netlify Edge Functions for Middleware on Next.js, 
 Deno-based. Import modules by:
 - **Node built-ins:** `import { randomBytes } from "node:crypto";`
 - **Deno/URL imports:** `import React from "https://esm.sh/react";`
-- **npm packages (beta):** `npm install` then import by name. ⚠️ Beta — packages using native binaries (Prisma) or runtime dynamic imports (cowsay) may fail.
+- **npm packages (beta):** `npm install` then import by name. ⚠️ Beta — packages using native binaries (Prisma) or runtime dynamic imports (cowsay) may fail. Report bugs to Netlify Support: https://www.netlify.com/support/
 
 **Import maps** (module names instead of URLs) — use a separate import map file, declared in `netlify.toml`:
 
@@ -296,7 +296,7 @@ netlify dev        # runs edge functions on local requests
 - Multiple framework plugins generating edge functions may collide.
 - **Not** supported under HIPAA-compliant hosting.
 
-See the overview at https://docs.netlify.com/build/edge-functions/overview.md and the full example library at https://edge-functions-examples.netlify.app/
+See the overview at https://docs.netlify.com/build/edge-functions/overview.md and the full example library at https://edge-functions-examples.netlify.app/. For feedback or help, contact Netlify Support: https://www.netlify.com/support/
 
 <!-- system: agent-context/edge-functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (edge-functions)

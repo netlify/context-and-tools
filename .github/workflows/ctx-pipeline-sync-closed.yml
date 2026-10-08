@@ -1,39 +1,20 @@
 name: ctx-pipeline sync closed
 
 # EX-3352: tell context-hub when the rolling agent-context sync PR is merged or
-# closed, so its "Right now" view on /pipeline knows the Import stage is idle
-# and, after a merge, that a release is what the pipeline is waiting on. The
-# report carries the docs commit that landed. All logic lives in
-# scripts/ctx-hub-ping.mjs (thin-caller rule); the body is documented there and
-# tested by scripts/ctx-hub-ping.test.mjs (runs in validate-skills).
+# closed, so its "Right now" view on /pipeline knows what the pipeline is waiting
+# on. The report carries the docs commit that landed. Logic lives in
+# scripts/ctx-hub-ping.mjs.
 #
 # pull_request_target, not pull_request: the job needs the ctx-pipeline
-# environment's secret, and a pull_request run is not given it. The trade is
-# that this runs in the base branch's context, so it must never check out,
-# build, or execute anything from the PR. It checks out the base branch at the
-# default ref (no ref: input), and its one extra step reads a single data file,
-# .ctx-gen/state.json, from the merge commit — a commit already on main.
-# Nothing from that file is executed; the script only parses it as JSON.
+# environment's secret, which a pull_request run is not given. So this job must
+# never check out, build, or run PR-head code; it reads one data file from the
+# merge commit, already on main, and only parses it as JSON.
 #
-# Trust check: only the sync PR itself gets a runner — the exact branch name,
-# opened from this repository. A fork PR that reuses the branch name has a
-# different head repository and is skipped before any runner or secret exists.
-#
-# Telemetry: continue-on-error, and nothing needs this job. A failed ping never
-# reddens anything.
+# Trust check: only a PR from this repository on the exact sync branch gets a runner.
 #
 # Inert until CONTEXT_HUB_URL (variable) and CONTEXT_HUB_PIPELINE_KEY (secret)
-# exist in the ctx-pipeline environment; environment scoping means the secret
-# only injects into jobs that declare the environment, which matters in a
-# public repo. Without them, ctx-hub-ping.mjs prints the report as a dry run and
-# exits 0. context-hub must have the ct-sync-pr-closed route deployed first;
-# until then the ping gets a 404, which continue-on-error absorbs.
-#
-# pull_request_target runs this file's copy on the default branch, so it cannot
-# be tested before merge. Dry-run the ping locally instead:
-#   PR_NUMBER=150 MERGED=true SYNC_STATE_FILE=.ctx-gen/state.json \
-#     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=netlify/context-and-tools \
-#     GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT=1 node scripts/ctx-hub-ping.mjs sync-pr-closed
+# exist in the ctx-pipeline environment; the ping then dry-runs and exits 0.
+# Telemetry only: continue-on-error, a failed ping never reddens anything.
 
 on:
   pull_request_target:

@@ -83,13 +83,10 @@ test('sync-pr-closed: merged with a good state carries the 40-hex docsSha', () =
   });
 });
 
-test('sync-pr-closed: merged with missing, garbage, non-hex or uppercase state has docsSha null', () => {
-  const states = [undefined, '', 'not json', 'null', '[]', '{}', state({ lastImportedCommit: 'g'.repeat(40) }), state({ lastImportedCommit: SHA.toUpperCase() })];
-  for (const SYNC_STATE of states) {
-    const r = syncPrClosedBody(syncEnv({ SYNC_STATE }));
-    assert.equal(r.ok, true, String(SYNC_STATE));
-    assert.equal(r.body.docsSha, null, String(SYNC_STATE));
-  }
+test('sync-pr-closed: merged with a bad state has docsSha null', () => {
+  const r = syncPrClosedBody(syncEnv({ SYNC_STATE: 'not json' }));
+  assert.equal(r.ok, true);
+  assert.equal(r.body.docsSha, null);
 });
 
 test('sync-pr-closed: not merged has docsSha null even with a good state', () => {

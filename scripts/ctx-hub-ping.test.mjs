@@ -13,10 +13,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { COMMANDS, buildPing, checkHubUrl, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send } from './ctx-hub-ping.mjs';
+import { COMMANDS, buildPing, checkHubUrl, importedCommitFrom, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send, syncPrClosedBody } from './ctx-hub-ping.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ctx-hub-ping.mjs');
 const RUN_URL = 'https://github.com/netlify/context-and-tools/actions/runs/123';
@@ -65,6 +66,71 @@ test('publish-finished: body carries run URL, tag, npm and site', () => {
     path: '/api/pipeline/events/ct-publish-finished',
     body: { githubRunUrl: RUN_URL, tag: 'v1.6.0', npm: 'published', site: 'passed' },
   });
+});
+
+// ── sync-pr-closed ──
+
+const SHA = 'a'.repeat(20) + '0123456789'.repeat(2);
+const state = (over = {}) => JSON.stringify({ lastImportedCommit: SHA, ...over });
+const syncEnv = (over = {}) => ({ ...BASE_ENV, PR_NUMBER: '57', MERGED: 'true', GITHUB_RUN_ATTEMPT: '1', SYNC_STATE: state(), ...over });
+
+test('sync-pr-closed: merged with a good state carries the 40-hex docsSha', () => {
+  assert.equal(SHA.length, 40);
+  assert.deepEqual(buildPing('sync-pr-closed', syncEnv()), {
+    ok: true,
+    path: '/api/pipeline/events/ct-sync-pr-closed',
+    body: { githubRunUrl: RUN_URL, attempt: 1, prNumber: 57, merged: true, docsSha: SHA },
+  });
+});
+
+test('sync-pr-closed: merged with missing, garbage, non-hex or uppercase state has docsSha null', () => {
+  const states = [undefined, '', 'not json', 'null', '[]', '{}', state({ lastImportedCommit: 'g'.repeat(40) }), state({ lastImportedCommit: SHA.toUpperCase() })];
+  for (const SYNC_STATE of states) {
+    const r = syncPrClosedBody(syncEnv({ SYNC_STATE }));
+    assert.equal(r.ok, true, String(SYNC_STATE));
+    assert.equal(r.body.docsSha, null, String(SYNC_STATE));
+  }
+});
+
+test('sync-pr-closed: not merged has docsSha null even with a good state', () => {
+  const r = syncPrClosedBody(syncEnv({ MERGED: 'false' }));
+  assert.equal(r.ok, true);
+  assert.equal(r.body.merged, false);
+  assert.equal(r.body.docsSha, null);
+});
+
+test('sync-pr-closed: a bad PR_NUMBER, MERGED or GITHUB_RUN_ATTEMPT is refused', () => {
+  for (const PR_NUMBER of [undefined, '', '0', '-3', '1.5', '12a', ' 7', '1e3']) {
+    assert.equal(syncPrClosedBody(syncEnv({ PR_NUMBER })).ok, false, `PR_NUMBER ${PR_NUMBER}`);
+  }
+  for (const MERGED of [undefined, '', 'yes', 'True', 'TRUE', '1', ' true']) {
+    assert.equal(syncPrClosedBody(syncEnv({ MERGED })).ok, false, `MERGED ${MERGED}`);
+  }
+  for (const GITHUB_RUN_ATTEMPT of [undefined, '', '0', '-1', '1.5', 'x']) {
+    assert.equal(syncPrClosedBody(syncEnv({ GITHUB_RUN_ATTEMPT })).ok, false, `GITHUB_RUN_ATTEMPT ${GITHUB_RUN_ATTEMPT}`);
+  }
+  assert.equal(syncPrClosedBody({ ...syncEnv(), GITHUB_RUN_ID: 'abc' }).ok, false);
+});
+
+test('importedCommitFrom: every row', () => {
+  const rows = [
+    [state(), SHA],
+    [JSON.stringify({ lastImportedCommit: SHA, other: 1 }), SHA],
+    [state({ lastImportedCommit: SHA.slice(1) }), null],
+    [state({ lastImportedCommit: SHA + 'a' }), null],
+    [state({ lastImportedCommit: SHA.toUpperCase() }), null],
+    [state({ lastImportedCommit: 12 }), null],
+    [state({ lastImportedCommit: null }), null],
+    ['{}', null],
+    ['null', null],
+    ['[]', null],
+    ['"str"', null],
+    ['42', null],
+    ['not json', null],
+    ['', null],
+    [undefined, null],
+  ];
+  for (const [text, want] of rows) assert.equal(importedCommitFrom(text), want, String(text));
 });
 
 // ── mappings ──
@@ -254,6 +320,26 @@ test('main: without URL and key the ping prints a dry run and exits 0', () => {
     r.stdout.trim(),
     `hub-ping (dry-run): /api/pipeline/events/ct-release-created ${JSON.stringify({ githubRunUrl: 'https://github.com/netlify/context-and-tools/actions/runs/123', tag: 'v1.0.0' })}`,
   );
+});
+
+test('main: sync-pr-closed reads SYNC_STATE_FILE for the sha; a missing file still exits 0 with null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-hub-ping-'));
+  try {
+    const file = path.join(dir, 'state.json');
+    fs.writeFileSync(file, state());
+    const env = { ...BASE_ENV, PR_NUMBER: '57', MERGED: 'true', GITHUB_RUN_ATTEMPT: '2' };
+    const dry = (body) => `hub-ping (dry-run): /api/pipeline/events/ct-sync-pr-closed ${JSON.stringify(body)}`;
+
+    const good = runScript(['sync-pr-closed'], { ...env, SYNC_STATE_FILE: file });
+    assert.equal(good.status, 0, good.stderr);
+    assert.equal(good.stdout.trim(), dry({ githubRunUrl: RUN_URL, attempt: 2, prNumber: 57, merged: true, docsSha: SHA }));
+
+    const missing = runScript(['sync-pr-closed'], { ...env, SYNC_STATE_FILE: path.join(dir, 'nope.json') });
+    assert.equal(missing.status, 0, missing.stderr);
+    assert.equal(missing.stdout.trim(), dry({ githubRunUrl: RUN_URL, attempt: 2, prNumber: 57, merged: true, docsSha: null }));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('main: URL set but key unset is still a dry run', () => {

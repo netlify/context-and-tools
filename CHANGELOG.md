@@ -4,6 +4,19 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.7.0](https://github.com/netlify/context-and-tools/compare/v1.6.0...v1.7.0) (2026-10-08)
+
+
+### Features
+
+* report receive outcomes to context-hub instead of Slack (EX-3258) ([#141](https://github.com/netlify/context-and-tools/issues/141)) ([93e8a32](https://github.com/netlify/context-and-tools/commit/93e8a32ff9a07a22c7d8cbdb6bb043c84c3906e6))
+* report release and publish outcomes to context-hub (EX-3255) ([#140](https://github.com/netlify/context-and-tools/issues/140)) ([3ac9351](https://github.com/netlify/context-and-tools/commit/3ac9351c82b1abc35e4b727899a17df3ddb1b427))
+
+
+### Bug Fixes
+
+* **context:** sync skills from netlify/docs ([#148](https://github.com/netlify/context-and-tools/issues/148)) ([59bf544](https://github.com/netlify/context-and-tools/commit/59bf544045db80dd2d639469fbddfb65e16ec4be))
+
 ## [1.6.0](https://github.com/netlify/context-and-tools/compare/v1.5.2...v1.6.0) (2026-10-01)
 
 

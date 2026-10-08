@@ -1,0 +1,75 @@
+name: ctx-pipeline sync closed
+
+# EX-3352: tell context-hub when the rolling agent-context sync PR is merged or
+# closed, so its "Right now" view on /pipeline knows the Import stage is idle
+# and, after a merge, that a release is what the pipeline is waiting on. The
+# report carries the docs commit that landed. All logic lives in
+# scripts/ctx-hub-ping.mjs (thin-caller rule); the body is documented there and
+# tested by scripts/ctx-hub-ping.test.mjs (runs in validate-skills).
+#
+# pull_request_target, not pull_request: the job needs the ctx-pipeline
+# environment's secret, and a pull_request run is not given it. The trade is
+# that this runs in the base branch's context, so it must never check out,
+# build, or execute anything from the PR. It checks out the base branch at the
+# default ref (no ref: input), and its one extra step reads a single data file,
+# .ctx-gen/state.json, from the merge commit — a commit already on main.
+# Nothing from that file is executed; the script only parses it as JSON.
+#
+# Trust check: only the sync PR itself gets a runner — the exact branch name,
+# opened from this repository. A fork PR that reuses the branch name has a
+# different head repository and is skipped before any runner or secret exists.
+#
+# Telemetry: continue-on-error, and nothing needs this job. A failed ping never
+# reddens anything.
+#
+# Inert until CONTEXT_HUB_URL (variable) and CONTEXT_HUB_PIPELINE_KEY (secret)
+# exist in the ctx-pipeline environment; environment scoping means the secret
+# only injects into jobs that declare the environment, which matters in a
+# public repo. Without them, ctx-hub-ping.mjs prints the report as a dry run and
+# exits 0. context-hub must have the ct-sync-pr-closed route deployed first;
+# until then the ping gets a 404, which continue-on-error absorbs.
+#
+# pull_request_target runs this file's copy on the default branch, so it cannot
+# be tested before merge. Dry-run the ping locally instead:
+#   PR_NUMBER=150 MERGED=true SYNC_STATE_FILE=.ctx-gen/state.json \
+#     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=netlify/context-and-tools \
+#     GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT=1 node scripts/ctx-hub-ping.mjs sync-pr-closed
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  report:
+    if: >
+      github.event.pull_request.head.ref == 'ctx-pipeline/agent-context-sync' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: ctx-pipeline
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+
+      - name: Read the merged state file
+        if: github.event.pull_request.merged == true
+        env:
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          git fetch -q --depth=1 origin "$MERGE_SHA"
+          git show "$MERGE_SHA:.ctx-gen/state.json" > "$RUNNER_TEMP/sync-state.json" || rm -f "$RUNNER_TEMP/sync-state.json"
+
+      - name: Ping context-hub (sync PR closed)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          SYNC_STATE_FILE: ${{ runner.temp }}/sync-state.json
+          CONTEXT_HUB_URL: ${{ vars.CONTEXT_HUB_URL }}
+          CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}
+        run: node scripts/ctx-hub-ping.mjs sync-pr-closed

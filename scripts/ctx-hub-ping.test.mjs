@@ -482,3 +482,63 @@ test('workflow shape: ping steps take the key and URL from env, and never interp
     for (const line of text.split('\n')) if (/^\s*run:/.test(line)) assert.doesNotMatch(line, /\$\{\{/, line);
   }
 });
+
+// ── sync-closed workflow shape ──
+
+const SYNC_TEXT = workflowText('ctx-pipeline-sync-closed.yml');
+const SYNC_JOB = jobsOf(SYNC_TEXT).report;
+
+test('workflow shape: sync-closed triggers only on pull_request_target closed, on main', () => {
+  const on = /^on:\n((?:  .*\n|\s*\n)+)/m.exec(SYNC_TEXT);
+  assert.ok(on, 'on: block exists');
+  assert.equal(on[1].trimEnd(), '  pull_request_target:\n    types: [closed]\n    branches: [main]');
+});
+
+test('workflow shape: sync-closed job is gated on the sync branch and this repository', () => {
+  assert.ok(SYNC_JOB, 'report job exists');
+  const gate = /^    if: >\n((?:      .+\n)+)/m.exec(SYNC_JOB);
+  assert.ok(gate, 'job has an if');
+  assert.match(gate[1], /github\.event\.pull_request\.head\.ref == 'ctx-pipeline\/agent-context-sync'/);
+  assert.match(gate[1], /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+});
+
+test('workflow shape: sync-closed has the environment, continue-on-error, and read-only permissions', () => {
+  assert.match(SYNC_JOB, /^    environment: ctx-pipeline$/m);
+  assert.match(SYNC_JOB, /^    continue-on-error: true$/m);
+  assert.match(SYNC_JOB, /^    permissions:\n      contents: read$/m);
+  assert.doesNotMatch(SYNC_TEXT, /^\s*[a-z-]+: write$/m);
+});
+
+test('workflow shape: sync-closed never checks out or references the PR head', () => {
+  assert.match(SYNC_TEXT, /actions\/checkout@[0-9a-f]{40}\n\s+with:\n\s+persist-credentials: false/);
+  for (const line of SYNC_TEXT.split('\n')) {
+    if (/^\s*#/.test(line)) continue;
+    if (/^\s*ref:/.test(line)) assert.fail(`no ref: input allowed: ${line}`);
+  }
+  // head.* appears only in the job's if: block
+  const outsideIf = SYNC_TEXT.replace(/^    if: >\n(?:      .+\n)+/m, '');
+  const code = outsideIf.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+  assert.doesNotMatch(code, /\.head\b/);
+});
+
+test('workflow shape: sync-closed run lines never interpolate; the key reaches the step only via env from secrets', () => {
+  const lines = SYNC_TEXT.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)run:\s*(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    assert.doesNotMatch(m[2], /\$\{\{/, lines[i]);
+    if (m[2] === '|') {
+      for (let j = i + 1; j < lines.length && (lines[j] === '' || lines[j].startsWith(`${m[1]}  `)); j++) {
+        assert.doesNotMatch(lines[j], /\$\{\{/, lines[j]);
+      }
+    }
+  }
+  const keyLines = SYNC_TEXT.split('\n').filter((l) => l.includes('CONTEXT_HUB_PIPELINE_KEY') && !/^\s*#/.test(l));
+  assert.deepEqual(keyLines.map((l) => l.trim()), ['CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}']);
+  assert.match(SYNC_JOB, /CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}/);
+});
+
+test('workflow shape: sync-closed ping step runs the sync-pr-closed command', () => {
+  assert.match(SYNC_JOB, /^ {8}run: node scripts\/ctx-hub-ping\.mjs sync-pr-closed$/m);
+  assert.ok(Object.hasOwn(COMMANDS, 'sync-pr-closed'));
+});

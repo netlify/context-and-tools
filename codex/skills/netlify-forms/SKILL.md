@@ -153,6 +153,7 @@ Field order in the HTML affects what appears in the summary.
 - No submissions at all: confirm form detection is enabled (Forms > Form detection) and redeploy.
 - SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
 - Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
+- Still stuck: Netlify Support Guide on how to debug your form — https://answers.netlify.com/t/common-issue-how-to-debug-your-form/92
 
 ## Constraints
 
@@ -160,8 +161,6 @@ Field order in the HTML affects what appears in the summary.
 - Submitted code is sanitized (`<script>` → escaped entities).
 - For PII, export and delete data regularly.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
-
-<!-- Forms usage now at Forms > Usage; form detection at Forms > Form detection — UI paths updated per manifest commit a28cd46. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

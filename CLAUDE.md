@@ -25,6 +25,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `skill-registry.json` — Hand-maintained prior names and deprecations that the manifest cannot derive from `skills/`
 - `netlify.toml` — Hosted-site config (publish dir, cache headers); deployed by `.github/workflows/release-please.yml`, not by a Git-connected build
 - `.github/workflows/release-please.yml` — Cuts releases and publishes each tag to npm (`@netlify/skills`, Trusted Publishing tied to this filename) and then to the hosted Netlify site; also the manual re-publish entry point, guarded to real release tags on main
+- `.github/workflows/ctx-pipeline-sync-closed.yml` — Reports to context-hub when the rolling agent-context sync PR is merged or closed (EX-3352), via `scripts/ctx-hub-ping.mjs sync-pr-closed`; `pull_request_target` limited to the sync branch from this repo, never checks out PR code, telemetry only (`continue-on-error`)
 - `.github/workflows/build-generated-outputs.yml` — Rebuilds `cursor/`, `codex/`, `agent-plugin/skills/`, and the `gemini-extension.json` skill list from `skills/` and commits them in a single step (on push to main and on PRs), so the generated outputs always stay in parity with `skills/`
 
 ## Skills

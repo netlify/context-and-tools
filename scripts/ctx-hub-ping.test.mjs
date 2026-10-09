@@ -495,8 +495,18 @@ test('workflow shape: sync-closed job is gated on the sync branch and this repos
   assert.ok(SYNC_JOB, 'report job exists');
   const gate = /^    if: >\n((?:      .+\n)+)/m.exec(SYNC_JOB);
   assert.ok(gate, 'job has an if');
-  assert.match(gate[1], /github\.event\.pull_request\.head\.ref == 'ctx-pipeline\/agent-context-sync'/);
-  assert.match(gate[1], /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.equal(
+    gate[1],
+    "      github.event.pull_request.head.ref == 'ctx-pipeline/agent-context-sync' &&\n" +
+      '      github.event.pull_request.head.repo.full_name == github.repository\n',
+  );
+});
+
+test('workflow shape: a failed state fetch falls through to the ping instead of failing the step', () => {
+  assert.match(
+    SYNC_JOB,
+    /^ {10}git fetch -q --depth=1 origin "\$MERGE_SHA" && git show "\$MERGE_SHA:\.ctx-gen\/state\.json" > "\$RUNNER_TEMP\/sync-state\.json" \|\| rm -f "\$RUNNER_TEMP\/sync-state\.json"$/m,
+  );
 });
 
 test('workflow shape: sync-closed has the environment, continue-on-error, and read-only permissions', () => {

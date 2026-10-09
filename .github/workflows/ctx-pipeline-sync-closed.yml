@@ -14,7 +14,8 @@ name: ctx-pipeline sync closed
 #
 # Inert until CONTEXT_HUB_URL (variable) and CONTEXT_HUB_PIPELINE_KEY (secret)
 # exist in the ctx-pipeline environment; the ping then dry-runs and exits 0.
-# Telemetry only: continue-on-error, a failed ping never reddens anything.
+# Telemetry only: continue-on-error, a failed ping never fails the run. A failed
+# state fetch still sends the ping, without docsSha.
 
 on:
   pull_request_target:
@@ -43,8 +44,7 @@ jobs:
         env:
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          git fetch -q --depth=1 origin "$MERGE_SHA"
-          git show "$MERGE_SHA:.ctx-gen/state.json" > "$RUNNER_TEMP/sync-state.json" || rm -f "$RUNNER_TEMP/sync-state.json"
+          git fetch -q --depth=1 origin "$MERGE_SHA" && git show "$MERGE_SHA:.ctx-gen/state.json" > "$RUNNER_TEMP/sync-state.json" || rm -f "$RUNNER_TEMP/sync-state.json"
 
       - name: Ping context-hub (sync PR closed)
         env:

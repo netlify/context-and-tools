@@ -1,22 +1,28 @@
 #!/usr/bin/env node
-// ctx-hub-ping — tell context-hub about a release moment (EX-3255).
+// ctx-hub-ping — tell context-hub about a release moment or a sync PR closing
+// (EX-3255, EX-3352).
 //
 // Called by .github/workflows/release-please.yml: `notify-hub` (release PR
-// opened, release created) and `report` (publish finished). context-hub
-// records each as an event and posts the Slack notice. This is telemetry: a
-// ping never decides whether a release or publish happens, and the calling
-// jobs are continue-on-error so a failed ping never turns a run red.
+// opened, release created) and `report` (publish finished); and by the
+// workflow that watches the sync PR close. context-hub records each as an
+// event and posts the Slack notice. This is telemetry: a ping never decides
+// whether a release or publish happens, and the calling jobs are
+// continue-on-error so a failed ping never turns a run red.
 //
-// Three commands, one POST each to ${CONTEXT_HUB_URL}<path>:
+// Four commands, one POST each to ${CONTEXT_HUB_URL}<path>:
 //   release-pr-opened  PR_JSON (release-please-action's `pr` output)
 //   release-created    TAG
 //   publish-finished   TAG, NPM_JOB_RESULT, NPM_OUTCOME, SITE_JOB_RESULT
+//   sync-pr-closed     PR_NUMBER, MERGED, GITHUB_RUN_ATTEMPT, SYNC_STATE_FILE
 // Every body also carries githubRunUrl, built from GITHUB_SERVER_URL,
 // GITHUB_REPOSITORY and GITHUB_RUN_ID.
 //
 // Every input comes from env vars, never from shell interpolation. PR_JSON is
 // untrusted data (a PR title is attacker-shaped text): it is parsed
 // defensively and each field is validated before it goes into a body.
+// SYNC_STATE_FILE names the sync state file; main() reads it into SYNC_STATE,
+// and only a 40-hex lastImportedCommit in it is ever used (a missing or odd
+// file just means docsSha: null).
 //
 // send() retries 5xx and network errors twice with a 10s timeout per attempt.
 // 4xx is a caller error and is never retried. The key is read from
@@ -30,7 +36,8 @@
 // Zero dependencies, Node 18+.
 //
 // Usage:
-//   node scripts/ctx-hub-ping.mjs release-pr-opened | release-created | publish-finished
+//   node scripts/ctx-hub-ping.mjs release-pr-opened | release-created | publish-finished | sync-pr-closed
+import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 
@@ -111,10 +118,45 @@ export function publishFinishedBody(env) {
   };
 }
 
+const SHA = /^[0-9a-f]{40}$/;
+const DIGITS = /^\d+$/;
+
+// The sync state file's lastImportedCommit, or null for anything else (bad
+// JSON, wrong shape, not 40 lowercase hex). Never throws: the hub treats a
+// null sha as "unknown", which beats failing the ping.
+export function importedCommitFrom(stateText) {
+  try {
+    const state = JSON.parse(stateText);
+    if (state === null || typeof state !== 'object') return null;
+    return typeof state.lastImportedCommit === 'string' && SHA.test(state.lastImportedCommit) ? state.lastImportedCommit : null;
+  } catch {
+    return null;
+  }
+}
+
+const positiveInt = (raw) => (DIGITS.test(raw ?? '') && Number.isSafeInteger(Number(raw)) && Number(raw) > 0 ? Number(raw) : null);
+
+// docsSha is only meaningful for a merged PR; the hub refuses it otherwise.
+export function syncPrClosedBody(env) {
+  const run = checkedRunUrl(env);
+  if (!run.ok) return run;
+  const prNumber = positiveInt(env.PR_NUMBER);
+  if (prNumber === null) return fail('PR_NUMBER must be a positive integer');
+  if (env.MERGED !== 'true' && env.MERGED !== 'false') return fail(`MERGED must be true or false, got ${JSON.stringify(env.MERGED ?? null)}`);
+  const attempt = positiveInt(env.GITHUB_RUN_ATTEMPT);
+  if (attempt === null) return fail('GITHUB_RUN_ATTEMPT must be a positive integer');
+  const merged = env.MERGED === 'true';
+  return {
+    ok: true,
+    body: { githubRunUrl: run.url, attempt, prNumber, merged, docsSha: merged ? importedCommitFrom(env.SYNC_STATE ?? '') : null },
+  };
+}
+
 export const COMMANDS = {
   'release-pr-opened': { path: '/api/pipeline/events/ct-release-pr-opened', build: releasePrOpenedBody },
   'release-created': { path: '/api/pipeline/events/ct-release-created', build: releaseCreatedBody },
   'publish-finished': { path: '/api/pipeline/events/ct-publish-finished', build: publishFinishedBody },
+  'sync-pr-closed': { path: '/api/pipeline/events/ct-sync-pr-closed', build: syncPrClosedBody },
 };
 
 export function buildPing(command, env) {
@@ -176,7 +218,16 @@ export async function send({ url, key, path, body, fetchImpl = fetch, delays = R
 
 async function main() {
   const command = process.argv[2];
-  const ping = buildPing(command, process.env);
+  let env = process.env;
+  if (command === 'sync-pr-closed' && process.env.SYNC_STATE_FILE) {
+    // A missing or unreadable state file means no state, not a failed ping.
+    let text = '';
+    try {
+      text = fs.readFileSync(process.env.SYNC_STATE_FILE, 'utf8');
+    } catch {}
+    env = { ...process.env, SYNC_STATE: text };
+  }
+  const ping = buildPing(command, env);
   if (!ping.ok) {
     console.error(`hub-ping: ${ping.error}`);
     process.exit(1);

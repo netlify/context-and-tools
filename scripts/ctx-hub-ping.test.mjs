@@ -13,10 +13,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { COMMANDS, buildPing, checkHubUrl, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send } from './ctx-hub-ping.mjs';
+import { COMMANDS, buildPing, checkHubUrl, importedCommitFrom, mapNpm, mapSite, publishFinishedBody, releaseCreatedBody, releasePrOpenedBody, runUrl, send, syncPrClosedBody } from './ctx-hub-ping.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ctx-hub-ping.mjs');
 const RUN_URL = 'https://github.com/netlify/context-and-tools/actions/runs/123';
@@ -65,6 +66,68 @@ test('publish-finished: body carries run URL, tag, npm and site', () => {
     path: '/api/pipeline/events/ct-publish-finished',
     body: { githubRunUrl: RUN_URL, tag: 'v1.6.0', npm: 'published', site: 'passed' },
   });
+});
+
+// ── sync-pr-closed ──
+
+const SHA = 'a'.repeat(20) + '0123456789'.repeat(2);
+const state = (over = {}) => JSON.stringify({ lastImportedCommit: SHA, ...over });
+const syncEnv = (over = {}) => ({ ...BASE_ENV, PR_NUMBER: '57', MERGED: 'true', GITHUB_RUN_ATTEMPT: '1', SYNC_STATE: state(), ...over });
+
+test('sync-pr-closed: merged with a good state carries the 40-hex docsSha', () => {
+  assert.equal(SHA.length, 40);
+  assert.deepEqual(buildPing('sync-pr-closed', syncEnv()), {
+    ok: true,
+    path: '/api/pipeline/events/ct-sync-pr-closed',
+    body: { githubRunUrl: RUN_URL, attempt: 1, prNumber: 57, merged: true, docsSha: SHA },
+  });
+});
+
+test('sync-pr-closed: merged with a bad state has docsSha null', () => {
+  const r = syncPrClosedBody(syncEnv({ SYNC_STATE: 'not json' }));
+  assert.equal(r.ok, true);
+  assert.equal(r.body.docsSha, null);
+});
+
+test('sync-pr-closed: not merged has docsSha null even with a good state', () => {
+  const r = syncPrClosedBody(syncEnv({ MERGED: 'false' }));
+  assert.equal(r.ok, true);
+  assert.equal(r.body.merged, false);
+  assert.equal(r.body.docsSha, null);
+});
+
+test('sync-pr-closed: a bad PR_NUMBER, MERGED or GITHUB_RUN_ATTEMPT is refused', () => {
+  for (const PR_NUMBER of [undefined, '', '0', '-3', '1.5', '12a', ' 7', '1e3']) {
+    assert.equal(syncPrClosedBody(syncEnv({ PR_NUMBER })).ok, false, `PR_NUMBER ${PR_NUMBER}`);
+  }
+  for (const MERGED of [undefined, '', 'yes', 'True', 'TRUE', '1', ' true']) {
+    assert.equal(syncPrClosedBody(syncEnv({ MERGED })).ok, false, `MERGED ${MERGED}`);
+  }
+  for (const GITHUB_RUN_ATTEMPT of [undefined, '', '0', '-1', '1.5', 'x']) {
+    assert.equal(syncPrClosedBody(syncEnv({ GITHUB_RUN_ATTEMPT })).ok, false, `GITHUB_RUN_ATTEMPT ${GITHUB_RUN_ATTEMPT}`);
+  }
+  assert.equal(syncPrClosedBody({ ...syncEnv(), GITHUB_RUN_ID: 'abc' }).ok, false);
+});
+
+test('importedCommitFrom: every row', () => {
+  const rows = [
+    [state(), SHA],
+    [JSON.stringify({ lastImportedCommit: SHA, other: 1 }), SHA],
+    [state({ lastImportedCommit: SHA.slice(1) }), null],
+    [state({ lastImportedCommit: SHA + 'a' }), null],
+    [state({ lastImportedCommit: SHA.toUpperCase() }), null],
+    [state({ lastImportedCommit: 12 }), null],
+    [state({ lastImportedCommit: null }), null],
+    ['{}', null],
+    ['null', null],
+    ['[]', null],
+    ['"str"', null],
+    ['42', null],
+    ['not json', null],
+    ['', null],
+    [undefined, null],
+  ];
+  for (const [text, want] of rows) assert.equal(importedCommitFrom(text), want, String(text));
 });
 
 // ── mappings ──
@@ -256,6 +319,26 @@ test('main: without URL and key the ping prints a dry run and exits 0', () => {
   );
 });
 
+test('main: sync-pr-closed reads SYNC_STATE_FILE for the sha; a missing file still exits 0 with null', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctx-hub-ping-'));
+  try {
+    const file = path.join(dir, 'state.json');
+    fs.writeFileSync(file, state());
+    const env = { ...BASE_ENV, PR_NUMBER: '57', MERGED: 'true', GITHUB_RUN_ATTEMPT: '2' };
+    const dry = (body) => `hub-ping (dry-run): /api/pipeline/events/ct-sync-pr-closed ${JSON.stringify(body)}`;
+
+    const good = runScript(['sync-pr-closed'], { ...env, SYNC_STATE_FILE: file });
+    assert.equal(good.status, 0, good.stderr);
+    assert.equal(good.stdout.trim(), dry({ githubRunUrl: RUN_URL, attempt: 2, prNumber: 57, merged: true, docsSha: SHA }));
+
+    const missing = runScript(['sync-pr-closed'], { ...env, SYNC_STATE_FILE: path.join(dir, 'nope.json') });
+    assert.equal(missing.status, 0, missing.stderr);
+    assert.equal(missing.stdout.trim(), dry({ githubRunUrl: RUN_URL, attempt: 2, prNumber: 57, merged: true, docsSha: null }));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('main: URL set but key unset is still a dry run', () => {
   const r = runScript(['release-created'], { ...BASE_ENV, TAG: 'v1.0.0', CONTEXT_HUB_URL: 'https://hub.example' });
   assert.equal(r.status, 0, r.stderr);
@@ -395,4 +478,74 @@ test('workflow shape: ping steps take the key and URL from env, and never interp
     assert.match(text, /CONTEXT_HUB_PIPELINE_KEY: \$\{\{ secrets\.CONTEXT_HUB_PIPELINE_KEY \}\}/);
     for (const line of text.split('\n')) if (/^\s*run:/.test(line)) assert.doesNotMatch(line, /\$\{\{/, line);
   }
+});
+
+// ── sync-closed workflow shape ──
+
+const SYNC_TEXT = workflowText('ctx-pipeline-sync-closed.yml');
+const SYNC_JOB = jobsOf(SYNC_TEXT).report;
+
+test('workflow shape: sync-closed triggers only on pull_request_target closed, on main', () => {
+  const on = /^on:\n((?:  .*\n|\s*\n)+)/m.exec(SYNC_TEXT);
+  assert.ok(on, 'on: block exists');
+  assert.equal(on[1].trimEnd(), '  pull_request_target:\n    types: [closed]\n    branches: [main]');
+});
+
+test('workflow shape: sync-closed job is gated on the sync branch and this repository', () => {
+  assert.ok(SYNC_JOB, 'report job exists');
+  const gate = /^    if: >\n((?:      .+\n)+)/m.exec(SYNC_JOB);
+  assert.ok(gate, 'job has an if');
+  assert.equal(
+    gate[1],
+    "      github.event.pull_request.head.ref == 'ctx-pipeline/agent-context-sync' &&\n" +
+      '      github.event.pull_request.head.repo.full_name == github.repository\n',
+  );
+});
+
+test('workflow shape: a failed state fetch falls through to the ping instead of failing the step', () => {
+  assert.match(
+    SYNC_JOB,
+    /^ {10}git fetch -q --depth=1 origin "\$MERGE_SHA" && git show "\$MERGE_SHA:\.ctx-gen\/state\.json" > "\$RUNNER_TEMP\/sync-state\.json" \|\| rm -f "\$RUNNER_TEMP\/sync-state\.json"$/m,
+  );
+});
+
+test('workflow shape: sync-closed has the environment, continue-on-error, and read-only permissions', () => {
+  assert.match(SYNC_JOB, /^    environment: ctx-pipeline$/m);
+  assert.match(SYNC_JOB, /^    continue-on-error: true$/m);
+  assert.match(SYNC_JOB, /^    permissions:\n      contents: read$/m);
+  assert.doesNotMatch(SYNC_TEXT, /^\s*[a-z-]+: write$/m);
+});
+
+test('workflow shape: sync-closed never checks out or references the PR head', () => {
+  assert.match(SYNC_TEXT, /actions\/checkout@[0-9a-f]{40}\n\s+with:\n\s+persist-credentials: false/);
+  for (const line of SYNC_TEXT.split('\n')) {
+    if (/^\s*#/.test(line)) continue;
+    if (/^\s*ref:/.test(line)) assert.fail(`no ref: input allowed: ${line}`);
+  }
+  // head.* appears only in the job's if: block
+  const outsideIf = SYNC_TEXT.replace(/^    if: >\n(?:      .+\n)+/m, '');
+  const code = outsideIf.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+  assert.doesNotMatch(code, /\.head\b/);
+});
+
+test('workflow shape: sync-closed run lines never interpolate; the key reaches the step only via env from secrets', () => {
+  const lines = SYNC_TEXT.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^(\s*)run:\s*(.*)$/.exec(lines[i]);
+    if (!m) continue;
+    assert.doesNotMatch(m[2], /\$\{\{/, lines[i]);
+    if (m[2] === '|') {
+      for (let j = i + 1; j < lines.length && (lines[j] === '' || lines[j].startsWith(`${m[1]}  `)); j++) {
+        assert.doesNotMatch(lines[j], /\$\{\{/, lines[j]);
+      }
+    }
+  }
+  const keyLines = SYNC_TEXT.split('\n').filter((l) => l.includes('CONTEXT_HUB_PIPELINE_KEY') && !/^\s*#/.test(l));
+  assert.deepEqual(keyLines.map((l) => l.trim()), ['CONTEXT_HUB_PIPELINE_KEY: ${{ secrets.CONTEXT_HUB_PIPELINE_KEY }}']);
+  assert.match(SYNC_JOB, /CONTEXT_HUB_URL: \$\{\{ vars\.CONTEXT_HUB_URL \}\}/);
+});
+
+test('workflow shape: sync-closed ping step runs the sync-pr-closed command', () => {
+  assert.match(SYNC_JOB, /^ {8}run: node scripts\/ctx-hub-ping\.mjs sync-pr-closed$/m);
+  assert.ok(Object.hasOwn(COMMANDS, 'sync-pr-closed'));
 });

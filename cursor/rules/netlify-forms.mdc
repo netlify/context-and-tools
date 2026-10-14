@@ -1,5 +1,5 @@
 ---
-description: Serverless form handling on Netlify-hosted sites — detects HTML forms at deploy time, stores submissions, filters spam, and sends notifications. Use when adding a contact form, lead-capture form, file-upload form, or newsletter signup to a Netlify site; wiring AJAX form submission; setting up a custom thank-you page; adding a honeypot or reCAPTCHA to a form; getting forms working in Next.js, Nuxt, SvelteKit, Astro, or Gatsby; reading form submissions via the Netlify API; or debugging missing submissions and forms that silently fail to register.
+description: Serverless form handling on Netlify-hosted sites — detects HTML forms at deploy time, stores submissions, filters spam, and sends notifications. Use when adding a contact form, lead-capture form, file-upload form, or newsletter signup to a Netlify site; wiring AJAX form submission; setting up a custom thank-you page; adding a honeypot or reCAPTCHA to a form; getting forms working in Next.js, Nuxt, SvelteKit, Astro, or Gatsby; reading form submissions via the Netlify API; setting up submission notifications or ChatGPT automations on form submission events; or debugging missing submissions and forms that silently fail to register.
 alwaysApply: false
 ---
 
@@ -130,6 +130,8 @@ Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before
 
 Set up notifications (email/webhook/Slack) in the UI: Forms > Submission notifications > **Add notification**.
 
+ChatGPT automations: subscribe to form submission events from ChatGPT and run automations on them (e.g. review new submissions and flag ones needing follow-up). Setup: https://docs.netlify.com/build/build-with-ai/agent-setup-guides/use-netlify-with-chatgpt/#subscribe-to-netlify-events
+
 ## Reading submissions via the API
 
 Use only documented surfaces. Do NOT invent `api.netlify.com` endpoints or read tokens from local CLI config files. Reference: https://open-api.netlify.com/#tag/submission/operation/listFormSubmissions
@@ -161,6 +163,8 @@ Field order in the HTML affects what appears in the summary.
 - Submitted code is sanitized (`<script>` → escaped entities).
 - For PII, export and delete data regularly.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
+
+<!-- Gap: ChatGPT automation event names, plan gating, and setup steps are not in this grouping; see the linked ChatGPT setup guide. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

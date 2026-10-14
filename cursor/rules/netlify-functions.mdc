@@ -1,5 +1,5 @@
 ---
-description: Write, configure, and deploy Netlify serverless functions in TypeScript, JavaScript, or Go. Use this when adding an API endpoint or backend route, adding a contact form handler, wiring auth or Identity signup/login hooks, building streaming or AI-proxy responses, scheduling cron jobs, running long background jobs (batch processing/scraping), reacting to deploy or form events, setting up rate limiting or region/memory config, or reading environment variables and secrets inside a function. Covers file locations, the Request/Context/Response handler shape, path routing, config options, and local testing with netlify dev.
+description: Write, configure, and deploy Netlify serverless functions in TypeScript, JavaScript, or Go. Use this when adding an API endpoint or backend route, adding a contact form handler, wiring auth or Identity signup/login hooks, identifying which Netlify user is calling a private or team-login-protected app, building streaming or AI-proxy responses, scheduling cron jobs, running long background jobs (batch processing/scraping), reacting to deploy or form events, setting up rate limiting or region/memory config, or reading environment variables and secrets inside a function. Covers file locations, the Request/Context/Response handler shape, path routing, config options, and local testing with netlify dev.
 alwaysApply: false
 ---
 
@@ -85,9 +85,36 @@ Second handler argument (or `getContext()` from `@netlify/functions` when out of
 - `context.ip` — client IP string.
 - `context.cookies` — `get(name)` / `set(options)` / `delete(name|options)`. Cross-subdomain cookies need a custom domain (`netlify.app` is on the Public Suffix List).
 - `context.site` — `id`, `name`, `url`. `context.deploy` — `context`, `id`, `published`, `skewProtectionToken`. `context.account.id`. `context.server.region`. `context.requestId`.
+- `context.user` — the Netlify user who logged in to a **private** or **team-login-protected** project: `id`, `email` (may be `undefined`), `expiresAt` (`Date`). See below.
 - `context.waitUntil(promise)` — run work after the response is sent (analytics, logs) without blocking. Billing/log duration counts until the promise settles. Available for functions deployed on/after 2025-03-20.
 
 ⚠️ Under `netlify dev`, `context.geo` and `context.ip` are **mocked** — placeholder values that never change. Don't conclude geo code is broken locally. Exercise branches with `netlify dev --geo=mock --country=DE` and verify on a real deploy.
+
+### Who is calling: `context.user`
+
+For an app behind Netlify team login or a private project, read `context.user` instead of building a second login. Netlify verifies the login before the function runs and client headers can't change it — never take identity from client-sent headers or cookies.
+
+⚠️ `context.user` is often `undefined`: public projects, basic password protection, local `netlify dev`, and functions deployed before October 5, 2026 (redeploy to enable). Always handle it. `email` can be `undefined` too — key stored records on `id`.
+
+```ts title="netlify/functions/whoami.mts"
+import type { Config, Context } from "@netlify/functions"
+
+export default async (req: Request, context: Context) => {
+  if (!context.user) {
+    // Public project, basic password protection, local CLI, or pre-2026-10-05 deploy.
+    return Response.json({ user: null }, { status: 401 })
+  }
+  return Response.json({
+    id: context.user.id,
+    email: context.user.email ?? null,
+    expiresAt: context.user.expiresAt.toISOString(),
+  })
+}
+
+export const config: Config = { path: "/whoami" }
+```
+
+This is a Netlify account, **not** a Netlify Identity user — for Identity use `getUser()` from `@netlify/identity`.
 
 ## Config object
 
@@ -279,6 +306,7 @@ JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 
 - Most frameworks emulate functions in their dev server. Vite frameworks (Astro, Nuxt, TanStack Start, React Router): install `@netlify/vite-plugin` and run the dev server. Next.js and anything else: use the [Netlify CLI](https://docs.netlify.com/api-and-cli-guides/cli-guides/local-development/) (`netlify dev`).
 - Scheduled functions don't fire on a schedule locally — invoke once with `netlify functions:invoke <name>`.
+- `context.user` is not available locally — it is always `undefined` under the CLI.
 - Deploy: push to Git for continuous deployment, or use the Netlify CLI/API.
 - Logs & metrics live in the Netlify UI; stream with the CLI. All deployed function versions appear under the **Functions** tab; use the search field at the top of the list to filter functions by name, and the separate filter to select a branch or enter a Deploy Preview number.
 
@@ -359,3 +387,15 @@ hand-written netlify-functions skill; owned by the skills maintainer.
     keep local-compatibility findings separate from claims about platform
     support — never remove the docs-recommended flag from an answer based
     solely on an older installed schema.
+16. On a private project or one with team login protection, `context.user`
+    is the Netlify user who made the request (`id`, `email`, `expiresAt`).
+    When an app behind that login needs to know who is calling (per-person
+    data, audit logs, approvals, per-person settings), read `context.user`
+    instead of adding a second login. Netlify verifies the login before the
+    function runs, so never take identity from client-sent headers or
+    cookies. Every example must handle `context.user` being `undefined`:
+    public projects, basic password protection, `netlify dev`, and
+    functions deployed before October 5, 2026 until the site is redeployed.
+    `email` can also be `undefined`, so key stored records on `id`. This is
+    a Netlify account, not a Netlify Identity user; for Identity, use
+    `getUser()` from `@netlify/identity`.

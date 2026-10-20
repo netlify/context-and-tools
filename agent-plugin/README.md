@@ -29,9 +29,11 @@ agent-plugin/
   and MCP servers. Each is a directory under `skills/` containing a `SKILL.md`
   (Agent Skills format).
 - **MCP** — The official hosted Netlify MCP server
-  (`https://netlify-mcp.netlify.app/mcp`, streamable HTTP). It authorizes via
+  (`https://mcp.netlify.com/mcp`, streamable HTTP). It authorizes via
   OAuth on first connection — no token or local install required — letting the
   agent create and manage Netlify projects, deploys, and environment variables.
+  If you added it before it moved to `mcp.netlify.com`, remove it and add it
+  again: the old host does not redirect to the new one.
 
 ## Regenerating
 

@@ -11,6 +11,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `gemini-extension.json` — Gemini CLI extension manifest. `name`, `version` (stamped by release-please), and `mcpServers` are hand-authored; the `skills` array is auto-generated from `skills/` (do NOT edit it directly). Gemini CLI itself auto-discovers skills from the `skills/` directory, so the array is informational (gallery listing, readers)
 - `skills/` — Netlify platform skills (source of truth for all agent formats)
 - `agent-plugin/` — [Agent Plugins](https://agent-plugins.org) spec-compliant package (`plugin.json` + `mcp.json` + `skills/`). Root manifests are hand-authored; `agent-plugin/skills/` is auto-generated (do NOT edit directly)
+- `openai/` — OpenAI Plugins (ChatGPT + Codex) overlay: `plugin.json` (merged over `agent-plugin/plugin.json` — `name: "netlify"` to match the registered OpenAI plugin, plus `extensions.com.openai` listing, review, publication metadata) and `assets/` (icon, logo, screenshots). Hand-authored
 - `cursor/rules/` — Auto-generated Cursor `.mdc` rule files (do NOT edit directly)
 - `codex/` — Auto-generated Codex skills and `AGENTS.md` router (do NOT edit directly)
 - `scripts/build-cursor-rules.sh` — Converts `skills/` → `cursor/rules/`
@@ -18,6 +19,7 @@ This repository contains public Netlify skills — factual platform reference fo
 - `scripts/build-agent-plugin.sh` — Mirrors `skills/` → `agent-plugin/skills/`
 - `scripts/build-gemini-extension.sh` — Rewrites the `skills` array in `gemini-extension.json` from `skills/*/SKILL.md` (sorted; requires `jq`)
 - `scripts/check-skills.mjs` — CI check that every `skills/netlify-*/` folder is listed in `skills/CLAUDE.md` and contains only files the build scripts carry (`SKILL.md` plus flat `references/*.md`)
+- `scripts/build-openai-plugin.mjs` — Builds the OpenAI submission ZIP (`npm run build:openai` → `build/openai/netlify-<version>.zip`) from `agent-plugin/` + `openai/`, validating it against OpenAI's submission rules (no `apps`/`.app.json` or hooks, field lengths, assets present). Local only; upload is manual
 - `scripts/build-manifest.mjs` — Generates `manifest.json` (skill names, statuses, per-skill `version` and `history` derived from git tags, prior names, per-file hashes, `tree_hash`, docs provenance) from `skills/`, `.ctx-gen/`, and `skill-registry.json`
 - `scripts/build-hosted.mjs` — Materializes every release tag into `dist/` (`manifest.json`, `skills/`, `versions.json`, `v/<version>/…`) for the hosted site
 - `scripts/fetch-skill.mjs` — Zero-dependency reference client: install skills (`--skill`/`--all`) from a release directory (`--source`) or the hosted site (`--host`) with hash verification; `--check` a local skills dir against the manifest; `--update` applies the sync rules (stale → replace, modified → keep unless `--reset`, renamed → migrate, deprecated → delete, edited copies kept unless `--reset`)

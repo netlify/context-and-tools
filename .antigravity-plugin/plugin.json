@@ -1,0 +1,34 @@
+{
+  "name": "netlify",
+  "displayName": "Netlify",
+  "version": "1.7.0",
+  "description": "Build and deploy on Netlify: functions, edge functions, blobs, database, identity, forms, image CDN, caching, and AI Gateway, plus the Netlify MCP server.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Deploy this project to Netlify",
+    "Add a Netlify Function that serves a JSON API endpoint",
+    "Store and query this app's data with Netlify Database"
+  ],
+  "keywords": [
+    "netlify",
+    "deploy",
+    "serverless",
+    "functions",
+    "edge-functions",
+    "blobs",
+    "database",
+    "image-cdn",
+    "forms",
+    "mcp"
+  ],
+  "author": {
+    "name": "Netlify",
+    "url": "https://www.netlify.com"
+  },
+  "homepage": "https://docs.netlify.com",
+  "repository": "https://github.com/netlify/context-and-tools",
+  "license": "MIT",
+  "skills": [
+    "./skills"
+  ]
+}

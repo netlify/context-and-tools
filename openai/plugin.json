@@ -1,0 +1,30 @@
+{
+  "name": "netlify",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Netlify",
+        "shortDescription": "Build and deploy on Netlify",
+        "longDescription": "Gives the agent factual reference for Netlify platform primitives — functions, edge functions, blobs, database, identity, image CDN, forms, config, caching, frameworks, AI Gateway, and deployment — plus the official hosted Netlify MCP server, which lets the agent create and manage Netlify projects, deploys, and environment variables after you sign in to Netlify.",
+        "developerName": "Netlify",
+        "category": "Developer Tools",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://www.netlify.com",
+        "supportURL": "https://www.netlify.com/support/",
+        "privacyPolicyURL": "https://www.netlify.com/privacy/",
+        "termsOfServiceURL": "https://www.netlify.com/legal/terms-of-use/",
+        "defaultPrompt": [
+          "Deploy this site to Netlify and send me the live URL",
+          "Show me the latest contact form submissions on my Netlify site",
+          "Add my API keys as environment variables on my Netlify project"
+        ],
+        "brandColor": "#05BDBA",
+        "composerIcon": "./assets/logo.svg",
+        "logo": "./assets/logo.svg"
+      }
+    }
+  }
+}

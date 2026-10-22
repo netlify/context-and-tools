@@ -1,5 +1,5 @@
 ---
-description: Write, configure, and deploy Netlify serverless functions in TypeScript, JavaScript, or Go. Use this when adding an API endpoint or backend route, adding a contact form handler, wiring auth or Identity signup/login hooks, building streaming or AI-proxy responses, scheduling cron jobs, running long background jobs (batch processing/scraping), reacting to deploy or form events, setting up rate limiting or region/memory config, or reading environment variables and secrets inside a function. Covers file locations, the Request/Context/Response handler shape, path routing, config options, and local testing with netlify dev.
+description: Write, configure, and deploy Netlify serverless functions in TypeScript, JavaScript, or Go. Use this when adding an API endpoint or backend route, adding a contact form handler, wiring auth or Identity signup/login hooks, identifying which Netlify user is calling a private or team-login-protected app, building streaming or AI-proxy responses, scheduling cron jobs, running long background jobs (batch processing/scraping), reacting to deploy or form events, setting up rate limiting or region/memory config, or reading environment variables and secrets inside a function. Covers file locations, the Request/Context/Response handler shape, path routing, config options, and local testing with netlify dev.
 alwaysApply: false
 ---
 
@@ -15,6 +15,8 @@ Reach for the modern default-handler API (`.mts` TypeScript). Export a default a
   - `netlify/functions/hello/hello.mts`
   - `netlify/functions/hello/index.mts`
 - Use `.mts` (TS) / `.mjs` (JS) for ES modules. `.cts`/`.cjs` force CommonJS; `.ts`/`.js` follow the nearest `package.json` `"type"`.
+
+⚠️ **Same-name JS and TS files: the JS one wins.** If the functions directory has e.g. `items.js` and `items.ts`, the JavaScript function is deployed and the TypeScript file is silently ignored — edits to the `.ts` have no effect. Keep one file per function name; delete or rename the stale `.js` when moving a function to TypeScript.
 
 ## Minimal function
 
@@ -85,9 +87,32 @@ Second handler argument (or `getContext()` from `@netlify/functions` when out of
 - `context.ip` — client IP string.
 - `context.cookies` — `get(name)` / `set(options)` / `delete(name|options)`. Cross-subdomain cookies need a custom domain (`netlify.app` is on the Public Suffix List).
 - `context.site` — `id`, `name`, `url`. `context.deploy` — `context`, `id`, `published`, `skewProtectionToken`. `context.account.id`. `context.server.region`. `context.requestId`.
+- `context.user` — the Netlify user who logged in to a **private** or **team-login-protected** project: `id`, `email` (may be `undefined`), `expiresAt` (`Date`). See below.
 - `context.waitUntil(promise)` — run work after the response is sent (analytics, logs) without blocking. Billing/log duration counts until the promise settles. Available for functions deployed on/after 2025-03-20.
 
-⚠️ Under `netlify dev`, `context.geo` and `context.ip` are **mocked** — placeholder values that never change. Don't conclude geo code is broken locally. Exercise branches with `netlify dev --geo=mock --country=DE` and verify on a real deploy.
+⚠️ `context.geo`/`context.ip` are **mocked** under `netlify dev` — test with `netlify dev --geo=mock --country=DE`.
+
+### Who is calling: `context.user`
+
+⚠️ `context.user` is often `undefined`: public projects, basic password protection, local `netlify dev`, and functions deployed before October 5, 2026 (redeploy to enable). Always handle it; key records on `id` (`email` may be `undefined`).
+
+```ts title="netlify/functions/whoami.mts"
+import type { Config, Context } from "@netlify/functions"
+
+export default async (req: Request, context: Context) => {
+  if (!context.user) {
+    // Public project, basic password protection, local CLI, or pre-2026-10-05 deploy.
+    return Response.json({ user: null }, { status: 401 })
+  }
+  return Response.json({
+    id: context.user.id,
+    email: context.user.email ?? null,
+    expiresAt: context.user.expiresAt.toISOString(),
+  })
+}
+
+export const config: Config = { path: "/whoami" }
+```
 
 ## Config object
 
@@ -120,16 +145,7 @@ export const config: Config = { path: "/users" }
 
 Blobs: `import { getStore } from "@netlify/blobs"`; `getStore("uploads").set(key, await req.blob())`.
 
-`purgeCache()` from `@netlify/functions` invalidates the edge cache from inside a function:
-
-```ts
-import { purgeCache } from "@netlify/functions"
-
-export default async () => {
-  await purgeCache({ tags: ["products"] }) // omit tags to purge all
-  return new Response("Purged!", { status: 202 })
-}
-```
+Cache: `await purgeCache({ tags: ["products"] })` from `@netlify/functions` invalidates the edge cache (omit `tags` to purge all).
 
 ## Streaming responses
 
@@ -148,8 +164,6 @@ export default async (req: Request) => {
   return new Response(res.body, { headers: { "content-type": "text/event-stream" } })
 }
 ```
-
-To build a stream manually, `new ReadableStream({ start(controller) { controller.enqueue(...); controller.close() } })`.
 
 ## Background functions (long-running)
 
@@ -233,7 +247,7 @@ Multiple functions can handle the same event (all run). Netlify signs each event
 
 ## Region
 
-⚠️ Do NOT override `config.region` unless the user states a specific reason (co-located DB/backend, data residency, regional audience). The default `cmh` (US East, Ohio) is deliberate.
+⚠️ Do NOT override `config.region` without a stated reason; the `cmh` (US East, Ohio) default is deliberate.
 
 When justified — e.g. an EU-resident database:
 
@@ -245,7 +259,7 @@ Airport codes (self-serve): `cmh`, `dub`, `fra`, `gru`, `iad`, `lhr`, `nrt`, `pd
 
 ## Memory / vCPU
 
-⚠️ Do NOT set `config.memory` or `config.vcpu` speculatively — billing scales linearly with size. Raise them only for known memory/compute-intensive work (AI inference, image/PDF, large JSON/CSV) or observed OOM/timeouts caused by the function's own work.
+⚠️ Do NOT set `config.memory` or `config.vcpu` speculatively — billing scales linearly with size.
 
 When justified (e.g. observed OOM processing large PDFs):
 
@@ -257,7 +271,7 @@ export const config: Config = { path: "/heavy", memory: "2gb" } // or memory: 20
 
 ## Bundling & files on disk
 
-⚠️ Files read from disk at runtime (`fs.readFile` on templates, JSON, WASM) are **not bundled**: works under `netlify dev`, ENOENT in production. Prefer importing static data as a module. Otherwise declare it in `netlify.toml`:
+⚠️ Files read via `fs.readFile` at runtime are **not bundled** (ENOENT in production). Import static data as a module, or declare it:
 
 ```toml
 [functions]
@@ -265,7 +279,7 @@ export const config: Config = { path: "/heavy", memory: "2gb" } // or memory: 20
   external_node_modules = ["package-1"]
 ```
 
-⚠️ The combined env-var limit is **~4 KB** for ALL functions (they run on AWS Lambda) — no Netlify setting raises it. Keep large payloads (service-account JSON, PEM keys) out of env vars; use a bundled file, Blobs, or a runtime fetch.
+⚠️ Combined env vars are capped at **~4 KB** for ALL functions — keep PEM keys/service-account JSON out of env vars.
 
 JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 
@@ -300,7 +314,7 @@ export default withLambda(async (event: HandlerEvent, context: HandlerContext): 
 })
 ```
 
-Lambda-compat mode enforces the 4 KB env-var limit; [upgrade to modern functions](https://developers.netlify.com/guides/migrating-to-the-modern-netlify-functions/) to remove it.
+<!-- Gap: docs only show the .js/.ts same-name precedence; unstated for .mjs/.mts, .cjs/.cts, or subdirectory functions. -->
 
 <!-- system: agent-context/functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (functions)
@@ -359,3 +373,15 @@ hand-written netlify-functions skill; owned by the skills maintainer.
     keep local-compatibility findings separate from claims about platform
     support — never remove the docs-recommended flag from an answer based
     solely on an older installed schema.
+16. On a private project or one with team login protection, `context.user`
+    is the Netlify user who made the request (`id`, `email`, `expiresAt`).
+    When an app behind that login needs to know who is calling (per-person
+    data, audit logs, approvals, per-person settings), read `context.user`
+    instead of adding a second login. Netlify verifies the login before the
+    function runs, so never take identity from client-sent headers or
+    cookies. Every example must handle `context.user` being `undefined`:
+    public projects, basic password protection, `netlify dev`, and
+    functions deployed before October 5, 2026 until the site is redeployed.
+    `email` can also be `undefined`, so key stored records on `id`. This is
+    a Netlify account, not a Netlify Identity user; for Identity, use
+    `getUser()` from `@netlify/identity`.

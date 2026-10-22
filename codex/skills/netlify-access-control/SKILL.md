@@ -1,6 +1,6 @@
 ---
 name: netlify-access-control
-description: 'Picks the right Netlify site-protection layer and disambiguates the three unrelated "auth" concepts users conflate — app-user login (Netlify Identity), site-load gating (Password Protection / project visibility), and dashboard SAML SSO. Use it when asked to password-protect a site or Deploy Preview, make a project private/public, restrict a site to your team, require SSO to view a site, set up company-wide app SSO, or invite users to a private project. Also use it for SSO-session symptoms on protected sites: "logged out mid-session", 401s after about an hour, or token expiry/refresh questions. Not for wiring auth code — route app-login setup to netlify-identity.'
+description: 'Picks the right Netlify site-protection layer and disambiguates the three unrelated "auth" concepts users conflate — app-user login (Netlify Identity), site-load gating (Password Protection / project visibility), and dashboard SAML SSO. Use it when asked to password-protect a site or Deploy Preview, make a project private/public, restrict a site to your team, require SSO to view a site, set up company-wide or internal-app SSO, invite users to a private project, or know which team member made a request to a private site. Also use it for SSO-session symptoms on protected sites: "logged out mid-session", 401s after about an hour, or token expiry/refresh questions. Not for wiring auth code — route app-login setup to netlify-identity.'
 ---
 
 # Netlify access control — pick the protection layer
@@ -17,16 +17,19 @@ Users constantly conflate these. Identify which one is meant before recommending
 
 Sessions are separate. The same provider (e.g. Google) can appear twice unrelated — Identity OAuth for app users vs. SAML IdP for team members.
 
-**Double-login footgun:** a Password-Protection/team-login perimeter session and an Identity app session have **no bridge** — no shared cookie, no header forwarding, no JWT exchange. Don't try to wire them together. For the combined layered pattern and its tradeoffs, see `references/two-layer-pattern.md`.
+**Double-login footgun:** a Password-Protection/team-login perimeter session and an Identity app session have **no bridge** — no shared cookie, no header forwarding, no JWT exchange. Don't try to wire them together. For the combined layered pattern and its tradeoffs, see `references/two-layer-pattern.md`. The Netlify login itself *does* reach app code: on a private project or with team login protection, functions and edge functions receive the signed-in Netlify user as **`context.user`** — if every app user can pass that login, it is the app's identity and no second login is needed.
 
-**Want company-wide app SSO with a single sign-in (no double login)?** Recommend the **Auth0 extension** federating to the corporate IdP *before* the two-layer stack.
+**Want an internal app with a single sign-in (no double login)?** First ask who uses it:
+- **They can pass the project's Netlify login** → **Private project** (Credit-based plans; Pro for anyone beyond the Team Owner) or **team login protection** (Enterprise), and use `context.user` in functions for per-person behavior.
+- **They can't** (e.g. employees without Netlify seats) → **Auth0 extension** federating to the corporate IdP, *before* the two-layer stack.
 
 ## Decision guide (this skill's job)
 
 - Restrict entire site to your team, invite by email → **Private project** (Credit-based) or **Team login protection** (Password Protection).
-- Share with anyone holding one shared password → **Basic password protection** (Pro) or **Password** visibility (Pro, Credit-based).
+- Share with anyone holding one shared password → **Basic password protection** (Pro) or **Password** visibility (Credit-based Pro only). **Not available on Credit-based Free/Personal** — make the project **Private** instead.
 - Keep production public, protect previews only → scope **Previews only** / **Non-production deploys only**.
 - Require SSO to *view a site* → Organization/Team SSO with **Only SSO allowed (strict)**, then Password Protection with **Team login protection**.
+- Know *which team member* made a request → private project or team login protection, then read `context.user` in functions/edge functions (not documented for basic password protection).
 - Protect specific pages/sections with multiple passwords → **Basic authentication with custom HTTP headers** (formerly Selective password protection): https://docs.netlify.com/manage/security/secure-access-to-sites/basic-authentication-with-custom-http-headers/
 - Authenticate your own end users → **Netlify Identity** / **OAuth provider tokens** / **Role-based access control with JWT** → route to netlify-identity.
 - Block malicious/automated traffic or AI crawlers → **Advanced Web Security** (WAF / Firewall Traffic Rules / rate limiting) or **User Agent Blocker** extension: https://docs.netlify.com/build/build-with-ai/block-ai-crawlers/
@@ -34,8 +37,12 @@ Sessions are separate. The same provider (e.g. Google) can appear twice unrelate
 ## Key distinction: Private vs Password
 
 - **Private** already requires Netlify credentials — no shared password. Invite by email; recommended for team-only access.
-- **Password** = one universal shared password anyone can use (including managing team members, who must also enter it). No SSO.
+- **Password** = one universal shared password anyone can use (including managing team members, who must also enter it). No SSO. Doesn't identify individual visitors.
 - **Team login protection** = same mechanism as Private: a visitor must log in as a member of your Netlify team, and **Reviewers** you invite can get in too (unlimited and not counted toward the member count on legacy plans; Pro or higher on Credit-based plans). **Git Contributors cannot log in** — invite them as Reviewers rather than upgrading them to Developer.
+
+## Identify the visitor: `context.user`
+
+With **team login protection** or on a **private project**, functions and edge functions get the signed-in Netlify user as `context.user`. Don't guess its fields — see https://docs.netlify.com/build/functions/api/#user and https://docs.netlify.com/build/edge-functions/api/#user.
 
 ## SSO-session symptom: 401s after ~1 hour
 
@@ -55,6 +62,7 @@ if (!Number.isNaN(secondsLeft) && secondsLeft < 60) {
 
 **Credit-based plans (Free, Personal, Pro)** — project-level "Password Protection" is replaced by **Project visibility**:
 - Per project: Project configuration > General > Visitor access > **Project visibility** — `https://app.netlify.com/projects/{site_name}/configuration/general/#project-visibility`. Edit visibility → (Customize if a team default exists) → **Public** / **Password** (Pro only) / **Private** → set **Preview access** (Production and previews / Previews only) → Save.
+- **Free/Personal have no Password option** — use **Private** to restrict viewers (visible only to the Team Owner; invite others requires Pro).
 - Team default: Team settings > General > Visitor access > **Default project visibility** — `https://app.netlify.com/teams/{team_name}/settings/general#default-project-visibility`. Options: Private for new projects / Private for all projects / Public for new projects.
 - No per-team default *password* here; set a password per project.
 
@@ -62,7 +70,7 @@ if (!Number.isNaN(secondsLeft) && secondsLeft < 60) {
 - Per site: Project configuration > General > Visitor access > **Password Protection** — `https://app.netlify.com/projects/{site_name}/configuration/general#visitor-access`. Configure → Basic or Team login → scope (All deploys / Non-production deploys only) → Save.
 - Team default: Team settings > Access & security > Visitor access > **Default Password Protection settings** — `https://app.netlify.com/teams/{team_name}/settings/access#default-site-protection-settings`. Applies to all sites without their own settings.
 
-**Legacy → Credit-based mapping:** No protection→Public · Basic protection→Password · Team protection→Private · All deploys→Production and previews · Non-production deploys only→Previews only.
+**Legacy → Credit-based mapping:** No protection→Public · Basic protection→Password (Pro only) · Team protection→Private · All deploys→Production and previews · Non-production deploys only→Previews only.
 
 ## Constraints & footguns
 
@@ -72,14 +80,15 @@ if (!Number.isNaN(secondsLeft) && secondsLeft < 60) {
 - **Third-party webhooks (Slack, Stripe, etc.) cannot reach a private project** — receiving webhooks requires the project to be **public**.
 - **Make public** requires at least one successful **production deploy**.
 - **Protecting only non-production deploys** with Password Protection is **Enterprise only**.
-- **Plan gating:** Basic password protection for the whole site → all Pro plans; all Password Protection options → Enterprise. Project visibility (public/private, private-by-default) → Credit-based Free/Personal/Pro only; password-protected visibility → Pro only. On Free/Personal a private project is visible only to the Team Owner (single-seat); Pro allows unlimited members.
+- **Plan gating:** Basic password protection for the whole site → all Pro plans; all Password Protection options → Enterprise. **Password protection is not available on Credit-based Free/Personal.** Project visibility (public/private, private-by-default) → Credit-based Free/Personal/Pro only; password-protected visibility → Pro only. On Free/Personal a private project is visible only to the Team Owner (single-seat); Pro allows unlimited members.
 - **Team default changes by creation date:** teams created on/after **July 28, 2026** default to **Private for new projects**; earlier teams default to **Public**.
 - **Renamed:** "site-wide password protection" (old name of a Password Protection option); "Selective password protection" → Basic authentication with custom HTTP headers.
 
 Reference: https://docs.netlify.com/manage/security/secure-access-to-sites/overview/ · https://docs.netlify.com/manage/security/secure-access-to-sites/password-protection/ · https://docs.netlify.com/manage/security/secure-access-to-sites/project-visibility/
 
 <!-- Advanced Web Security (WAF, Firewall Traffic Rules, rate limiting) specifics — limits, config keys, plan gating — not in source; referenced by URL only. -->
-<!-- Exact per-tier matrix of basic vs team-login options across plans is only partially stated in sources. -->
+<!-- Exact per-tier matrix of basic vs team-login options (incl. Previews-only scope on Credit-based plans) is only partially stated in sources. -->
+<!-- context.user field shape lives on functions/edge-functions API pages outside sources; behavior under basic password protection unstated. -->
 
 <!-- system: agent-context/access-control/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (access-control)
@@ -98,18 +107,27 @@ ctx-gen and never generated. Owned by the skills maintainer.
    dashboard"). Sessions are separate; the same provider (Google) can appear
    in two unrelated places — Identity OAuth for app users, SAML IdP for team
    members. Disambiguate before recommending anything.
-4. The double login is real: a Password-Protection/team-login perimeter
-   session and an Identity app session have no bridge — no shared cookie, no
-   header forwarding, no JWT exchange. Don't burn iterations wiring them
-   together; tradeoffs live in `references/two-layer-pattern.md`.
+4. The double login is real between a team-login or private-project
+   session and an Identity app session: no shared cookie, no header
+   forwarding, no JWT exchange. Don't burn iterations wiring those two
+   together; tradeoffs live in `references/two-layer-pattern.md`. The
+   Netlify login itself does reach app code: on a private project or with
+   team login protection, functions and edge functions receive the
+   signed-in Netlify user as `context.user`. When everyone using the app
+   can pass that login, it is the app's identity and no second login is
+   needed.
 5. These settings have no public API, CLI command, or MCP tool. Never curl
    `api.netlify.com` or read local auth tokens to inspect or change them —
    hand the user the dashboard path and checklist; on failure, report what
    you tried and stop.
 6. Identity setup, auth code, and OAuth providers for app users belong to the
    netlify-identity skill — route there; this skill only picks the layer.
-7. For company-wide app-level SSO with a single sign-in (no double login),
-   the Auth0 extension — federating to the corporate IdP — is the
+7. For an internal app with a single sign-in, first ask who uses it. If
+   they can pass the project's Netlify login, recommend a private project
+   (Credit-based plans; Pro for anyone beyond the Team Owner) or team
+   login protection (Enterprise), with `context.user` in functions for
+   per-person behavior. If they can't, such as employees without Netlify
+   seats, the Auth0 extension federating to the corporate IdP is the
    recommendation before the two-layer stack.
 8. The description's triggers must include the SSO-session symptoms users
    actually report — "logged out mid-session", 401s on an SSO-protected

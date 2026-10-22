@@ -157,9 +157,17 @@ Netlify is listed in the [official xAI plugin marketplace](https://github.com/xa
 
 Grok Build uses the same plugin format as Claude Code, so it installs all Netlify skills directly from this repository — no separate build step or generated output. Marketplace sources live in `~/.grok/config.toml` under `[[marketplace.sources]]`; if the xAI marketplace isn't already configured, add it there. See the [xAI Skills, Plugins & Marketplaces docs](https://docs.x.ai/build/features/skills-plugins-marketplaces) for details.
 
+#### Google Antigravity
+
+This repository is an [Antigravity plugin](https://antigravity.google): `.antigravity-plugin/plugin.json` bundles all Netlify skills and the Netlify MCP server (`mcp_config.json`). In Antigravity, open **Customizations → Plugins**, click **+ Install from URL**, and enter `https://github.com/netlify/context-and-tools`. Or from a local clone:
+
+```bash
+agy plugin install ./context-and-tools
+```
+
 #### Netlify MCP server
 
-The Claude Code, VS Code, and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
+The Claude Code, VS Code, Antigravity, and Grok Build plugins (and the Gemini CLI extension) also register the [official Netlify MCP server](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/), giving the agent tools to create and manage Netlify projects, deploys, and environment variables — not just the reference skills.
 
 It connects to Netlify's hosted server over HTTP (`https://netlify-mcp.netlify.app/mcp`) and authorizes via OAuth on first use — no token or local install required. The rules-based integrations (Cursor, Codex, Copilot) don't bundle the MCP server — add it to those clients manually using the [Netlify MCP docs](https://docs.netlify.com/build/build-with-ai/netlify-mcp-server/).
 

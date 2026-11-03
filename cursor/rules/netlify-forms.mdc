@@ -130,6 +130,8 @@ Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before
 
 Set up notifications (email/webhook/Slack) in the UI: Forms > Submission notifications > **Add notification**.
 
+**⚠️ Email recipient must be an active member of your Netlify team.** Any other address produces a validation error and the notification is not saved. To notify someone outside the team, invite them first (https://docs.netlify.com/manage/accounts-and-billing/team-management/manage-team-members#add-new-team-members), then add their email. To change the recipient: Forms > Submission notifications > **Options > Edit notifications**, enter an active team member's email, save.
+
 ChatGPT automations: subscribe to form submission events from ChatGPT and run automations on them (e.g. review new submissions and flag ones needing follow-up). Setup: https://docs.netlify.com/build/build-with-ai/agent-setup-guides/use-netlify-with-chatgpt/#subscribe-to-netlify-events
 
 ## Reading submissions via the API
@@ -155,6 +157,7 @@ Field order in the HTML affects what appears in the summary.
 - No submissions at all: confirm form detection is enabled (Forms > Form detection) and redeploy.
 - SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
 - Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
+- Email notification won't save (validation error): the recipient isn't an active team member — use a team member's email or invite the person first.
 - Still stuck: Netlify Support Guide on how to debug your form — https://answers.netlify.com/t/common-issue-how-to-debug-your-form/92
 
 ## Constraints
@@ -164,7 +167,8 @@ Field order in the HTML affects what appears in the summary.
 - For PII, export and delete data regularly.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
 
-<!-- Gap: ChatGPT automation event names, plan gating, and setup steps are not in this grouping; see the linked ChatGPT setup guide. -->
+<!-- Gap: ChatGPT automation event names, plan gating, and setup steps are not in this grouping; see the linked ChatGPT setup guide.
+     Gap: docs don't say whether the active-team-member recipient rule applies to webhooks or to pre-existing notifications. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

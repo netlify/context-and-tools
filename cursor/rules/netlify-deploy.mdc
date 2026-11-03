@@ -29,7 +29,7 @@ A deploy is a versioned, **atomic** snapshot: Netlify uploads only changed files
 - **API** — create deploys via file digest or ZIP (one-off manual).
 - **Deploy to Netlify button** — one-click from a public template repo.
 - **Build hooks** — unique URLs that trigger builds. (Deploys from build hooks are treated as trusted and bypass the deploy request policy.)
-- **AI agents** — Agent Runners (Claude Code, OpenAI Codex, Google Antigravity) from the dashboard; every file-changing run auto-generates a Deploy Preview at `agent-<runID>--<site>.netlify.app`. The inline preview shown next to the prompt is the same Deploy Preview available at that URL.
+- **AI agents** — Agent Runners (Claude Code, OpenAI Codex, Google Antigravity, Meta Muse) from the dashboard; every file-changing run auto-generates a Deploy Preview at `agent-<runID>--<site>.netlify.app`. The inline preview shown next to the prompt is the same Deploy Preview available at that URL.
 - **Zapier / n8n** — automation integrations.
 
 Not sure which path? The Deploy Navigator gives personalized recommendations: https://docs.netlify.com/start/choose-your-path#deploy-navigator (also embedded on the create-deploys page as "Not sure where to start?").

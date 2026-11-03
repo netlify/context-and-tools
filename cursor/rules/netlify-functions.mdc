@@ -67,7 +67,7 @@ export const config: Config = {
 
 ## Fetchable module shape (alternative)
 
-Equivalent to the bare handler; carries `config` inline and lets you add event handlers.
+Equivalent to the default function; carries `config` inline and lets you add event handlers.
 
 ```ts
 import type { NetlifyFunction } from "@netlify/functions"
@@ -144,6 +144,8 @@ export const config: Config = { path: "/users" }
 ```
 
 Blobs: `import { getStore } from "@netlify/blobs"`; `getStore("uploads").set(key, await req.blob())`.
+
+AI Gateway: construct `new OpenAI()` with no API key — on credit-based plans AI Gateway sets the provider env vars automatically; then `await client.responses.create({ model: "gpt-6-luna", input: [...] })`.
 
 Cache: `await purgeCache({ tags: ["products"] })` from `@netlify/functions` invalidates the edge cache (omit `tags` to purge all).
 

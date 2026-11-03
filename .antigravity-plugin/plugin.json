@@ -1,7 +1,7 @@
 {
   "name": "netlify",
   "displayName": "Netlify",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Build and deploy on Netlify: functions, edge functions, blobs, database, identity, forms, image CDN, caching, and AI Gateway, plus the Netlify MCP server.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [

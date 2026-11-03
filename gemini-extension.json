@@ -20,7 +20,7 @@
   ],
   "mcpServers": {
     "netlify": {
-      "httpUrl": "https://netlify-mcp.netlify.app/mcp"
+      "httpUrl": "https://mcp.netlify.com/mcp"
     }
   }
 }

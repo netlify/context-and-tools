@@ -18,7 +18,16 @@ export default async (request: Request, context: Context) => {
 export const config: Config = { path: "/hello" };
 ```
 
-- One file = one function: a default-export handler plus a `config` export with the route. Alternatively, declare the route in `netlify.toml`.
+- One file = one function: a default-export handler plus a **named** `config` export with the route. Alternatively, declare the route in `netlify.toml`.
+- The default export can also be a [Fetchable module](https://fetchable.org/): an object with a `fetch` method. Netlify calls `fetch` with the same `(request, context)` arguments and uses its return value the same way; inside `fetch`, `this` is the exported object. Use it to share one handler with other platforms that accept Fetchable modules.
+  ```ts
+  export default {
+    async fetch(request: Request, context: Context) {
+      return new Response("Hello");
+    },
+  };
+  export const config: Config = { path: "/hello" }; // still a named export
+  ```
 - `Request` and `Response` are global. Import `Context` and `Config` types from `@netlify/edge-functions`.
 - Read env vars with `Netlify.env.get()`. `process.env` works only for Next.js middleware.
 
@@ -316,6 +325,7 @@ Docs: [API](https://docs.netlify.com/build/edge-functions/api.md) · [Declaratio
 
 <!-- Gaps: no legacy/deprecated handler form is documented; whether `method` works in netlify.toml is unstated. -->
 <!-- Undocumented: context.params with regex `pattern` declarations; monthly invocation limits per plan. -->
+<!-- Undocumented: whether Netlify uses Fetchable module members other than `fetch`. -->
 
 <!-- system: agent-context/edge-functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (edge-functions)

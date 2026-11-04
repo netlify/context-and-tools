@@ -4,6 +4,19 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.8.0](https://github.com/netlify/context-and-tools/compare/v1.7.0...v1.8.0) (2026-11-03)
+
+
+### Features
+
+* support antigravity plugin ([#159](https://github.com/netlify/context-and-tools/issues/159)) ([b9f5385](https://github.com/netlify/context-and-tools/commit/b9f53856d45aa2e8cf24721fd8a82e222deb323d))
+
+
+### Bug Fixes
+
+* **context:** sync skills from netlify/docs ([#154](https://github.com/netlify/context-and-tools/issues/154)) ([161fd7e](https://github.com/netlify/context-and-tools/commit/161fd7e26f73a759c8a691169133e777871664a4))
+* **context:** sync skills from netlify/docs ([#162](https://github.com/netlify/context-and-tools/issues/162)) ([f2fcad1](https://github.com/netlify/context-and-tools/commit/f2fcad1bb12a691f5977212b32e61412f5ec36ec))
+
 ## [1.7.0](https://github.com/netlify/context-and-tools/compare/v1.6.0...v1.7.0) (2026-10-08)
 
 

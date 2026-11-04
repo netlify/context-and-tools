@@ -7,6 +7,8 @@ This repository contains public Netlify skills — factual platform reference fo
 - `context/` — Steering guides (e.g., POWER.md for Kiro deployments)
 - `.claude-plugin/` — Plugin marketplace config for Claude Code installation (VS Code agent plugins share this format and auto-detect `.claude-plugin/plugin.json`; no VS-Code-specific mirror is generated)
 - `.grok-plugin/` — Plugin manifest for Grok Build (same plugin format as Claude Code; hand-authored, not generated)
+- `.antigravity-plugin/plugin.json` — Google Antigravity plugin manifest (hand-authored; `version` stamped by release-please). Only the manifest lives in the dot-folder: Antigravity resolves `skills/`, `mcp_config.json`, and the Marketplace logo `assets/logo.svg` relative to the repo root. Check with `agy plugin validate .` (needs `agy` ≥ 1.4). Don't use `--strict`: newer `agy` warns that `.mcp.json` is never loaded (expected — it's the Claude Code/Grok config), and strict fails on any warning
+- `mcp_config.json` — Netlify MCP server config for Antigravity (`serverUrl` format; mirrors `.mcp.json`)
 - `.mcp.json` — Netlify MCP server config bundled with the Claude Code and Grok Build plugins (hosted HTTP endpoint; OAuth at runtime)
 - `gemini-extension.json` — Gemini CLI extension manifest. `name`, `version` (stamped by release-please), and `mcpServers` are hand-authored; the `skills` array is auto-generated from `skills/` (do NOT edit it directly). Gemini CLI itself auto-discovers skills from the `skills/` directory, so the array is informational (gallery listing, readers)
 - `skills/` — Netlify platform skills (source of truth for all agent formats)

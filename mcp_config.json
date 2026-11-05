@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "netlify": {
-      "serverUrl": "https://netlify-mcp.netlify.app/mcp"
+      "serverUrl": "https://mcp.netlify.com/mcp"
     }
   }
 }

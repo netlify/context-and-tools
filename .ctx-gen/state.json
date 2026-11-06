@@ -1,7 +1,7 @@
 {
   "functions": {
-    "sourceHash": "208a5288328fdafb132fa7ed7a08181c3ca017fc0f60b63d065be0d4ad53e8cb",
-    "docsCommit": "0355e7d204e60975910f7eb1c3ca136ec7ae9234",
+    "sourceHash": "a69c17bff02711fd67516a398c9172f2745d722bfad7f778c0a7b5654da9eb67",
+    "docsCommit": "df083c7dba6645cb05460ad35129f4bb48e4331e",
     "affects": [
       "api",
       "authoring",
@@ -12,11 +12,11 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "599639504afefe834fb4a2fb0c185fe8c1e32e77e701428e61635f0a2c9c81ae"
+    "intermediateHash": "544e0cb35567c428194f5690b3f8ad78fd68f68a28813c95eaa259379148a534"
   },
   "forms": {
-    "sourceHash": "8c6fad85a6fd0cdcef99b013a679941c7ae3b44cad7ca4a9be2d8272968b9745",
-    "docsCommit": "0355e7d204e60975910f7eb1c3ca136ec7ae9234",
+    "sourceHash": "5a95a793464235ce4f480abf9ca4961aa9fbaf8cb1c42bc5621477f27f21e7d2",
+    "docsCommit": "df083c7dba6645cb05460ad35129f4bb48e4331e",
     "affects": [
       "api",
       "authoring",
@@ -27,7 +27,7 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "7e2115174f146e2f328d1c7466f5ff5357fdfc5f219f6663d17a884ed5192781"
+    "intermediateHash": "7ff6000bf4edd6798791d7c692be5361e11e55ffdf29560625c8e85168e5caca"
   },
   "edge-functions": {
     "sourceHash": "26fc3175594cbe958011db729d56a3d18b6868c4c1ca7390dd4c12ad4f076a6f",
@@ -60,16 +60,19 @@
     "intermediateHash": "48d23376ae254e34346cad15ed09609b8cbaafbe085bfbcb67c27d844b9f9b3e"
   },
   "caching": {
-    "sourceHash": "ba1d502f23134aa493f666e86563daab981ee9e054828cb2ce8f59c271772765",
-    "docsCommit": "14a61bbc074dabee1ddfbaa3fe06c4ae7eed593d",
+    "sourceHash": "14deedbf7505b18a24f9525fba20830719105ddf6e1e228bbb536df9e6ed4019",
+    "docsCommit": "df083c7dba6645cb05460ad35129f4bb48e4331e",
     "affects": [
       "api",
+      "authoring",
+      "compat",
       "configuration",
       "constraints",
+      "examples",
       "overview",
       "workflows"
     ],
-    "intermediateHash": "19a6801dea8cbf815d7be8b8e23d9df8ec93d20f7fab966ff97253dbea15948c"
+    "intermediateHash": "1caa53c2bbbf6001bcb09865c31332d58c5a0d25115bece1e62da209220a396b"
   },
   "blobs": {
     "sourceHash": "1193a444fc34b86fccbc007c3bd3d0f73cb01c7db9b222d431f6f55f384828d8",
@@ -177,8 +180,8 @@
     "intermediateHash": "070b7a308979d12a6aba08fa5d7d8970c1525b844e84a1cbc082ab1509f2fc83"
   },
   "config": {
-    "sourceHash": "46ab7d5b4e461dba24ee929bd21aac953bf4e403e45de102bedbf26e43d3ec85",
-    "docsCommit": "b19a078db4aa11276225dced3ae86660cc71d354",
+    "sourceHash": "017fea022cc8b66597d8edd46f7641afc1fe264c841e627ff7a5ff896e431659",
+    "docsCommit": "df083c7dba6645cb05460ad35129f4bb48e4331e",
     "affects": [
       "api",
       "authoring",
@@ -189,7 +192,7 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "87fdd6ee71078bc5014bb77aef1362214b8bdc9db01cb1da3432124733788d73"
+    "intermediateHash": "20113dfa67d900236a0c323799bd408eb14e569806c811df3a760e41f0e16372"
   },
-  "lastImportedCommit": "0355e7d204e60975910f7eb1c3ca136ec7ae9234"
+  "lastImportedCommit": "df083c7dba6645cb05460ad35129f4bb48e4331e"
 }

@@ -1,6 +1,6 @@
 ---
 name: netlify-caching
-description: Cache dynamic and static responses on Netlify's CDN from Functions, Edge Functions, and proxies. Use when you add caching or cache-control headers to a function response, tune cache TTL or stale-while-revalidate, set up the durable cache, vary a cache key by query/header/cookie/country/language, purge or invalidate the cache by site or cache tag, use the programmatic Cache API (caches.open/match/put) or @netlify/cache helpers (fetchWithCache/cacheHeaders/getCacheStatus), speed up an expensive API call, add ISR or on-demand revalidation, or debug why a response is or isn't cached via the Cache-Status header.
+description: Cache dynamic and static responses on Netlify's CDN from Functions, Edge Functions, and proxies. Use when you add caching or cache-control headers to a function response, tune cache TTL or stale-while-revalidate, set up the durable cache, vary a cache key by query/header/cookie/country/language, purge or invalidate the cache by site or cache tag, use the programmatic Cache API (caches.open/match/put) or @netlify/cache helpers (fetchWithCache/cacheHeaders/getCacheStatus/purgeCache), speed up an expensive API call, add ISR or on-demand revalidation, or debug why a response is or isn't cached via the Cache-Status header.
 ---
 
 # Netlify caching
@@ -89,10 +89,10 @@ After opting out, purge on demand after relevant changes, e.g. redirect/proxy or
 
 ## On-demand invalidation (purge)
 
-Purge from a **deployed function** with `purgeCache`. The site ID is passed automatically:
+Purge from a **deployed function or edge function** with `purgeCache` from `@netlify/cache`. The site and purge token are configured automatically. Purging covers everything cached for the site, including Cache API entries:
 
 ```ts
-import { purgeCache } from "@netlify/functions";
+import { purgeCache } from "@netlify/cache";
 
 export default async () => {
   await purgeCache(); // no args = purge everything for the site
@@ -103,7 +103,7 @@ export default async () => {
 Purge by tag, optionally targeting a deploy/subdomain:
 
 ```ts
-import { purgeCache } from "@netlify/functions";
+import { purgeCache } from "@netlify/cache";
 
 export default async (req: Request) => {
   const cacheTag = new URL(req.url).searchParams.get("tag");
@@ -117,10 +117,18 @@ export default async (req: Request) => {
 };
 ```
 
+`purgeCache(options?)` options:
+- `tags`: tags to purge. Omit to purge the whole site. Tag purges apply to all deploys unless you target one.
+- `deployAlias` (e.g. `deploy-preview-11`): targets that alias on the primary domain.
+- `domain` (e.g. `early-access.company.com`): targets the published production deploy on that domain.
+- `siteID` / `siteSlug`: the site to purge. Use only one. Defaults to the request's site.
+- `token` (defaults to the token Netlify provides) and `userAgent`.
+- Returns a Promise that resolves once the purge is **accepted** (not propagated). It rejects if the API call fails.
+
 **Lambda-compatible functions** use the legacy `module.exports.handler = async (event, context) => {…}` signature. They must pass `context.clientContext.custom.purge_api_token`:
 
 ```ts
-import { purgeCache } from "@netlify/functions";
+import { purgeCache } from "@netlify/cache";
 
 module.exports.handler = async (event, context) => {
   const token = context.clientContext.custom.purge_api_token;
@@ -199,11 +207,11 @@ For responses you don't control, rewrite headers with `fetchWithCache`.
 
 **Limits per invocation:** 100 lookups, 20 insertions/deletions. Beyond these, further lookups return nothing and writes/deletes no-op. Limits are shared across edge functions in a request, but separate between serverless and edge functions.
 
-Cache data is per-region (not replicated). It is auto-invalidated on redeploy and on `max-age`/`s-maxage` expiry.
+Cache data is per-region (not replicated). It is auto-invalidated on redeploy and on `max-age`/`s-maxage` expiry, and is cleared by `purgeCache` (site or tag).
 
 ## `@netlify/cache` module
 
-Install to get helpers, time constants (`MINUTE`/`HOUR`/`DAY`), and a `caches` export for local dev:
+Install to get helpers (including `purgeCache`), time constants (`MINUTE`/`HOUR`/`DAY`), and a `caches` export for local dev:
 
 ```
 npm install @netlify/cache
@@ -307,7 +315,8 @@ Netlify sets `Cache-Status` (RFC 9211) on all responses. Check it on a **deploye
 
 A negative `ttl` is the number of seconds since expiry. Each request may hit a different cache instance. Without production traffic or `durable`, expect several empty caches before a hit; repeat requests to warm one.
 
-<!-- Gaps: @netlify/cache local-dev docs show cache.set; resolved to the documented cache.put. 10 MB limit doesn't say compressed vs uncompressed size, or whether it covers add/addAll/fetchWithCache. -->
+<!-- Gaps: @netlify/cache local-dev docs show cache.set; resolved to the documented cache.put. 10 MB limit doesn't say compressed vs uncompressed size, or whether it covers add/addAll/fetchWithCache.
+purgeCache `domain` is documented both as a site selector and as a deploy target; whether a 429 rate limit surfaces as a Promise rejection is unstated. -->
 
 <!-- system: agent-context/caching/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (caching)

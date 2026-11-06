@@ -130,7 +130,7 @@ Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before
 
 Set up notifications (email/webhook/Slack) in the UI: Forms > Submission notifications > **Add notification**.
 
-**⚠️ Email recipient must be an active member of your Netlify team.** Any other address produces a validation error and the notification is not saved. To notify someone outside the team, invite them first (https://docs.netlify.com/manage/accounts-and-billing/team-management/manage-team-members#add-new-team-members), then add their email. To change the recipient: Forms > Submission notifications > **Options > Edit notifications**, enter an active team member's email, save.
+**⚠️ Email recipient must be an active member of your Netlify team** (unless the team is on an Enterprise or Legacy Business plan). Enforced when **creating AND editing** a notification — any other address produces a validation error and the notification is not saved. Existing notifications using a non-member address (e.g. `orders@company.com`) keep sending, but an edit that keeps that address can't be saved. Before editing, invite the address owner to the team (https://docs.netlify.com/manage/accounts-and-billing/team-management/manage-team-members#add-new-team-members) or switch to an existing member's address. To change the recipient: Forms > Submission notifications > **Options > Edit notifications**, enter an active team member's email, save. Netlify is building email verification for recipient addresses; details will be posted at https://www.netlify.com/changelog/tag/forms/
 
 ChatGPT automations: subscribe to form submission events from ChatGPT and run automations on them (e.g. review new submissions and flag ones needing follow-up). Setup: https://docs.netlify.com/build/build-with-ai/agent-setup-guides/use-netlify-with-chatgpt/#subscribe-to-netlify-events
 
@@ -157,7 +157,7 @@ Field order in the HTML affects what appears in the summary.
 - No submissions at all: confirm form detection is enabled (Forms > Form detection) and redeploy.
 - SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
 - Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
-- Email notification won't save (validation error): the recipient isn't an active team member — use a team member's email or invite the person first.
+- Email notification won't save on create or edit (validation error): outside Enterprise/Legacy Business plans, the recipient isn't an active team member — use a team member's email or invite the person first. Existing notifications with such an address keep sending until edited.
 - Still stuck: Netlify Support Guide on how to debug your form — https://answers.netlify.com/t/common-issue-how-to-debug-your-form/92
 
 ## Constraints
@@ -168,7 +168,7 @@ Field order in the HTML affects what appears in the summary.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
 
 <!-- Gap: ChatGPT automation event names, plan gating, and setup steps are not in this grouping; see the linked ChatGPT setup guide.
-     Gap: docs don't say whether the active-team-member recipient rule applies to webhooks or to pre-existing notifications. -->
+     Gap: docs don't say whether the active-team-member recipient rule applies to webhooks, or how upcoming recipient email verification will work. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

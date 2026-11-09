@@ -2,5 +2,14 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>netlify/renovate-config"
+  ],
+  "packageRules": [
+    {
+      "description": "The test-receiver job in validate-skills.yml runs on Node 18 on purpose: it is the oldest Node version the scripts promise to support. Never bump it.",
+      "matchFileNames": [".github/workflows/validate-skills.yml"],
+      "matchDepNames": ["node"],
+      "matchCurrentValue": "18",
+      "enabled": false
+    }
   ]
 }

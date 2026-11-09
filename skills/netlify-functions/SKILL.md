@@ -147,7 +147,7 @@ Blobs: `import { getStore } from "@netlify/blobs"`; `getStore("uploads").set(key
 
 AI Gateway: construct `new OpenAI()` with no API key — on credit-based plans AI Gateway sets the provider env vars automatically; then `await client.responses.create({ model: "gpt-6-luna", input: [...] })`.
 
-Cache: `await purgeCache({ tags: ["products"] })` from `@netlify/functions` invalidates the edge cache (omit `tags` to purge all).
+Cache: for invalidating cached content from a function, follow the [on-demand cache invalidation docs](https://docs.netlify.com/build/caching/caching-overview/#on-demand-cache-invalidation).
 
 ## Streaming responses
 
@@ -316,7 +316,8 @@ export default withLambda(async (event: HandlerEvent, context: HandlerContext): 
 })
 ```
 
-<!-- Gap: docs only show the .js/.ts same-name precedence; unstated for .mjs/.mts, .cjs/.cts, or subdirectory functions. -->
+<!-- Gap: docs only show the .js/.ts same-name precedence; unstated for .mjs/.mts, .cjs/.cts, or subdirectory functions.
+Gap: functions docs no longer document a cache-purge helper in @netlify/functions; cache invalidation lives in the caching docs. -->
 
 <!-- system: agent-context/functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (functions)

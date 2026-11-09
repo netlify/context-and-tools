@@ -53,6 +53,9 @@ Read `netlify-agent-runner/SKILL.md` for creating, listing, and managing remote 
 **Building an MCP server, or exposing an app/API to AI agents as MCP tools?**
 Read `netlify-mcp-servers/SKILL.md` for the MCP SDK + Streamable HTTP transport on a Netlify Function, authentication (single shared secret vs per-user API keys), read/write safety, file uploads, and connecting clients.
 
+**Running a long-lived Node.js server (Express, Hono, Fastify), WebSockets or Server-Sent Events, or work that outlives a request?**
+Read `netlify-server/SKILL.md` for Netlify Server (Early Access) — the `netlify/server/` entry point, real-time connections, `waitUntil` background work, region/size/scale settings, and when to use Functions instead.
+
 ## General Rules
 
 - Prefer `Netlify.env.get("VAR")` for environment variables in functions for cross-runtime and edge portability; `process.env` is also valid inside Functions. Edge Functions expose **only** `Netlify.env.get`, not `process.env`.

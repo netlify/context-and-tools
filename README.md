@@ -21,6 +21,7 @@ Public Netlify skills for AI coding agents. Each skill is a focused, factual ref
 | [netlify-access-control](skills/netlify-access-control/SKILL.md) | Protecting sites and previews — password protection, team-only access, visibility defaults, SSO |
 | [netlify-agent-runner](skills/netlify-agent-runner/SKILL.md) | Running Claude, Codex, or Gemini agent tasks remotely against a site's repo |
 | [netlify-mcp-servers](skills/netlify-mcp-servers/SKILL.md) | MCP servers on Netlify Functions — transport, authentication, connecting clients |
+| [netlify-server](skills/netlify-server/SKILL.md) | Long-lived Node.js backends (Early Access) — Express/Hono apps, WebSockets/SSE, background work, region/scale config |
 
 ### References
 

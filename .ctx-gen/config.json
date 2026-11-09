@@ -55,6 +55,10 @@
     {
       "grouping": "config",
       "skill": "netlify-config"
+    },
+    {
+      "grouping": "server",
+      "skill": "netlify-server"
     }
   ]
 }

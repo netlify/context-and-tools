@@ -16,7 +16,8 @@
     "skills/netlify-functions",
     "skills/netlify-identity",
     "skills/netlify-image-cdn",
-    "skills/netlify-mcp-servers"
+    "skills/netlify-mcp-servers",
+    "skills/netlify-server"
   ],
   "mcpServers": {
     "netlify": {

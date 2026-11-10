@@ -1,6 +1,6 @@
 ---
 name: netlify-deploy
-description: Create, configure, and manage Netlify deploys from code — reach for this when setting up Git continuous deployment, running netlify deploy or netlify deploy --prod from the CLI, writing netlify.toml deploy contexts, adding a Deploy to Netlify button, wiring build hooks, configuring Deploy Previews or branch deploys, locking or skipping deploys, fixing a failed or secrets-scanning deploy, or when someone asks to "deploy my site", "set up preview deploys", "add per-branch build config", "keep staging out of Google", or "add a deploy button to my README".
+description: Create, configure, and manage Netlify deploys from code — reach for this when setting up Git continuous deployment, running netlify deploy or netlify deploy --prod from the CLI, writing netlify.toml deploy contexts, adding a Deploy to Netlify button, wiring build hooks, configuring Deploy Previews or branch deploys, approving fork Deploy Previews on a public repo, locking or skipping deploys, fixing a failed or secrets-scanning deploy, or when someone asks to "deploy my site", "set up preview deploys", "add per-branch build config", "keep staging out of Google", or "add a deploy button to my README".
 ---
 
 # Netlify deploy
@@ -68,7 +68,7 @@ See `references/netlify-toml.md` for the full context precedence rules and `refe
 
 ## Deploy Previews & branch deploys
 
-- **Deploy Previews** auto-build for PRs/MRs (GitHub, GitLab, Bitbucket, Azure DevOps, Cursor Origin) and agent runs. The base branch must be a production branch or a branch-deploy-enabled branch. URL: `deploy-preview-<num>--<site>.netlify.app`. While the first deploy is pending the URL returns `Not Found`.
+- **Deploy Previews** auto-build for PRs/MRs (GitHub, GitLab, Bitbucket, Azure DevOps, Cursor Origin) and agent runs. The base branch must be a production branch or a branch-deploy-enabled branch. URL: `deploy-preview-<num>--<site>.netlify.app`. While the first deploy is pending the URL returns `Not Found`. Fork Deploy Previews from authors outside your team are governed by the project's untrusted deploys policy (below).
 - **Branch deploys** require setup: Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts > Configure. Enable specific branches (prefix wildcard `features/*` supported) or **All** new branches. URL: `<branch>--<site>.netlify.app`. A branch deploy persists as long as the branch exists. Build settings/env vars: `[context.branch-deploy]` for all branches, `[context.<branch>]` for one.
 - A branch-deploy branch with an open PR yields **both** a Deploy Preview and a branch deploy.
 - **Entry path:** put `@netlify /some/path` in the PR/MR description, then push a new commit to regenerate. Once set in the PR, you can't change it in the Netlify Drawer.
@@ -141,7 +141,17 @@ Netlify surfaces a **Why did it fail?** AI diagnosis above the deploy log — th
 
 ## Deploy permissions (private repos)
 
-Netlify only builds changes pushed to private repos from **recognized authors** (Owners, Developers, Git Contributors; Marketplace bots count). An unrecognized author's merge shows **Pending approval**; a Team Owner must associate them with a team account before the build starts. Build-hook deploys are exempt.
+Netlify only builds changes pushed to private repos from **recognized authors** (Owners, Developers, Git Contributors; Marketplace bots count). An unrecognized author's merge shows **Pending approval**; a Team Owner must associate them with a team account before the build starts. Build-hook deploys are exempt. This Deploy Request Policy is team-wide.
+
+## Untrusted deploys policy (public repos, fork Deploy Previews)
+
+Per-project, public-repo projects only; separate from the team-wide policy above. Fork PR/MR Deploy Previews from unrecognized authors are **always** untrusted — they run unreviewed code, can read env vars, and can burn compute. Team members are trusted even from forks **only if** their Git provider account is connected to their Netlify user. Set at Project configuration > Developer settings > Continuous deployment > Untrusted deploys policy:
+
+- **Require approval** (default) — a team member with project access accepts/rejects at the top of the Deploys tab. Accept/reject does not change the PR/MR status.
+- **Build without sensitive variables** — builds automatically; sensitive vars are withheld. Declare public values for the `deploy-preview` context or make the build work without them. Compute risk remains.
+- **⚠ Build without restrictions** — all env vars present; can expose them publicly. Avoid unless the user explicitly accepts that.
+
+Not settable for GitHub Enterprise Server / GitLab self-managed repos (treated as private). Deploy request notifications (pending/approved/rejected) are available under Require approval. Details: https://docs.netlify.com/deploy/deploy-overview#untrusted-deploys-policy.
 
 ## Constraints & gotchas
 
@@ -156,6 +166,7 @@ See `references/cli-commands.md` for the full CLI surface and flags.
 
 <!-- Retention period for failed/canceled deploys is stated inconsistently in sources (30/90 days vs 6 months); used the 30/90-day figure. -->
 <!-- Sources don't state noindex behavior for unpublished production deploys or permalinks. -->
+<!-- Deploy request status labels differ across pages (Pending review/Accepted vs pending/approved vs Pending approval); unclear if identical states. -->
 
 <!-- system: agent-context/deploy/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (deploy)

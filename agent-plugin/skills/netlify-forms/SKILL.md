@@ -1,6 +1,6 @@
 ---
 name: netlify-forms
-description: Serverless form handling on Netlify-hosted sites — detects HTML forms at deploy time, stores submissions, filters spam, and sends notifications. Use when adding a contact form, lead-capture form, file-upload form, or newsletter signup to a Netlify site; wiring AJAX form submission; setting up a custom thank-you page; adding a honeypot or reCAPTCHA to a form; getting forms working in Next.js, Nuxt, SvelteKit, Astro, or Gatsby; reading form submissions via the Netlify API; setting up submission notifications or ChatGPT automations on form submission events; or debugging missing submissions and forms that silently fail to register.
+description: Serverless form handling on Netlify-hosted sites — detects HTML forms at deploy time, stores submissions, filters spam, and sends notifications. Use when adding a contact form, lead-capture form, file-upload form, or newsletter signup to a Netlify site; wiring AJAX form submission; setting up a custom thank-you page; adding a honeypot or reCAPTCHA to a form; getting forms working in Next.js, Nuxt, SvelteKit, Astro, or Gatsby; reading form submissions via the Netlify API; setting up submission notifications or ChatGPT automations on form submission events; or debugging missing submissions, notification emails that never arrive, and forms that silently fail to register.
 ---
 
 # Netlify Forms
@@ -130,7 +130,12 @@ Variables: `%{formName}`, `%{siteName}`, `%{submissionId}`. Forms created before
 
 Set up notifications (email/webhook/Slack) in the UI: Forms > Submission notifications > **Add notification**.
 
-**⚠️ Email recipient must be an active member of your Netlify team** (unless the team is on an Enterprise or Legacy Business plan). Enforced when **creating AND editing** a notification — any other address produces a validation error and the notification is not saved. Existing notifications using a non-member address (e.g. `orders@company.com`) keep sending, but an edit that keeps that address can't be saved. Before editing, invite the address owner to the team (https://docs.netlify.com/manage/accounts-and-billing/team-management/manage-team-members#add-new-team-members) or switch to an existing member's address. To change the recipient: Forms > Submission notifications > **Options > Edit notifications**, enter an active team member's email, save. Netlify is building email verification for recipient addresses; details will be posted at https://www.netlify.com/changelog/tag/forms/
+**⚠️ Email recipient must be an active member of your Netlify team, OR an outside address that has confirmed it wants form notifications.** Enforced when **creating AND editing** a notification.
+- Outside address (client, shared inbox like `orders@company.com`): shows as **pending confirmation**; Netlify sends a **single** confirmation email; **nothing is sent until the owner selects Confirm** — an ignored email means the address never receives notifications.
+- Team-member or already-confirmed addresses receive notifications right away; confirmed addresses don't need to reconfirm.
+- Email confirmation is rolling out gradually. Where it isn't available, a non-member address produces a validation error (address must be the email of a team member) and the notification is not saved — invite the owner to the team first (https://docs.netlify.com/manage/accounts-and-billing/team-management/manage-team-members#add-new-team-members).
+
+To change the recipient: Forms > Submission notifications > **Options > Edit notifications**, enter an active team member's email or an outside address (stays pending until confirmed), save. Updates: https://www.netlify.com/changelog/tag/forms/
 
 ChatGPT automations: subscribe to form submission events from ChatGPT and run automations on them (e.g. review new submissions and flag ones needing follow-up). Setup: https://docs.netlify.com/build/build-with-ai/agent-setup-guides/use-netlify-with-chatgpt/#subscribe-to-netlify-events
 
@@ -157,7 +162,8 @@ Field order in the HTML affects what appears in the summary.
 - No submissions at all: confirm form detection is enabled (Forms > Form detection) and redeploy.
 - SSR/JS forms silently failing: verify the static skeleton file exists with exactly-matching field names and that AJAX targets the skeleton file, not `/`.
 - Missing old-field data: the UI shows only fields from the last deployed form version. Mark old fields `hidden` instead of removing them to keep them visible; old data remains available via `listFormSubmissions`.
-- Email notification won't save on create or edit (validation error): outside Enterprise/Legacy Business plans, the recipient isn't an active team member — use a team member's email or invite the person first. Existing notifications with such an address keep sending until edited.
+- Email notification won't save on create or edit (validation error saying it must be a team member's email): email confirmation isn't available for your team and the recipient isn't an active team member — use a team member's email or invite the person first.
+- Outside-team recipient gets no notifications: it's **pending confirmation** until the owner selects **Confirm** in the single confirmation email; if ignored, it never receives notifications.
 - Still stuck: Netlify Support Guide on how to debug your form — https://answers.netlify.com/t/common-issue-how-to-debug-your-form/92
 
 ## Constraints
@@ -168,7 +174,8 @@ Field order in the HTML affects what appears in the summary.
 - Data is stored in Netlify's database, not accessible except via UI/API/CSV.
 
 <!-- Gap: ChatGPT automation event names, plan gating, and setup steps are not in this grouping; see the linked ChatGPT setup guide.
-     Gap: docs don't say whether the active-team-member recipient rule applies to webhooks, or how upcoming recipient email verification will work. -->
+     Gap: docs don't say whether the recipient rule applies to webhooks, how a team can tell confirmation is available, or what happens to existing notifications with unconfirmed non-member addresses.
+     Gap: confirmation email resend, expiry, re-adding ignored addresses, and per-project vs. cross-project scope are undocumented. -->
 
 <!-- system: agent-context/forms/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (forms)

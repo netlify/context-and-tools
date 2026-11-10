@@ -1,11 +1,11 @@
 ---
-description: Build and deploy a long-lived Node.js backend on Netlify Server (Early Access) from netlify/server/index.ts. Use this skill whenever someone wants to run an Express, Fastify, Hono or Koa app on Netlify as it is, add a backend or REST/GraphQL API that keeps database pools and caches warm, build real-time features such as chat, live dashboards or multiplayer with WebSockets or Server-Sent Events, or stream AI responses and run agent loops. It also covers background work after responding with waitUntil, startup and graceful shutdown hooks, load-aware health checks, edge caching of server responses, region/size/scale settings, local testing with netlify dev, and debugging a server that gets no requests, fails to start, drops database connections after a minute, or returns 429/500/501/502.
+description: Build and deploy a long-lived Node.js backend on Netlify Server (Early Access) from netlify/server/index.ts. Use this skill whenever someone wants to run an Express, Fastify, Hono or Koa app on Netlify as it is, add a backend or REST/GraphQL API that keeps database pools and caches warm, build real-time features such as chat, live dashboards or multiplayer with WebSockets or Server-Sent Events, or stream AI responses and run agent loops. It also covers background work after responding with waitUntil, startup and graceful shutdown hooks, load-aware health checks, edge caching of server responses, region/size/scale settings, local testing with netlify dev, reading server logs with netlify logs or log drains, and debugging a server that gets no requests, fails to start, drops database connections after a minute, or returns 429/500/501/502.
 alwaysApply: false
 ---
 
 # Netlify Server
 
-Early Access, so APIs may change. It is available on credit-based plans and on Enterprise plans with credits enabled. It requires **Node.js 24+** for both build and local dev, and **Netlify CLI 27.14.0+** to deploy.
+Early Access, so APIs may change. It is available on credit-based plans and on Enterprise plans with credits enabled. It requires **Node.js 24+** for both build and local dev, and **Netlify CLI 27.17.0+** for both local dev and deploys.
 
 It is free during Early Access and intended for evaluation, experimentation, and low-volume production use. At GA it will bill credits for reserved memory (GB-hours) and active CPU (vCPU-hours). **Every request the server handles already counts toward the web requests meter.**
 
@@ -305,7 +305,7 @@ Close sockets with code `1012` in `onShutdown` so clients move immediately.
 ## Local dev and logs
 
 **Local dev:**
-- Run `netlify dev`. The **Netlify Vite plugin doesn't run the server.**
+- Run `netlify dev` (CLI 27.17.0+). The **Netlify Vite plugin doesn't run the server.**
 - The CLI restarts the server on changes inside `netlify/server/` only. Restart the CLI for changes elsewhere.
 - Local differences from production:
   - Single instance.
@@ -324,7 +324,41 @@ Close sockets with code `1012` in `onShutdown` so clients move immediately.
   - **Logs view.**
 - Per-request views are also in [observability](https://docs.netlify.com/manage/monitoring/observability/overview/).
 - Use `console.*` inside a request to attach the `requestId`. Direct `process.stdout` writes aren't linked to requests.
-- **Logs aren't available in log drains or the CLI.**
+
+**CLI and log drains:**
+
+```bash
+netlify logs                                # server + functions + edge functions, last 10 min
+netlify logs --source server --since 30m    # server only; --until ends the window
+netlify logs --source server --follow       # stream lines as written
+```
+
+- `--level` and `--json` work. **`--deploy-id` and `--url` don't work with server logs**, because they can't be filtered by deploy.
+- Long windows show only the most recent lines. Narrow `--since`/`--until` to see older ones.
+- For [log drains](https://docs.netlify.com/manage/monitoring/log-drains/#configure-a-log-drain), select **Server logs** as a log type.
 
 <!-- Gaps: instance cap, medium/large size availability, and scale.max default for Business plans are not documented. -->
 <!-- Exact per-instance WebSocket limit, netlify.toml spelling of excludedPath/includedFiles, and GA credit rates are unstated. -->
+
+<!-- system: agent-context/server/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
+# Netlify house rules (server)
+
+These are org conventions, not docs facts — they are merged into the rendered
+skill by ctx-gen and are never generated. Owned by the Netlify Server team.
+
+1. Never keep a server alive on purpose: no self-pings, no `setInterval` or
+   scheduled function that calls the server, no `waitUntil` chain that
+   schedules more work to stay running. Scale to zero is the design. If the
+   user asks for an always-on server, explain this and build without it.
+2. Run scheduled work with a scheduled function that calls a server route,
+   never with timers inside the server.
+3. An endpoint that fetches a URL the user supplies must resolve the hostname
+   and refuse loopback, private, link-local and unique-local addresses
+   (including 169.254.169.254), re-check after every redirect, and return only
+   what the feature needs. Never build a generic `/proxy?url=` endpoint or
+   forward the caller's method, headers or body — that is an open relay.
+4. Process memory is lost on every scale-to-zero, deploy and platform
+   maintenance event. In-memory caches are fine; anything that must survive
+   belongs in Netlify Blobs or Netlify Database.
+5. Don't detach child processes; they are killed on scale-to-zero. Keep work
+   in-process with `waitUntil`, or use a background function.

@@ -7,6 +7,8 @@ alwaysApply: false
 
 Reach for the modern default-handler API (`.mts` TypeScript). Export a default async handler taking a web `Request` and a Netlify `Context`, returning a web `Response`. Avoid the legacy AWS Lambda handler shape unless writing Go or migrating old code (see Legacy at the end).
 
+**Building an app's backend?** Start with [Netlify Server](https://docs.netlify.com/build/server/), a long-lived server that holds connections open and keeps state between requests; use functions alongside it for individual tasks, scheduled jobs, and events. See [When to use a server](https://docs.netlify.com/build/server/#when-to-use-a-server).
+
 ## File locations
 
 - Default directory: `netlify/functions/` (relative to base directory). Keep it **outside** your publish directory or source files ship as static assets.
@@ -181,7 +183,7 @@ export default async (req: Request) => {
 export const config: Config = { background: true, path: "/process" }
 ```
 
-Limits: background payload **256 KB**. Legacy `-background` filename suffix still works but prefer `config.background`.
+Legacy `-background` filename suffix still works but prefer `config.background`.
 
 ## Scheduled functions (cron)
 
@@ -245,7 +247,7 @@ export default {
 
 **Form events**: `formSubmitted` → `event.data` (object keyed by field name). Return `void`.
 
-Multiple functions can handle the same event (all run). Netlify signs each event (JWS) and verifies before invoking, blocking external requests. Legacy filename convention (file named after the event, payload via `await req.json()` → `payload`) still works but prefer typed handlers.
+Multiple functions can handle the same event (all run). Netlify signs each event (JWS) and verifies before invoking. Legacy filename convention (file named after the event, payload via `await req.json()` → `payload`) still works but prefer typed handlers.
 
 ## Region
 
@@ -281,8 +283,6 @@ export const config: Config = { path: "/heavy", memory: "2gb" } // or memory: 20
   external_node_modules = ["package-1"]
 ```
 
-⚠️ Combined env vars are capped at **~4 KB** for ALL functions — keep PEM keys/service-account JSON out of env vars.
-
 JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 
 ## Limits (not configurable)
@@ -296,7 +296,7 @@ JS-only esbuild: `[functions]\n  node_bundler = "esbuild"`.
 - Most frameworks emulate functions in their dev server. Vite frameworks (Astro, Nuxt, TanStack Start, React Router): install `@netlify/vite-plugin` and run the dev server. Next.js and anything else: use the [Netlify CLI](https://docs.netlify.com/api-and-cli-guides/cli-guides/local-development/) (`netlify dev`).
 - Scheduled functions don't fire on a schedule locally — invoke once with `netlify functions:invoke <name>`.
 - Deploy: push to Git for continuous deployment, or use the Netlify CLI/API.
-- Logs & metrics live in the Netlify UI; stream with the CLI. All deployed function versions appear under the **Functions** tab; use the search field at the top of the list to filter functions by name, and the separate filter to select a branch or enter a Deploy Preview number.
+- Logs & metrics live in the Netlify UI; stream with the CLI. Deployed function versions appear under the **Functions** tab: search filters by name; a separate filter selects a branch or Deploy Preview number.
 
 ## Node runtime version
 
@@ -316,8 +316,7 @@ export default withLambda(async (event: HandlerEvent, context: HandlerContext): 
 })
 ```
 
-<!-- Gap: docs only show the .js/.ts same-name precedence; unstated for .mjs/.mts, .cjs/.cts, or subdirectory functions.
-Gap: functions docs no longer document a cache-purge helper in @netlify/functions; cache invalidation lives in the caching docs. -->
+<!-- Gap: docs only show the .js/.ts same-name precedence; unstated for .mjs/.mts, .cjs/.cts, or subdirectory functions. -->
 
 <!-- system: agent-context/functions/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (functions)
@@ -388,3 +387,5 @@ hand-written netlify-functions skill; owned by the skills maintainer.
     `email` can also be `undefined`, so key stored records on `id`. This is
     a Netlify account, not a Netlify Identity user; for Identity, use
     `getUser()` from `@netlify/identity`.
+17. Scheduled functions have no public URL. Run one on demand with **Run now**
+    or `netlify functions:invoke`.

@@ -1,13 +1,13 @@
 ---
 name: netlify-caching
-description: Cache dynamic and static responses on Netlify's CDN from Functions, Edge Functions, and proxies. Use when you add caching or cache-control headers to a function response, tune cache TTL or stale-while-revalidate, set up the durable cache, vary a cache key by query/header/cookie/country/language, purge or invalidate the cache by site or cache tag, use the programmatic Cache API (caches.open/match/put) or @netlify/cache helpers (fetchWithCache/cacheHeaders/getCacheStatus/purgeCache), speed up an expensive API call, add ISR or on-demand revalidation, or debug why a response is or isn't cached via the Cache-Status header.
+description: Cache dynamic and static responses on Netlify's CDN from Functions, Edge Functions, Netlify Server, and proxies. Use when you add caching or cache-control headers to a function or server response, tune cache TTL or stale-while-revalidate, set up the durable cache, vary a cache key by query/header/cookie/country/language, purge or invalidate the cache by site or cache tag, use the programmatic Cache API (caches.open/match/put) or @netlify/cache helpers (fetchWithCache/cacheHeaders/getCacheStatus/purgeCache), speed up an expensive API call, add ISR or on-demand revalidation, or debug why a response is or isn't cached via the Cache-Status header.
 ---
 
 # Netlify caching
 
 ## Cache-control header to reach for
 
-Dynamic responses (Functions, Edge Functions, proxies) are **NOT cached by default**. You must opt in. Set `Netlify-CDN-Cache-Control` on the response:
+Dynamic responses (Functions, Edge Functions, Netlify Server, proxies) are **NOT cached by default**. You must opt in. Set `Netlify-CDN-Cache-Control` on the response:
 
 ```ts
 import type { Context } from "@netlify/functions";
@@ -316,7 +316,8 @@ Netlify sets `Cache-Status` (RFC 9211) on all responses. Check it on a **deploye
 A negative `ttl` is the number of seconds since expiry. Each request may hit a different cache instance. Without production traffic or `durable`, expect several empty caches before a hit; repeat requests to warm one.
 
 <!-- Gaps: @netlify/cache local-dev docs show cache.set; resolved to the documented cache.put. 10 MB limit doesn't say compressed vs uncompressed size, or whether it covers add/addAll/fetchWithCache.
-purgeCache `domain` is documented both as a site selector and as a deploy target; whether a 429 rate limit surfaces as a Promise rejection is unstated. -->
+purgeCache `domain` is documented both as a site selector and as a deploy target; whether a 429 rate limit surfaces as a Promise rejection is unstated.
+Unstated whether durable, default query cache keys, Netlify-Cache-ID, or the Cache API apply to Netlify Server responses. -->
 
 <!-- system: agent-context/caching/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (caching)

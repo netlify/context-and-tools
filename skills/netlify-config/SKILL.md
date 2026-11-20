@@ -1,12 +1,12 @@
 ---
 name: netlify-config
-description: Configure Netlify builds and routing via netlify.toml, _redirects, and _headers. Use when setting a build command or publish directory, validating netlify.toml against its JSON schema, adding redirects/rewrites/proxies or an SPA fallback rewrite, or setting custom response headers or basic auth. Also use when managing environment variables and secrets, scoping vars per deploy context, marking a var as secret or disabling secret scanning, configuring functions bundling, ignoring builds, or wiring up a monorepo or JavaScript SPA on Netlify.
+description: Configure Netlify builds and routing via netlify.toml, _redirects, and _headers. Use when setting a build command or publish directory, validating netlify.toml against its JSON schema, adding redirects/rewrites/proxies or an SPA fallback rewrite, or setting custom response headers or basic auth. Also use when managing environment variables and secrets, scoping vars per deploy context, marking a var as secret or disabling secret scanning, handling sensitive vars in fork Deploy Previews, configuring functions bundling or the Netlify Server region/size, ignoring builds, or wiring up a monorepo or JavaScript SPA on Netlify.
 ---
 
 # Netlify configuration
 
 Config lives in three files at the repo **root** (or the base/package directory for monorepos):
-- `netlify.toml`: build, contexts, plugins, functions, redirects, headers, dev.
+- `netlify.toml`: build, contexts, plugins, functions, server, redirects, headers, dev.
 - `_redirects`: plain-text redirect/rewrite rules, saved to the **publish directory**, no extension.
 - `_headers`: plain-text response headers, saved to the **publish directory**.
 
@@ -171,12 +171,23 @@ For multi-value headers, repeat the key (`_headers`) or use a multiline TOML str
   included_files = ["!files/post-1.md"]
 ```
 
+## Netlify Server `[server]`
+
+```toml
+[server]
+  region = "fra"     # Frankfurt
+  size = "medium"    # medium instances, 2 GB memory
+```
+- Accepts the same settings as the server's configuration: https://docs.netlify.com/build/server/configuration/
+- **If the server entry file also sets a property, the entry file wins** over `[server]`.
+- Runtime env vars for Netlify Server must be set in UI/CLI/API with a scope that includes **Functions**.
+
 ## Environment variables
 
 Two storage methods:
 - **UI / CLI / API**: stored on Netlify, not in the repo.
   - Supports site + shared vars, per-context values, and scopes.
-  - Reaches builds, functions/edge/ODB, snippet injection, forms, and signed proxies.
+  - Reaches builds, functions/edge/Netlify Server/ODB, snippet injection, forms, and signed proxies.
   - **Recommended for anything sensitive.**
 - **`netlify.toml`**: stored in the repo.
   - Site vars only, with per-context values.
@@ -209,7 +220,7 @@ API: `createEnvVars` / `updateEnvVar` (`is_secret: true`) / `setEnvVarValue` / `
 
 **Scopes** (Pro/Enterprise; default is all scopes):
 - Builds: site builds.
-- Functions: Functions, Edge Functions, ODB.
+- Functions: Functions, Edge Functions, Netlify Server, ODB.
 - Runtime: forms, signed proxies.
 - Post processing: snippet injection.
 
@@ -255,13 +266,11 @@ Flag a var as secret with `Contains secret values` (UI), `--secret` (CLI), or `i
 
 Scanning covers all build files. It checks secret values longer than 4 chars that aren't booleans, searching plaintext, base64, and URI-encoded permutations.
 
-### Sensitive variable policy (public repos only)
-This policy governs whether **untrusted** deploys (from unrecognized authors) get sensitive vars. Site members' Git deploys are always trusted, even from forks. Set it at Project configuration > Environment variables > Site policies:
-- **Require approval** (default): untrusted deploys wait for a member's approval.
-- **Deploy without sensitive variables**: builds run, but sensitive vars are withheld.
-- **Deploy without restrictions**: all vars are present.
-
-The policy is NOT available for GitHub Enterprise Server or GitLab self-managed repos, which are treated as private.
+### Untrusted deploys and sensitive variables (public repos only)
+Deploy Previews from forks of a **public** repo are governed by the project's untrusted deploys policy: https://docs.netlify.com/deploy/deploy-overview#untrusted-deploys-policy
+- With **Build without sensitive variables**, untrusted deploys build automatically but sensitive vars are **not passed**, so extensions/integrations relying on them may **break in those Deploy Previews**. Fix by making the code build without them, or by setting a safe-to-expose value for the `deploy-preview` context.
+- Vars marked `Contains secret values` are **always** sensitive. Others are detected heuristically by name (`PASSWORD`, `TOKEN`, `SECRET`, `API_KEY`, ...) and by value (known credential formats such as AWS access keys).
+- **Heuristics aren't guaranteed.** Explicitly mark secrets so they're always excluded.
 
 ## Ignore builds
 
@@ -337,8 +346,10 @@ package = "netlify-plugin-check-output-for-puppy-references"
 - Rewrites/proxies: https://docs.netlify.com/manage/routing/redirects/rewrites-proxies.md
 - Custom headers: https://docs.netlify.com/manage/routing/headers.md
 - File-based config: https://docs.netlify.com/build/configure-builds/file-based-configuration.md
+- Netlify Server configuration: https://docs.netlify.com/build/server/configuration/
 
-<!-- Plan gating for the sensitive variable policy itself is unspecified in the sources; only its public-repo requirement and the smart-detection plan list are documented. -->
+<!-- Untrusted deploys policy options, default, config location, and plan gating are documented outside this grouping's sources.
+Full [server] keys, valid regions/sizes, defaults, and plan gating for Netlify Server are not documented in this grouping's sources. -->
 
 <!-- system: agent-context/config/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (config)

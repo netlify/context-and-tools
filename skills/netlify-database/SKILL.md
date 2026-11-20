@@ -1,72 +1,161 @@
 ---
 name: netlify-database
-description: Zero-config Postgres for Netlify apps via @netlify/database — querying data from Functions/Edge Functions, writing schema migrations, setting up Drizzle ORM, local dev with netlify dev, database branches for deploy previews, and migrating an existing Postgres project onto Netlify. Use when adding a database, building a contact form or CRUD API, writing SQL migrations, wiring up Drizzle, running netlify database commands, testing with a local Postgres, or switching from Neon/Supabase/RDS to Netlify Database.
+description: Use this skill whenever a Netlify project needs a Postgres database. It covers Netlify Database setup, queries from Functions or Edge Functions, schema changes through migrations in netlify/database/migrations, Drizzle ORM wiring, local dev databases and tests, deploy-preview database branches, and moving off Neon, Supabase, RDS or the legacy @netlify/neon extension. Activate it when someone asks to add a database, store users or posts or orders, save form submissions, create or alter a table, add a column, write a migration, set up Drizzle, fix a failing migration deploy, seed or test against a local database, or switch an existing Postgres app onto Netlify. Use it even if the request never says Netlify Database explicitly.
 ---
 
 # Netlify Database
 
-Zero-config managed Postgres. Install `@netlify/database`, write migrations under `netlify/database/migrations/`, deploy — Netlify provisions the DB and applies migrations automatically. Queryable from Functions, Edge Functions, Builds, and Agent Runners.
+Managed Postgres built into Netlify. Netlify provisions the database, applies migrations on deploy, and creates a database branch for every deploy preview and agent run.
 
-## Modern client (reach for this)
+## Use this, not that
 
 ```ts
+// ✅ Modern: auto-configured, branch-aware
+import { getDatabase } from "@netlify/database";
+const db = getDatabase();
+const users = await db.sql`SELECT * FROM users WHERE id = ${id}`;
+
+// ✅ Drizzle: native adapter, connection configured automatically
+import { drizzle } from "drizzle-orm/netlify-db";
+export const db = drizzle({ schema });
+```
+
+```ts
+// ❌ Legacy Neon extension: do not write new code with it
+import { neon } from "@netlify/neon";   // reads NETLIFY_DATABASE_URL
+```
+
+Netlify Database reads `NETLIFY_DB_URL`. It does **not** read `NETLIFY_DATABASE_URL`.
+
+## Install
+
+```bash
+npm install @netlify/database                              # required: its presence triggers provisioning
+npm install drizzle-orm@beta && npm install -D drizzle-kit@beta   # Drizzle: @beta is mandatory
+npm install -g netlify-cli                                  # CLI 26.0.0+, Node 20.12.2+
+```
+
+Or run `netlify database init --yes`. It is non-interactive: it installs packages, scaffolds a starter migration, and verifies connectivity.
+
+> ⚠️ **No `@netlify/database` installed means no database.** Automatic provisioning only happens when the package is in the project. Without it, nothing is provisioned on deploy.
+
+> ⚠️ **Costs credits.** Netlify Database is available on Credit-based plans only. An active database consumes credits for compute and bandwidth. Storage is currently free. Every active deploy preview uses one branch toward the plan's branch limit.
+
+## File layout
+
+```text
+netlify/database/migrations/          # auto-applied on deploy; do not move
+├── 20260301143000_create_users.sql            # SQL-file format
+└── 20260318091500_add_posts/migration.sql     # subdirectory format
+netlify/functions/*.ts                # query from here or from edge functions
+drizzle.config.ts                     # if using Drizzle
+db/schema.ts, db/index.ts             # Drizzle schema and client
+```
+
+Migration name format is `<number>_<slug>`:
+- The slug may contain only `[a-z0-9_-]`.
+- Migrations are sorted **lexicographically**. Use timestamp prefixes.
+- A migration's name is its filename minus the extension.
+
+## Function example
+
+```ts
+// netlify/functions/users.ts
+import type { Config } from "@netlify/functions";
 import { getDatabase } from "@netlify/database";
 
-const db = getDatabase();               // auto-selects connection for the runtime
-const userId = 42;
-const users = await db.sql`SELECT * FROM users WHERE id = ${userId}`;  // auto-parameterized
-```
-
-Own driver / ORM instead:
-```ts
-import { getConnectionString } from "@netlify/database";
-const connectionString = getConnectionString();  // correct branch for this env
-```
-
-**Legacy — do NOT use for new code:** `import { neon } from "@netlify/neon"`. Superseded by `@netlify/database`. Replace `neon()` calls with the Drizzle `netlify-db` adapter or a Postgres driver via `getConnectionString()`. The legacy env var `NETLIFY_DATABASE_URL` is replaced by `NETLIFY_DB_URL`.
-
-## Where things go
-
-| What | Location |
-|------|----------|
-| Migrations | `netlify/database/migrations/` (SQL files or subdirs with `migration.sql`) |
-| Query code | Functions (`netlify/functions/`), Edge Functions |
-| Drizzle schema | `db/schema.ts` (convention) |
-| Drizzle client | `db/index.ts` (convention) |
-| Connection string | `NETLIFY_DB_URL` env var, or `getConnectionString()` |
-
-## Querying
-
-`getDatabase(options?)` returns a client with `sql` and `pool`. `options.connectionString` overrides the auto-provisioned one; `options.debug` enables logging.
-
-```ts
 const db = getDatabase();
-const active = await db.sql`SELECT * FROM users WHERE active = ${true}`;
-await db.sql`INSERT INTO users (name, email) VALUES (${"Ada"}, ${"ada@example.com"})`;
-await db.sql`UPDATE users SET name = ${"Ada Lovelace"} WHERE id = ${1}`;
-await db.sql`DELETE FROM users WHERE id = ${1}`;
 
-// Type the rows
-interface User { id: number; name: string; email: string; }
-const typed = await db.sql<User>`SELECT * FROM users`;
+export default async (req: Request) => {
+  if (req.method === "GET") {
+    return Response.json(await db.sql`SELECT * FROM users ORDER BY id DESC`);
+  }
+  if (req.method === "POST") {
+    const { name, email } = await req.json();
+    const [user] = await db.sql`INSERT INTO users (name, email) VALUES (${name}, ${email}) RETURNING *`;
+    return Response.json(user, { status: 201 });
+  }
+  return new Response("Method not allowed", { status: 405 });
+};
 
-// Stream
-for await (const row of db.sql`SELECT * FROM users`.stream()) { /* ... */ }
-for await (const chunk of db.sql`SELECT * FROM users`.chunked(100)) { /* ... */ }
+export const config: Config = { path: "/api/users" };
 ```
 
-`SQLTemplate` methods: `execute()` → `Promise<T[]>`, `stream()` → `AsyncGenerator<T>`, `chunked(n)` → `AsyncGenerator<T[]>`, `toSQL()` → raw SQL + params without executing.
+```sql
+-- netlify/database/migrations/20260301143000_create_users.sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
 
-`sql` helpers:
-- `sql.identifier(value)` — safe table/column name. String, string[], or `{ schema, table, column, as }`.
-- `sql.values(rows)` — bulk-insert values list from a 2D array.
-- `sql.default` — the SQL `DEFAULT` keyword.
-- `sql.raw(value)` — **injects unparameterized SQL; bypasses injection protection. Only for trusted constants (e.g. `"DESC"`), never user input.**
-- `sql.unsafe(query, params?, { rowMode })` — raw query string with `$1` params; `rowMode` is `"array"` or `"object"`.
+## Drizzle
 
-### Transactions — use `pool`
+```ts
+// drizzle.config.ts
+import { defineConfig } from "drizzle-kit";
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./db/schema.ts",
+  out: "netlify/database/migrations",   // REQUIRED: the default "drizzle" dir is never applied
+});
+```
 
-`db.pool` is a [`pg.Pool`](https://node-postgres.com/apis/pool). `BEGIN`/queries/`COMMIT` must run on the same connection:
+```ts
+// db/schema.ts
+import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+export const users = pgTable("users", {
+  id: serial().primaryKey(),
+  name: text().notNull(),
+  email: text().notNull().unique(),
+  createdAt: timestamp().defaultNow(),
+});
+
+// db/index.ts
+import { drizzle } from "drizzle-orm/netlify-db";
+import * as schema from "./schema";
+export const db = drizzle({ schema });
+```
+
+After changing the schema:
+1. Run `npx drizzle-kit generate`.
+2. Commit the generated files under `netlify/database/migrations/`.
+3. Deploy.
+
+## API: `@netlify/database`
+
+| Call | Returns |
+|---|---|
+| `getDatabase(options?)` | Client with `sql` and `pool`. Options: `connectionString`, `debug`. Picks the right connector per runtime. |
+| `getConnectionString()` | Postgres URL for the current branch (production or preview), for your own driver. |
+| `process.env.NETLIFY_DB_URL` | Same URL, available in builds, functions, edge functions, and agent runners. |
+
+### `db.sql`
+
+`db.sql` is a tagged template (Waddler). Every `${}` value is a bound parameter. The result is awaitable and resolves to `T[]`.
+
+```ts
+const rows = await db.sql<User>`SELECT * FROM users`;
+for await (const row of db.sql`SELECT * FROM users`.stream()) {}
+for await (const chunk of db.sql`SELECT * FROM users`.chunked(100)) {}
+db.sql`...`.toSQL();                                    // SQL + params, not executed
+
+db.sql.identifier({ table: "users" });                  // dynamic table/column names
+const data = db.sql.values([["Ada", "a@x.com"], ["Bob", "b@x.com"]]);
+await db.sql`INSERT INTO users (name, email) VALUES ${data}`;
+db.sql.default;                                         // SQL DEFAULT keyword
+db.sql.raw("DESC");                                     // ⚠️ unparameterized
+await db.sql.unsafe("SELECT * FROM users WHERE id = $1", [42], { rowMode: "object" }); // ⚠️ raw string
+```
+
+> ⚠️ `sql.raw` and `sql.unsafe` bypass injection protection. Never pass user input to them.
+
+### Transactions require `db.pool`
+
+`db.pool` is a `pg.Pool`. `BEGIN`, `COMMIT`, and `ROLLBACK` must all run on the same client, so a transaction cannot be done with `db.sql`.
+
 ```ts
 const client = await db.pool.connect();
 try {
@@ -82,270 +171,123 @@ try {
 }
 ```
 
-Own drivers:
+### Other drivers
+
 ```ts
-import { getConnectionString } from "@netlify/database";
 import pg from "pg";
 const pool = new pg.Pool({ connectionString: getConnectionString() });
 
-// or the `postgres` driver via env var
 import postgres from "postgres";
 const sql = postgres(process.env.NETLIFY_DB_URL);
 ```
 
-## Drizzle ORM
+> ⚠️ **Lambda compatibility mode functions get no auto-configured connection.** The same applies outside Netlify and to an outdated CLI. In those cases you must call `getDatabase({ connectionString })`. The symptom is the error `The environment has not been configured to use Netlify Database`. Connection strings contain credentials: keep them in env vars or a secret manager, never in commits.
 
-**Install both packages from `@beta` — required.** `latest` lacks the `drizzle-orm/netlify-db` adapter and will fail.
+## Migrations: how they ship
+
+- **Deploy preview:** migrations apply on each new deploy, before the deploy becomes available. A failed migration fails the deploy.
+- **Production:** migrations apply immediately before publish, and a failure **blocks publishing**. With auto-publish off, migrations apply when you manually publish.
+- **Local:** migrations are never automatic. Run `netlify database migrations apply`.
+- **Data changes** (backfills, fixes, seeds for production) also ship as migration files containing DML.
+
+> ⚠️ **Never edit, rename, or delete an applied migration.** Checksums are tracked, and the next deploy fails with `has been modified after being applied` or `has been removed after being applied`. To fix:
+> - Restore the original file with `git checkout` or `netlify database migrations pull`.
+> - Write a new corrective migration instead.
+
+> ⚠️ **Out-of-order prefixes fail.** A new migration must sort after every applied one. Generate names with `netlify database migrations new -d "<purpose>"`, which creates `<prefix>_<slug>/migration.sql`.
+
+> ⚠️ **Renames and drops break live traffic.** Old code briefly runs against the new schema during a deploy. Use expand → migrate → contract:
+> 1. Add the new column and write to both columns.
+> 2. Backfill the new column.
+> 3. Drop the old column in a later migration.
+>
+> New tables and new nullable columns are safe in one migration.
+
+**Own migration tool?**
+- Keep its files **outside** `netlify/database/migrations`.
+- You must apply migrations to preview branches yourself, for example in the build command.
+- There is no publish hook. Production schema changes must be backwards-compatible and applied out of band before publishing.
+
+## Branches and previews
+
+- Only production deploys reach the production database.
+- Each deploy preview, and each agent run, gets its own branch. A preview branch is forked from production data, so **it may contain real user data and PII**.
+- The production branch cannot be reset.
+- Production rollback means reverting the deploy. Restoring a snapshot overwrites data and is not a routine rollback.
+- Locally there are no branches: there is one local database.
+
+## Local dev and tests
+
 ```bash
-npm install @netlify/database drizzle-orm@beta
-npm install -D drizzle-kit@beta
-```
-
-`drizzle.config.ts` — you **MUST** set `out` to the Netlify migrations directory or Netlify won't apply generated migrations:
-```ts title="drizzle.config.ts"
-import { defineConfig } from "drizzle-kit";
-export default defineConfig({
-  dialect: "postgresql",
-  schema: "./db/schema.ts",
-  out: "netlify/database/migrations",   // NOT the default "drizzle"
-});
-```
-
-```ts title="db/schema.ts"
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
-export const users = pgTable("users", {
-  id: serial().primaryKey(),
-  name: text().notNull(),
-  email: text().notNull().unique(),
-  createdAt: timestamp().defaultNow(),
-});
-```
-
-```ts title="db/index.ts"
-import { drizzle } from "drizzle-orm/netlify-db";  // native adapter, auto-configured
-import * as schema from "./schema";
-export const db = drizzle({ schema });
-```
-
-```ts title="netlify/functions/api.ts"
-import { desc } from "drizzle-orm";
-import type { Config, Context } from "@netlify/functions";
-import { db } from "../../db";
-import { users } from "../../db/schema";
-
-export default async (req: Request, context: Context) => {
-  if (req.method === "GET") {
-    const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
-    return Response.json(allUsers);
-  }
-  if (req.method === "POST") {
-    const { name, email } = await req.json();
-    const [user] = await db.insert(users).values({ name, email }).returning();
-    return Response.json(user, { status: 201 });
-  }
-  return new Response("Method not allowed", { status: 405 });
-};
-
-export const config: Config = { path: "/api/users" };
-```
-
-Generate migrations after editing the schema: `npx drizzle-kit generate`.
-
-**Never run `drizzle-kit push` against a Netlify-hosted database, and never run `drizzle-kit migrate` against `NETLIFY_DB_URL`.** Schema reaches hosted DBs only as committed migration files applied by the deploy. `generate` writes files; the deploy applies them.
-
-## Migrations
-
-Files live in `netlify/database/migrations/`. Two formats:
-```text
-netlify/database/migrations/20260301143000_create_users.sql          # single SQL file
-netlify/database/migrations/20260318091500_add_posts/migration.sql   # subdir form
-```
-
-Naming: `<number>_<slug>` — `number` is digits (timestamp or `0001`…) defining order; `slug` is lowercase letters/numbers/hyphens/underscores. Sorted **lexicographically**, applied in order. **Use timestamp prefixes** (`netlify database migrations new` handles this) to avoid out-of-order rejection.
-
-```sql title="netlify/database/migrations/20260425103000_create_comments.sql"
-CREATE TABLE comments (
-  id SERIAL PRIMARY KEY,
-  post_id INTEGER NOT NULL REFERENCES posts(id),
-  author_id INTEGER NOT NULL REFERENCES users(id),
-  body TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-**When applied:**
-- Production deploy: applied immediately before publish; a failure blocks publish. With auto-publish off, Netlify waits for manual publish before applying.
-- Deploy preview: applied on every deploy before it goes live; a failure fails the deploy.
-- Local: **not** automatic — run `netlify database migrations apply` yourself.
-
-**Migration footguns (all detected as drift / rejected):**
-- **Never edit an applied migration** — checksum drift: `migration "<name>" has been modified after being applied`. Write a new corrective migration.
-- **Never remove an applied migration** — `... has been removed after being applied`. Restore it.
-- **Out-of-order:** a prefix ≤ the highest applied version is rejected. Timestamps avoid this.
-- Prefer backwards-compatible migrations. Breaking changes (rename/drop column) → expand-and-contract across multiple deploys. New table / nullable column → single migration is fine.
-
-Bring-your-own migration system: pick a directory **other than** `netlify/database/migrations` to avoid automatic detection, and you own applying to preview branches and production.
-
-See `references/migrations.md`.
-
-## Local development
-
-Local is **one** database that all code targets — branches are a deploy-time concept and don't exist locally. It's a real Postgres-compatible engine mirroring production, but single-process (not for load testing); auto-scale/sleep settings don't apply.
-
-Start it — either path, state is interchangeable:
-```bash
-netlify dev                                    # CLI starts + tears down the local DB
-```
-Or the Vite plugin:
-```ts title="vite.config.ts"
-import { defineConfig } from "vite";
-import netlify from "@netlify/vite-plugin";
-export default defineConfig({ plugins: [netlify()] });
-```
-
-Common commands (while local DB is running):
-```bash
-netlify database migrations apply                        # apply pending locally
-netlify database migrations new -d "add users table"     # scaffold new migration
-netlify database migrations pull                          # overwrite local migrations from remote
-netlify database status                                   # enabled? installed? applied/pending migrations
-netlify database connect                                  # interactive SQL REPL
-netlify database connect --query "SELECT * FROM users LIMIT 10"
-netlify database reset                                    # drop all schemas/tables — LOCAL ONLY
-netlify database migrations reset                         # delete unapplied local migration files
-```
-
-External tools (works while `netlify dev` runs):
-```bash
+netlify dev                      # starts a local Postgres with the dev server
+netlify database migrations apply [--to <name>]
+netlify database status [--json]
+netlify database connect --query "SELECT * FROM users LIMIT 10" --json
+netlify database reset           # wipes the LOCAL db only
+netlify database migrations reset   # deletes local migration files not yet applied
 psql "$(netlify database connect --json | jq -r .connection_string)"
 ```
 
-See `references/local-dev.md`.
+For Vite, add `netlify()` from `@netlify/vite-plugin` to `plugins`. It runs the same engine as `netlify dev` and shares the same data.
 
-## Setup
-
-New project: describe your app to Agent Runners at https://app.netlify.com/start, or `netlify create "<description>"` locally.
-
-Existing project:
-```bash
-netlify database init      # installs @netlify/database, picks Drizzle or raw SQL, scaffolds a migration
-netlify database init --yes # non-interactive (CI / agents)
-netlify dev
-```
-Manual: `npm install @netlify/database`, write a migration under `netlify/database/migrations/`, write a function, `netlify dev`, deploy.
-
-**If `@netlify/database` is NOT installed, Netlify will NOT auto-provision a database** — you'd have to create one manually from the UI **Data & Storage** > **Database** menu. Install the package.
-
-## CLI reference (`netlify database`)
-
-Prereqs: Node ≥ 20.12.2, Netlify CLI ≥ 26.0.0 (`npm install -g netlify-cli`). All commands support `--json`.
-
-| Command | Purpose | Key flags |
-|---------|---------|-----------|
-| `init` | Set up DB in project | `-y, --yes` |
-| `status` | State: enabled, installed, connection string, applied/pending migrations | `-b, --branch`, `--show-credentials` |
-| `connect` | SQL REPL, or `--query` one-shot | `-q, --query`, `--json` |
-| `migrations apply` | Apply pending to local DB | `--to <name>` |
-| `migrations new` | Scaffold a migration | `-d, --description`, `-s, --scheme sequential\|timestamp` |
-| `migrations pull` | Overwrite local files from a branch | `-b, --branch`, `--force` |
-| `migrations reset` | Delete unapplied local migration files | `-b, --branch` |
-| `reset` | Drop all data/tables — **local only** | — |
-
-See `references/cli-commands.md`.
-
-## REST API
-
-Scoped to a site, rooted at `https://api.netlify.com/api/v1`, OAuth 2. Full reference: https://open-api.netlify.com.
-
-| Method + path | Purpose |
-|---------------|---------|
-| `POST /sites/{site_id}/database` | Create DB (returns existing conn string if present); `region` optional |
-| `GET /sites/{site_id}/database` | Get connection string |
-| `POST /sites/{site_id}/database/branch` | Create branch; body `deploy_id` (req), `parent_branch_id` (opt, defaults to production) |
-| `GET /sites/{site_id}/database/branch/{deploy_id}` | Get branch conn string (404 if none) |
-| `DELETE /sites/{site_id}/database/branch/{deploy_id}` | Delete a deploy's branch |
-| `POST /sites/{site_id}/database/snapshot` | Snapshot a branch (defaults production) |
-| `GET /sites/{site_id}/database/snapshots` | List snapshots |
-| `DELETE /sites/{site_id}/database/snapshot/{snapshot_id}` | Delete a snapshot |
-| `POST /sites/{site_id}/database/snapshot/{snapshot_id}/restore` | Restore snapshot to a branch (defaults production) |
-
-**Branch delete and snapshot restore are destructive and require explicit user confirmation first.** Snapshot restore is not a routine production-rollback lever.
-
-## Testing
-
-Bare Postgres for unit/integration tests (no functions):
-```ts title="db.test.ts"
-import { NetlifyDB } from "@netlify/database-dev";  // npm i -D @netlify/database-dev
-import { Client } from "pg";
-import { afterAll, beforeAll, expect, test } from "vitest";
-
-let db: NetlifyDB, connectionString: string;
-beforeAll(async () => {
-  db = new NetlifyDB();
-  connectionString = await db.start();
-  await db.applyMigrations("./netlify/database/migrations");
-});
-afterAll(async () => { await db.stop(); });
-
-test("inserts and reads a user", async () => {
-  const client = new Client({ connectionString });
-  await client.connect();
-  await client.query("INSERT INTO users (name) VALUES ($1)", ["Ada"]);
-  const { rows } = await client.query("SELECT name FROM users");
-  expect(rows).toEqual([{ name: "Ada" }]);
-  await client.end();
-});
-```
-`NetlifyDB(options?)`: `directory` (persist to disk; omit = in-memory), `port` (default random), `logger`.
-
-Full Netlify environment (functions/edge functions read `NETLIFY_DB_URL` as in production):
 ```ts
-import { NetlifyDev } from "@netlify/dev";  // npm i -D @netlify/dev
-const netlifyDev = new NetlifyDev({ projectRoot: "./fixtures/my-project" });
-await netlifyDev.start();  // sets NETLIFY_DB_URL in the runtime
-// ...tests...
-await netlifyDev.stop();
+// Vitest: DB only
+import { NetlifyDB } from "@netlify/database-dev";
+const db = new NetlifyDB();                  // in-memory, random port
+const url = await db.start();
+await db.applyMigrations("./netlify/database/migrations");
+await db.stop();
+
+// Full environment: sets NETLIFY_DB_URL
+import { NetlifyDev } from "@netlify/dev";
+const nd = new NetlifyDev({ projectRoot: "./fixtures/my-project" });
+await nd.start(); /* tests */ await nd.stop();
 ```
 
-## Database branches (deploy-time)
+Local limitations:
+- The local database is a single process, so don't use it for load testing.
+- Auto-scale and sleep settings don't apply locally.
 
-Production deploys are the only deploys that touch the production database. Each deploy preview gets its own branch, seeded with a copy of production data at preview-creation time; schema/data changes there never affect production. Wired up automatically, no code changes.
+## CLI quick reference
 
-**Preview branches can contain production data, including PII — and preview deploy links are public. Warn the user before sharing a preview link.**
+`netlify database`:
 
-## Runtime gotchas
+| Command | Purpose |
+|---|---|
+| `init [-y]` | Set up the database in a project |
+| `status [-b <branch>] [--show-credentials] [--json]` | Enabled state, package presence, connection string, applied/pending migrations |
+| `migrations new -d <desc> [-s sequential\|timestamp]` | Create a correctly named migration |
+| `migrations apply [--to <name>]` | Apply pending migrations to the local database |
+| `migrations pull [-b [branch]] [--force]` | ⚠️ Overwrites local migration files with a remote branch's |
+| `migrations reset [-b <branch>]` | Delete unapplied local migration files |
+| `connect [-q <sql>] [--json]` | Query the local database |
+| `reset` | Wipe the local database |
 
-- **`Environment not configured`** (`getDatabase()` can't resolve a connection string): running outside Netlify, on **Functions in Lambda compatibility mode**, or an outdated CLI. Fix: pass `connectionString` explicitly.
-  ```ts
-  const db = getDatabase({ connectionString: "postgres://..." });
-  ```
-  Lambda compatibility mode is the one primitive where you must pass `connectionString` yourself.
-- **`database feature not available for this account`** — requires a Credit-based plan.
-- **`compute customization requires a Pro or higher plan`** — auto-scale / sleep settings need Pro+; Free/Personal use defaults.
-- **`branch limit reached: maximum <N> branches...`** — each active deploy preview consumes a branch; delete unneeded branches or upgrade.
-- **`database not found`** — no DB provisioned; run `netlify database init`.
-- **`cannot reset the production branch`** — reset is non-production only.
+Full flag details are in `references/cli-commands.md`.
 
-## Constraints
+## Common errors
 
-- **Plan:** Netlify Database is available on Credit-based plans only; active DBs consume credits for compute and bandwidth. Storage is free until July 1, 2026.
-- **Permissions:** only a Team Owner can delete a database; only Team Owners and Developers can view connection strings (`Access Denied` = insufficient role).
-- **Secrets:** connection strings contain username + password. Never commit them; store in a secret manager / env var provider.
+| Error | Fix |
+|---|---|
+| `database not found` | Install `@netlify/database` and deploy, or run `netlify database init`. |
+| `added out of order` | Rename with a higher prefix. If it was never applied anywhere, `migrations reset`. |
+| `error running migrations: …` | Read the DB error in the deploy log. Reproduce locally with `migrations apply`, and fix on a preview before merging. |
+| `branch limit reached` | Too many active previews. Close stale PRs or upgrade the plan. |
+| `database feature not available for this account` | The account needs a Credit-based plan. |
+| `compute customization requires a Pro or higher plan` | Free/Personal plans use default compute. |
+| `Access Denied` | Permission issue: only Team Owners delete databases, and only Owners and Developers view connection strings. |
 
-## Switch an existing Postgres project to Netlify Database
+## Deeper guides
 
-Three phases: provision (baseline schema on a branch), rehearse (swap code, copy data into a preview branch, validate), cut over (import data into production, merge). Works from any Postgres source (Neon, Supabase, RDS, self-managed, legacy `@netlify/neon`). Uses `pg_dump`/`pg_restore` (versions matching the source). There is a brief data-loss window — writes to the source between final export and production deploy don't cross over.
+- Footgun catalog: `references/operational-footguns.md`
+- Migration patterns: `references/migrations.md`
+- Local setup and testing: `references/local-dev.md`
+- Moving from the Neon extension: `references/migration-from-extension.md`
+- Reading old `@netlify/neon` code: `references/legacy-extension.md`
+- Product docs: https://docs.netlify.com/build/data-and-storage/netlify-database/
 
-Phase 2/3 code swap (Drizzle):
-```ts title="db/index.ts"
-import { drizzle } from "drizzle-orm/netlify-db";
-import * as schema from "./schema";
-export const db = drizzle({ schema });
-```
-
-Full step-by-step (dump flags, rollback, cleanup): `references/migration-from-extension.md` and `references/legacy-extension.md`.
-
-<!-- Gaps: plan-tier naming (Credit-based vs Free/Personal/Pro) not reconciled in source; exact plan limits, permission tables, and snapshot UI flows live on pages outside this grouping. -->
+<!-- Gaps: numeric branch/database plan limits, the permissions table, and auto-scale/sleep settings are not in the source.
+Preview-branch naming and lifetime (re-fork vs reuse on later pushes) is unclear. REST endpoints for branch reset/list are undocumented. -->
 
 <!-- system: agent-context/database/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (database)

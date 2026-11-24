@@ -4,6 +4,14 @@ All notable changes to this project are documented here. From v0.8.0 onward this
 file is maintained automatically by [release-please](https://github.com/googleapis/release-please).
 Versions v0.1.0–v0.8.0 were backfilled from the project's history.
 
+## [1.9.1](https://github.com/netlify/context-and-tools/compare/v1.9.0...v1.9.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **context:** sync skills from netlify/docs ([#174](https://github.com/netlify/context-and-tools/issues/174)) ([b111e77](https://github.com/netlify/context-and-tools/commit/b111e771432aecedc81782d64cac42530a9cd1eb))
+* **context:** sync skills from netlify/docs ([#178](https://github.com/netlify/context-and-tools/issues/178)) ([c5d7ccf](https://github.com/netlify/context-and-tools/commit/c5d7ccf4932d464b6aaf760740230b5548a20943))
+
 ## [1.9.0](https://github.com/netlify/context-and-tools/compare/v1.8.1...v1.9.0) (2026-11-10)
 
 

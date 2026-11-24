@@ -45,8 +45,8 @@
     "intermediateHash": "c5067da7dea9839d838a9d5d705d90acc89c6bf628860e63d14b9aa29f03b88b"
   },
   "image-cdn": {
-    "sourceHash": "3e9ac5dea687a5624a1c2bfe2f3e1007133823d7a690bc5cff28ae4dd08a8ed5",
-    "docsCommit": "de50f05f6d78a29a365c43c70ffd160afcffb7ec",
+    "sourceHash": "50f7abffb39cba7d3f8f871ed5715acd54cc15e95ad90923feb6105d09f150c5",
+    "docsCommit": "c4066c1d61271083f8fc7b280a8d55a4875cb803",
     "affects": [
       "api",
       "authoring",
@@ -57,7 +57,7 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "48d23376ae254e34346cad15ed09609b8cbaafbe085bfbcb67c27d844b9f9b3e"
+    "intermediateHash": "93489c2f42b79d603479b2dae75387c3415274a469a77a2ef21a5dd0660c8985"
   },
   "caching": {
     "sourceHash": "156fe54ced979366b2b96585cd2360d2140b2624317bdfca638315f4b6d7d64d",
@@ -120,8 +120,8 @@
     "intermediateHash": "61f0f375d07fcfbfe5197a4296afa8b51de1b8f978c3ebd7e208dd55000b5c56"
   },
   "ai-gateway": {
-    "sourceHash": "aa33f7cb9d0aafe0647567c0de890193e200be3e37d2f754910891368e628c7d",
-    "docsCommit": "0355e7d204e60975910f7eb1c3ca136ec7ae9234",
+    "sourceHash": "1bb34bcd7d702154b2a76bd810cb71281fff2f38739f47a5c667edc079a5e796",
+    "docsCommit": "c4066c1d61271083f8fc7b280a8d55a4875cb803",
     "affects": [
       "api",
       "authoring",
@@ -132,7 +132,7 @@
       "overview",
       "workflows"
     ],
-    "intermediateHash": "c5ac670dbe141bd915a9f772133d4705e41cd8ed270916be84463ab5a7e8bea3"
+    "intermediateHash": "6f0b7ab0f19581a1dfd40b0d0b48f9a3476df6148ef686ee05af5ce0c3b06f45"
   },
   "frameworks": {
     "sourceHash": "8d03464082bc25ed8873776c6293ca39f4c813f2d6ffe9da7238b3b72af828e0",
@@ -194,7 +194,7 @@
     ],
     "intermediateHash": "2cbfda451eed4b57e23522140b2c2192df704194b9de7f3579b40e6e73c90832"
   },
-  "lastImportedCommit": "5f2192f1e20318feeba5f6017c117ada77df18da",
+  "lastImportedCommit": "c4066c1d61271083f8fc7b280a8d55a4875cb803",
   "server": {
     "sourceHash": "6f5f2a8ddf73e11f5da3cc2d72ee9b636d7677b9df19c785a133c658e7b28412",
     "docsCommit": "6521a65747aa9bf3737d9a0f9bd59141140b4848",

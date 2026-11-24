@@ -1,6 +1,6 @@
 ---
 name: netlify-ai-gateway
-description: Use Netlify AI Gateway to call OpenAI, Anthropic Claude, Google Gemini, TypeSafe (Jev), or OpenRouter-hosted models (xAI/DeepSeek/Meta/Mistral/Qwen) from Netlify Functions or Edge Functions without managing provider accounts or API keys. Reach for this when adding an AI feature to a Netlify app — a chatbot, text summarizer, image generator, joke/content generator, form-submission routing or analysis, or any LLM call — or when wiring the OpenAI/Anthropic/Gemini/TypeSafe/OpenRouter SDK into a Netlify Function, choosing which env vars to use, streaming long generations, or debugging why gateway calls fail at build time or return 401.
+description: Use Netlify AI Gateway to call OpenAI, Anthropic Claude, Google Gemini, Meta, TypeSafe (Jev), or OpenRouter-hosted models (xAI/DeepSeek/Mistral/Qwen) from Netlify Functions or Edge Functions without managing provider accounts or API keys. Reach for this when adding an AI feature to a Netlify app — a chatbot, text summarizer, image generator, joke/content generator, form-submission routing or analysis, or any LLM call — or when wiring the OpenAI/Anthropic/Gemini/TypeSafe/OpenRouter SDK into a Netlify Function, choosing which env vars to use, streaming long generations, or debugging why gateway calls fail at build time or return 401.
 ---
 
 # Netlify AI Gateway
@@ -15,7 +15,7 @@ Call AI models from Netlify compute using the provider's official SDK. The gatew
 - **Runtime-only credentials.** Never call the gateway from build scripts, prerender/SSG, or build plugins — those get no credentials and fail. Do AI work at request time; cache to Netlify Blobs if output must look precomputed.
 - **60-second sync timeout.** A gateway call in a synchronous function is bound by the 60s function timeout. Stream long generations (SDK streaming + `ReadableStream`), or use a background function that persists output for the client to fetch. Never leave a slow generation unstreamed.
 - **Requires one production deploy.** The gateway does not activate until a project has at least one production deploy. Even for local dev, run `netlify deploy --prod` once first.
-- **Don't hardcode model lists.** Available models change. Check the live providers endpoint (`https://api.netlify.com/api/v1/ai-gateway/providers/detailed`) rather than baking in a static list.
+- **Don't hardcode model lists.** Available models change. Check the live providers endpoint (`https://api.netlify.com/api/v1/ai-gateway/providers/detailed`) rather than baking in a static list. That endpoint lists models — it is not where AI requests are sent.
 - **OpenRouter SDK needs 1.2.43+.** Earlier versions ignore `OPENROUTER_BASE_URL`, call openrouter.ai directly, and fail with `401 Missing Authentication header`.
 
 ## Where code goes
@@ -102,7 +102,7 @@ const result = await openRouter.chat.send({
 });
 ```
 
-Models available through OpenRouter can be called with either the OpenRouter SDK or the OpenAI SDK using OpenRouter model-ID notation (e.g. `deepseek/deepseek-v4-flash-0731`) — just pass the ID as the `model`.
+Models available through OpenRouter can be called with either the OpenRouter SDK or the OpenAI SDK using OpenRouter model-ID notation (e.g. `deepseek/deepseek-v4-flash-0731`) — just pass the ID as the `model`. The full list of OpenRouter-served model IDs is in the table on the overview page: https://docs.netlify.com/build/ai-gateway/overview.md
 
 Model IDs above (`gpt-6.1-sol`, `claude-sonnet-5-5`, `gemini-3.8-flash`, `x-ai/grok-4.5`, etc.) are examples that change — check the live providers endpoint.
 
@@ -217,7 +217,8 @@ netlify deploy --prod --open   # required: activates the gateway
 - **Context window:** input limited to 200k tokens.
 - **Prompt caching:** Anthropic — only the default 5-min ephemeral cache; OpenAI — per-account `prompt_cache_key` set for you; Gemini — explicit context caching unsupported.
 - **No pass-through headers** (can't enable header-gated experimental features), **no batch inference**, **no OpenAI priority processing**.
-- **OpenRouter ZDR only:** Netlify routes only to providers with a Zero Data Retention policy. A model listed in the OpenRouter directory but with no ZDR-guaranteeing host is not served. Browse ZDR-eligible models: https://openrouter.ai/models?zdr=true
+- **Directly served vs. OpenRouter:** Anthropic, OpenAI, Google Gemini, Meta, and TypeSafe models are served directly via each provider's own API. Other creators (xAI, DeepSeek, Mistral, Qwen, etc.) are served via OpenRouter.
+- **OpenRouter ZDR only:** Netlify routes only to providers with a Zero Data Retention policy. A model listed in the OpenRouter directory but with no ZDR-guaranteeing host is not served — take model IDs from the overview page's table, not the directory. The directory (https://openrouter.ai/models?zdr=true) is only for additional model details.
 - **Privacy:** The gateway does not store prompts or model outputs.
 
 **Cost controls:** Set up rate-limiting rules on AI-calling Functions/Edge Functions to prevent visitor abuse and runaway cost: https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/ — and configure auto-recharge or credit packs: https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/configure-auto-recharge/ · https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/buy-credit-packs/
@@ -230,7 +231,8 @@ Monitor usage: https://docs.netlify.com/manage/accounts-and-billing/billing/bill
 - Quickstart: https://docs.netlify.com/build/ai-gateway/quickstart-for-ai-gateway.md
 - Examples: https://docs.netlify.com/build/ai-gateway/examples.md — including the AI SEO Image Generator (Gemini image generation): https://github.com/netlify/examples/tree/main/examples/ai-seo-image-generator and a TanStack Start chat app: https://github.com/netlify-templates/tanstack-template
 
-<!-- Gap: exact directly-served model names (Anthropic/OpenAI/Gemini/TypeSafe) are not statically enumerable — rendered at build time from the live providers endpoint. -->
+<!-- Gap: exact model names (direct and OpenRouter-served) are not statically enumerable — rendered at build time from the live providers endpoint.
+Gap: Meta is listed as directly served, but no Meta env vars, SDK example, or REST example are documented. -->
 
 <!-- system: agent-context/ai-gateway/system.md — human-owned, merged by ctx-gen; edit system.md, not this section -->
 # Netlify house rules (ai-gateway)

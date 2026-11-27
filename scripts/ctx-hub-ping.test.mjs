@@ -485,10 +485,10 @@ test('workflow shape: ping steps take the key and URL from env, and never interp
 const SYNC_TEXT = workflowText('ctx-pipeline-sync-closed.yml');
 const SYNC_JOB = jobsOf(SYNC_TEXT).report;
 
-test('workflow shape: sync-closed triggers only on pull_request_target closed, on main', () => {
+test('workflow shape: sync-closed triggers only on pull_request closed, on main', () => {
   const on = /^on:\n((?:  .*\n|\s*\n)+)/m.exec(SYNC_TEXT);
   assert.ok(on, 'on: block exists');
-  assert.equal(on[1].trimEnd(), '  pull_request_target:\n    types: [closed]\n    branches: [main]');
+  assert.equal(on[1].trimEnd(), '  pull_request:\n    types: [closed]\n    branches: [main]');
 });
 
 test('workflow shape: sync-closed job is gated on the sync branch and this repository', () => {
@@ -517,10 +517,15 @@ test('workflow shape: sync-closed has the environment, continue-on-error, and re
 });
 
 test('workflow shape: sync-closed never checks out or references the PR head', () => {
-  assert.match(SYNC_TEXT, /actions\/checkout@[0-9a-f]{40}\n\s+with:\n\s+persist-credentials: false/);
+  assert.match(
+    SYNC_TEXT,
+    /actions\/checkout@[0-9a-f]{40}\n\s+with:\n\s+ref: \$\{\{ github\.event\.pull_request\.base\.ref \}\}\n\s+persist-credentials: false/,
+  );
   for (const line of SYNC_TEXT.split('\n')) {
     if (/^\s*#/.test(line)) continue;
-    if (/^\s*ref:/.test(line)) assert.fail(`no ref: input allowed: ${line}`);
+    if (/^\s*ref:/.test(line) && line.trim() !== 'ref: ${{ github.event.pull_request.base.ref }}') {
+      assert.fail(`only the base ref may be checked out: ${line}`);
+    }
   }
   // head.* appears only in the job's if: block
   const outsideIf = SYNC_TEXT.replace(/^    if: >\n(?:      .+\n)+/m, '');
